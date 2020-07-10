@@ -3,7 +3,8 @@ use std::path;
 use bio::io::fasta;
 use bio::io::fastq;
 use bio::alignment::pairwise::banded::*;
-//use bio::alignment::sparse::hash_kmers;
+use bio::alignment::sparse::hash_kmers;
+use bio::alignment::pairwise::Scoring;
 
 fn main() {
   const ALIGN_SCORE_THRESHOLD: usize = 60;
@@ -22,10 +23,23 @@ fn main() {
 
   /* TODO: We will want to make the choice of global vs local vs semiglobal alignment depend on the reference library
      For now, we're running the local banded alignment. */
-  let score = |a: u8, b: u8| if a == b {1i32} else {-1i32};
-  let k = 8;  // kmer match length
-  let w = 6;  // Window size for creating the band
-  let mut aligner = Aligner::new(-5, -1, score, k, w);
+  const K: usize = 6; // kmer match length
+  const W: usize = 20; // Window size for creating the band
+  const MATCH: i32 = 1; // Match score
+  const MISMATCH: i32 = -1; // Mismatch score
+  const GAP_OPEN: i32 = -3; // Gap open score
+  const GAP_EXTEND: i32 = -1; // Gap extend score
+  let scoring = Scoring {
+    gap_open: GAP_OPEN,
+    gap_extend: GAP_EXTEND,
+    match_fn: |a: u8, b: u8| if a == b { MATCH } else { MISMATCH },
+    match_scores: Some((MATCH, MISMATCH)),
+    xclip_prefix: 0,
+    xclip_suffix: 0,
+    yclip_prefix: 0,
+    yclip_suffix: 0,
+  };
+  let mut aligner = Aligner::with_scoring(scoring, K, W);;
 
   // Get sequences from the input files and align them
   // TODO: Make handle FASTQ.gz rather than having to uncompress manually first
@@ -51,21 +65,23 @@ fn main() {
 
   for reference in reference_genome {
     let reference = reference.unwrap();
-    //let reference_kmers_hash = hash_kmers(reference.seq(), k);
+    let reference_kmers_hash = hash_kmers(reference.seq(), K);
     
     for record in &sequence_vec {
       if let Ok(seq) = record {
-        let score = aligner.local(seq.seq(), reference.seq()).score;
+        let score = aligner.custom_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
+        //let score = aligner.local(seq.seq(), reference.seq()).score;
         //let score = aligner.semiglobal_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
-        //print!("Sequence score: {}\n", score)
+        print!("Sequence score: {}\n", score)
       }
     }
 
     for reverse_record in &reverse_sequence_vec {
       if let Ok(seq) = reverse_record {
-        let score = aligner.local(seq.seq(), reference.seq()).score;
+        let score = aligner.custom_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
+        //let score = aligner.local(seq.seq(), reference.seq()).score;
         //let score = aligner.semiglobal_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
-        //print!("Reverse sequence score: {}\n", score)
+        print!("Reverse sequence score: {}\n", score)
       }
     }
 
