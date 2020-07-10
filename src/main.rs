@@ -3,7 +3,7 @@ use std::path;
 use bio::io::fasta;
 use bio::io::fastq;
 use bio::alignment::pairwise::banded::*;
-use bio::alignment::sparse::hash_kmers;
+//use bio::alignment::sparse::hash_kmers;
 
 fn main() {
   const ALIGN_SCORE_THRESHOLD: usize = 60;
@@ -36,30 +36,37 @@ fn main() {
 
   let reference_genome_size = 1210;//&reference_genome.size_hint().1;
   let mut current_reference_num = 1;
-  let mut curr_seq_num = 1;
+
+  // Get top 1000 of iterators and put them in vectors
+  // TODO: Remove these and use the iterators directly instead
+  let mut sequence_vec = Vec::new();
+  let mut reverse_sequence_vec = Vec::new();
+  for _ in 1..100 {
+    sequence_vec.push(sequence.next().unwrap());
+  }
+
+  for _ in 1..100 {
+    reverse_sequence_vec.push(reverse_sequence.next().unwrap());
+  }
 
   for reference in reference_genome {
     let reference = reference.unwrap();
     //let reference_kmers_hash = hash_kmers(reference.seq(), k);
     
-    for record in sequence.by_ref() {
+    for record in &sequence_vec {
       if let Ok(seq) = record {
-        //print!("Sequence score: {}\n", aligner.semiglobal_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score)
-        print!("Sequence score: {}\n", aligner.local(seq.seq(), reference.seq()).score)
+        let score = aligner.local(seq.seq(), reference.seq()).score;
+        //let score = aligner.semiglobal_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
+        //print!("Sequence score: {}\n", score)
       }
-      print!("{}\n", curr_seq_num);
-      curr_seq_num += 1;
     }
 
-    curr_seq_num = 1;
-
-    for reverse_record in reverse_sequence.by_ref() {
+    for reverse_record in &reverse_sequence_vec {
       if let Ok(seq) = reverse_record {
-        //print!("Reverse sequence score: {}\n", aligner.semiglobal_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score)
-        print!("Reverse sequence score: {}\n", aligner.local(seq.seq(), reference.seq()).score)
+        let score = aligner.local(seq.seq(), reference.seq()).score;
+        //let score = aligner.semiglobal_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
+        //print!("Reverse sequence score: {}\n", score)
       }
-      print!("{}\n", curr_seq_num);
-      curr_seq_num += 1;
     }
 
     print!("Reference genome state: {:?}/{:?}\n", current_reference_num, reference_genome_size);
