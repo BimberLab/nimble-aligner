@@ -54,21 +54,18 @@ fn main() {
     let mut aligner = Aligner::with_scoring(scoring, K, W);
 
     // Align each sequence and reverse sequence against current reference and return the scores
-    let mut seq_num = 1;
-    for record in sequence {
-      seq_num += 1;
+    let sequence_scores = sequence.map(|record| {
       if let Ok(seq) = record {
-        let score = aligner.custom_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
-        print!("score:{}\n", score);
-        print!("num:{}\n\n", seq_num);
+        aligner.custom_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
       }
-    }
+    });
 
-    for record in reverse_sequence {
+    let reverse_sequence_scores = reverse_sequence.map(|record| {
       if let Ok(seq) = record {
-        let score = aligner.custom_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
-        print!("{}\n", score);
+        aligner.custom_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
       }
-    }
+    });
+
+    let scores = sequence_scores.chain(reverse_sequence_scores);
   });
 }
