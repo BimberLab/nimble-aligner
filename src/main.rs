@@ -10,6 +10,7 @@ use bio::alignment::pairwise::banded::*;
 
 fn main() {
   const K: usize = 6; // kmer match length, used to configure aligners and kmer hashing function
+  const MATCH_THRESHOLD: i32 = 60; // Threshold to determine whether an alignment is a match
 
   // TODO: Make this safely parse arguments
   let args: Vec<String> = env::args().collect();
@@ -56,15 +57,25 @@ fn main() {
     // Subset the iterator for development
     // TODO: remove this subsetting
     let mut subset_values = Vec::new();
-    for _ in 1..20000 {
-      subset_values.push(scores.next());
+    for _ in 1..2000 {
+      subset_values.push(scores.next().unwrap());
     }
 
     subset_values
   });
 
-  let score_matrix: Vec<Vec<Option<i32>>> = scores.collect();
-  print!("{:?}", score_matrix);
+  // Run the iterator and collect the values into memory
+  // TODO: Consume lazily so that we're not loading the whole matrix into memory
+  let score_matrix: Vec<Vec<i32>> = scores.collect();
+
+  // Fold the score matrix into a first-pass results matrix
+  let results: Vec<f64> = score_matrix.iter().map(|score_vec| {
+    let score_vec_len = score_vec.len();
+    let ratio = score_vec.iter().fold(0.0, |acc, score| if score >= &MATCH_THRESHOLD { acc+1.0 } else { acc }) / score_vec_len as f64;
+    ratio
+  }).collect();
+
+  print!("{:?}\n", results);
 }
 
 // Creates a pre-configured aligner
