@@ -1,14 +1,16 @@
 use std::env;
 use std::path;
-use bio::io::fasta;
-use bio::io::fastq;
-use bio::alignment::pairwise::banded::*;
-use bio::alignment::sparse::hash_kmers;
-use bio::alignment::pairwise::Scoring;
 use rayon::prelude::*;
 use rayon::iter::ParallelBridge;
+use bio::io::fasta;
+use bio::io::fastq;
+use bio::alignment::sparse::hash_kmers;
+use bio::alignment::pairwise::{Scoring,MatchFunc};
+use bio::alignment::pairwise::banded::*;
 
 fn main() {
+  const K: usize = 6; // kmer match length, used to configure aligners and kmer hashing function
+
   // TODO: Make this safely parse arguments
   let args: Vec<String> = env::args().collect();
 
@@ -17,55 +19,74 @@ fn main() {
   // TODO: Replace unwraps() with error handling where appropriate
   let reference_genome = fasta::Reader::from_file(path::Path::new(&args[1])).unwrap().records();
 
-  // Parallelized map over the reference library
-  reference_genome.par_bridge().for_each(|reference| { 
+  // Parallelized map over the reference library iterator, producing an iterator of score vectors for each reference
+  let scores = reference_genome.par_bridge().map(|reference| { 
     // Get the reference and its hash
     let reference = reference.unwrap();
     let reference_kmers_hash = hash_kmers(reference.seq(), K);
 
-    // Get iterators to sequences that will be aligned from the sequence genome file(s)
+    // Get iterators to the sequences that will be aligned to the reference from the sequence genome file(s)
     // TODO: Handle single-end sequences, currently only does paired-end
-    let sequence = fastq::Reader::from_file(path::Path::new(&args[2])).unwrap().records();
-    let reverse_sequence = fastq::Reader::from_file(path::Path::new(&args[3])).unwrap().records();
+    let sequences = fastq::Reader::from_file(path::Path::new(&args[2])).unwrap().records();
+    let reverse_sequences = fastq::Reader::from_file(path::Path::new(&args[3])).unwrap().records();
 
+    // Create banded aligners for the sequence and the reverse sequence
+    let match_fn = |a: u8, b: u8| if a == b { 1 } else { -1 };
+    let mut sequence_aligner = get_mutable_aligner(K, match_fn);
+    let mut reverse_sequence_aligner = get_mutable_aligner(K, match_fn);
+
+    // Align the sequence and reverse sequence against the current reference and return an iterator to the scores
+    let sequence_scores = sequences.map(|record| {
+      match record {
+        Ok(seq) => sequence_aligner.custom_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score,
+        Err(_) => 0
+      }
+    });
+
+    let reverse_sequence_scores = reverse_sequences.map(|record| {
+      match record {
+        Ok(seq) => reverse_sequence_aligner.custom_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score,
+        Err(_) => 0
+      }
+    });
+
+    // Concatenate the iterators together
+    let mut scores = sequence_scores.chain(reverse_sequence_scores);
+
+    // Subset the iterator for development
+    // TODO: remove this subsetting
+    let mut subset_values = Vec::new();
+    for _ in 1..20000 {
+      subset_values.push(scores.next());
+    }
+
+    subset_values
+  });
+
+  let score_matrix: Vec<Vec<Option<i32>>> = scores.collect();
+  print!("{:?}", score_matrix);
+}
+
+// Creates a pre-configured aligner
+fn get_mutable_aligner<F: MatchFunc>(k: usize, function: F) -> Aligner<F> {
     // Define aligner scoring parameters
-    const K: usize = 6; // kmer match length
     const W: usize = 20; // Window size for creating the band
-    const MATCH: i32 = 1;
-    const MISMATCH: i32 = -1;
     const GAP_OPEN: i32 = -3;
     const GAP_EXTEND: i32 = -1;
 
     let scoring = Scoring {
       gap_open: GAP_OPEN,
       gap_extend: GAP_EXTEND,
-      match_fn: |a: u8, b: u8| if a == b { MATCH } else { MISMATCH },
-      match_scores: Some((MATCH, MISMATCH)),
+      match_fn: function,
+      match_scores: Some((1, -1)),
       xclip_prefix: 0,
       xclip_suffix: 0,
       yclip_prefix: 0,
       yclip_suffix: 0,
     };
 
-    // Create banded aligner
-    /* TODO: We will want to make the choice of global vs local vs semiglobal alignment depend on the reference library
-     * For now, we're running the local banded alignment with hashing.
-     */
-    let mut aligner = Aligner::with_scoring(scoring, K, W);
-
-    // Align each sequence and reverse sequence against current reference and return the scores
-    let sequence_scores = sequence.map(|record| {
-      if let Ok(seq) = record {
-        aligner.custom_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
-      }
-    });
-
-    let reverse_sequence_scores = reverse_sequence.map(|record| {
-      if let Ok(seq) = record {
-        aligner.custom_with_prehash(seq.seq(), reference.seq(), &reference_kmers_hash).score;
-      }
-    });
-
-    let scores = sequence_scores.chain(reverse_sequence_scores);
-  });
+  /* TODO: We will want to make the choice of global vs local vs semiglobal alignment depend on the reference library
+   * For now, we're running the local banded alignment with hashing.
+   */
+  Aligner::with_scoring(scoring, k, W)
 }
