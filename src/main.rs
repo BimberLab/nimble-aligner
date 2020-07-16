@@ -70,20 +70,6 @@ fn main() {
   // TODO: Consume lazily so that we're not loading the whole matrix into memory
   let score_matrix: Vec<Vec<i32>> = scores.collect();
 
-  // Convert to TSV and write to disc
-  // TODO: Remove this
-  /*let mut str_rep = String::new();
-  for score_vec in score_matrix {
-    for n in score_vec {
-      str_rep += &(n.to_string() + "\t")[..];
-    }
-
-    str_rep += "\n";
-  }
-
-  let mut file = File::create("aligner_score_matrix.tsv").unwrap();
-  file.write(str_rep.as_bytes()).unwrap();*/
-
   // Fold the score matrix into a first-pass results matrix
   let results: Vec<f64> = score_matrix.iter().map(|score_vec| {
     let score_vec_len = score_vec.len();
@@ -116,4 +102,20 @@ fn get_mutable_aligner<F: MatchFunc>(k: usize, function: F) -> Aligner<F> {
    * For now, we're running the local banded alignment with hashing.
    */
   Aligner::with_scoring(scoring, k, W)
+}
+
+// Convert to TSV and write to disc
+// TODO: Remove this, it's only needed for testing the aligner
+fn _write_alignment_scores_to_tsv(score_matrix: Vec<Vec<i32>>) {
+  let mut str_rep = String::new();
+  for score_vec in score_matrix {
+    for n in score_vec {
+      str_rep += &(n.to_string() + "\t")[..];
+    }
+
+    str_rep += "\n";
+  }
+
+  let mut file = File::create("aligner_score_matrix.tsv").unwrap();
+  file.write(str_rep.as_bytes()).unwrap();
 }
