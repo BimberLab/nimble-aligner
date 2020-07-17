@@ -1,3 +1,4 @@
+mod filter;
 use std::env;
 use std::path;
 use std::fs::File;
@@ -23,6 +24,7 @@ fn main() {
   let reference_genome = fasta::Reader::from_file(path::Path::new(&args[1])).unwrap().records();
 
   // Parallelized map over the reference library iterator, producing an iterator of score vectors for each reference
+  // TODO: Ensure par_bridge() maintains ordering -- otherwise, rearchitect parallelism
   let scores = reference_genome.par_bridge().map(|reference| { 
     // Get the reference and its hash
     let reference = reference.unwrap();
@@ -57,7 +59,7 @@ fn main() {
     let mut scores = sequence_scores.chain(reverse_sequence_scores);
 
     // Subset the iterator for development
-    // TODO: remove this subsetting
+    // TODO: remove this subsetting after alignment is made more efficient
     let mut subset_values = Vec::new();
     for _ in 1..2000 {
       subset_values.push(scores.next().unwrap());
@@ -77,7 +79,12 @@ fn main() {
     ratio
   }).collect();
 
-  print!("{:?}\n", results);
+  let results = filter::collapse_results_by_lineage(&args[4], results.iter());
+
+  for result in &results {
+    print!("{:?}\n", result);
+  }
+  print!("{:?}", results.len())
 }
 
 // Creates a pre-configured aligner
@@ -117,5 +124,5 @@ fn _write_alignment_scores_to_tsv(score_matrix: Vec<Vec<i32>>) {
   }
 
   let mut file = File::create("aligner_score_matrix.tsv").unwrap();
-  file.write(str_rep.as_bytes()).unwrap();
+  file.write_all(str_rep.as_bytes()).unwrap();
 }
