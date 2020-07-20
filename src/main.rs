@@ -14,6 +14,7 @@ use bio::alignment::pairwise::banded::*;
 fn main() {
   const K: usize = 6; // kmer match length, used to configure aligners and kmer hashing function
   const MATCH_THRESHOLD: i32 = 60; // Threshold to determine whether an alignment is a match
+  const REPORT_THRESHOLD: f64 = 0.004; // Number of matches below this value is discarded
 
   // TODO: Make this safely parse arguments
   let args: Vec<String> = env::args().collect();
@@ -61,7 +62,7 @@ fn main() {
     // Subset the iterator for development
     // TODO: remove this subsetting after alignment is made more efficient
     let mut subset_values = Vec::new();
-    for _ in 1..2000 {
+    for _ in 1..100000 {
       subset_values.push(scores.next().unwrap());
     }
 
@@ -79,12 +80,31 @@ fn main() {
     ratio
   }).collect();
 
+  /* Filter results by lineage.
+   * 
+   * TODO: Make whether or not to do this configurable in the library.
+   * 
+   * TODO: This just works based on the grouping string e.g. lineage. There should be some handling
+   * after this to heuristically generate names for groups without a name.
+   */
   let results = filter::collapse_results_by_lineage(&args[4], results.iter());
 
-  for result in &results {
-    print!("{:?}\n", result);
+  // Write filtered results to file
+  let mut str_rep = String::new();
+  for (group, score) in results {
+    if score > REPORT_THRESHOLD {
+      str_rep += "lineage";
+      str_rep += "\t";
+      str_rep += "percent from locus";
+      str_rep += &group.to_string();
+      str_rep += "\t";
+      str_rep += &score.to_string();
+      str_rep += "\n";
+    }
   }
-  print!("{:?}", results.len())
+
+  let mut file = File::create("results.tsv").unwrap();
+  file.write_all(str_rep.as_bytes()).unwrap();
 }
 
 // Creates a pre-configured aligner
