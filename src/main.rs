@@ -95,7 +95,7 @@ fn main() {
     if score > REPORT_THRESHOLD {
       str_rep += "lineage";
       str_rep += "\t";
-      str_rep += "percent from locus";
+      str_rep += "percent from locus\n";
       str_rep += &group.to_string();
       str_rep += "\t";
       str_rep += &score.to_string();
