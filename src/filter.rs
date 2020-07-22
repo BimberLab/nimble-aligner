@@ -48,3 +48,12 @@ pub fn collapse_results_by_lineage(reference_library_path: &str, mut scores: Ite
   group_collapse_state.results.push((group_collapse_state.curr_group, group_collapse_state.curr_score));
   group_collapse_state.results
 }
+
+// TODO: Write tests
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+}
