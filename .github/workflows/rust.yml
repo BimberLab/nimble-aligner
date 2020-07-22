@@ -13,7 +13,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    container: docker.pkg.github.com/devsebb/immunogenotyper/tests:1
+    container: docker://0xseb/immunogenotyper-tests:1
 
     steps:
     - uses: actions/checkout@v2
