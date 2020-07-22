@@ -17,4 +17,5 @@ Cargo.lock
 # Ignore genetic data
 Data/
 BulkData/
+ImageData/
 *.tsv

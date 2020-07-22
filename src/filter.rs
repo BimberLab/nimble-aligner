@@ -25,7 +25,7 @@ pub fn collapse_results_by_lineage(reference_library_path: &str, mut scores: Ite
   // Initialize group collapse state manager to the first element of the reference and score iterators
   let mut group_collapse_state = GroupCollapseState {
     results: Vec::new(),
-    curr_group: reference_library.next().unwrap().unwrap()[4].to_string(),
+    curr_group: reference_library.next().unwrap().unwrap()[GROUP_COLUMN].to_string(),
     curr_score: *scores.next().unwrap()
   };
 

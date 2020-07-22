@@ -62,7 +62,7 @@ fn main() {
     // Subset the iterator for development
     // TODO: remove this subsetting after alignment is made more efficient
     let mut subset_values = Vec::new();
-    for _ in 1..100000 {
+    for _ in 1..10000 {
       subset_values.push(scores.next().unwrap());
     }
 
@@ -91,11 +91,13 @@ fn main() {
 
   // Write filtered results to file
   let mut str_rep = String::new();
+
+  str_rep += "lineage";
+  str_rep += "\t";
+  str_rep += "percent from locus\n";
+
   for (group, score) in results {
     if score > REPORT_THRESHOLD {
-      str_rep += "lineage";
-      str_rep += "\t";
-      str_rep += "percent from locus\n";
       str_rep += &group.to_string();
       str_rep += "\t";
       str_rep += &score.to_string();
