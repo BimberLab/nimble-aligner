@@ -1,4 +1,6 @@
 mod filter;
+mod utils;
+
 use std::env;
 use std::path;
 use std::fs::File;
@@ -14,7 +16,7 @@ use bio::alignment::pairwise::banded::*;
 fn main() {
   const K: usize = 6; // kmer match length, used to configure aligners and kmer hashing function
   const MATCH_THRESHOLD: i32 = 60; // Threshold to determine whether an alignment is a match
-  const REPORT_THRESHOLD: f64 = 0.004; // Number of matches below this value is discarded
+  const REPORT_THRESHOLD: f32 = 0.004; // Number of matches below this value is discarded
 
   // TODO: Make this safely parse arguments
   let args: Vec<String> = env::args().collect();
@@ -74,22 +76,25 @@ fn main() {
   let score_matrix: Vec<Vec<i32>> = scores.collect();
 
   // Fold the score matrix into a first-pass results matrix
-  let results: Vec<f64> = score_matrix.iter().map(|score_vec| {
+  let results: Vec<f32> = score_matrix.iter().map(|score_vec| {
     let score_vec_len = score_vec.len();
-    let ratio = score_vec.iter().fold(0.0, |acc, score| if score >= &MATCH_THRESHOLD { acc+1.0 } else { acc }) / score_vec_len as f64;
+    let ratio = score_vec.iter().fold(0.0, |acc, score| if score >= &MATCH_THRESHOLD { acc+1.0 } else { acc }) / score_vec_len as f32;
     ratio
   }).collect();
 
-  /* Filter results by lineage.
+  /* Create reference library iterator and filter results by lineage.
    * 
    * TODO: Make whether or not to do this configurable in the library.
    * 
    * TODO: This just works based on the grouping string e.g. lineage. There should be some handling
    * after this to heuristically generate names for groups without a name.
    */
-  let results = filter::collapse_results_by_lineage(&args[4], results.iter());
+  // Get iterator to the reference library
+  let reference_library = utils::get_tsv_reader(File::open(path::Path::new(&args[4])).unwrap());
+  let results = filter::collapse_results_by_lineage(reference_library.into_records(), results.iter());
 
   // Write filtered results to file
+
   let mut str_rep = String::new();
 
   str_rep += "lineage";
