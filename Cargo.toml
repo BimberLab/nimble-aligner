@@ -9,3 +9,5 @@ bio = "0.31.0"
 rayon = "1.3.1"
 csv = "1.1.3"
 num_cpus = "1.13.0"
+debruijn = { git = "https://github.com/10XGenomics/rust-debruijn" }
+debruijn_mapping = { git = "https://github.com/10XGenomics/rust-pseudoaligner.git", rev = "ae4aadbce921d3233e3bd9b3ee8a8466804b20ad" }
