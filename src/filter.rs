@@ -13,6 +13,7 @@ struct GroupCollapseState {
  * scores. Collapses the reference score list by merging the scores for by group
  * Returns a score vector with a length equal to the number of groups in the references
  */
+// TODO: Look at using itertools for this
 pub fn collapse_results_by_lineage<R: Read>(mut reference_library: StringRecordsIntoIter<R>, mut scores: Iter<f32>) -> Vec<(String, f32)> {
   const GROUP_COLUMN: usize = 4;
   const ROUND_FACTOR: f32 = 100000.0;
