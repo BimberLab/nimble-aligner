@@ -17,7 +17,7 @@ struct GroupCollapseState {
 pub fn collapse_results_by_lineage<R: Read>(mut reference_library: StringRecordsIntoIter<R>, mut scores: Iter<f32>) -> Vec<(String, f32)> {
   const GROUP_COLUMN: usize = 4;
   const ROUND_FACTOR: f32 = 100000.0;
-
+  
   // Initialize group collapse state manager to the first element of the reference and score iterators
   let mut group_collapse_state = GroupCollapseState {
     results: Vec::new(),
@@ -60,6 +60,7 @@ mod tests {
     #[test]
     fn filter_all_unique_groups() {
       let reference_library_data = "\
+header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest14
 test20\ttest21\ttest22\ttest23\ttest24
 test30\ttest31\ttest32\ttest33\ttest34
@@ -85,6 +86,7 @@ test40\ttest41\ttest42\ttest43\ttest44";
     #[test]
     fn filter_single_group() {
       let reference_library_data = "\
+header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest
 test20\ttest21\ttest22\ttest23\ttest
 test30\ttest31\ttest32\ttest33\ttest
@@ -107,6 +109,7 @@ test40\ttest41\ttest42\ttest43\ttest";
     #[test]
     fn filter_multiple_groups_same_length() {
       let reference_library_data = "\
+header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest1
 test20\ttest21\ttest22\ttest23\ttest1
 test30\ttest31\ttest32\ttest33\ttest2
@@ -133,6 +136,7 @@ test60\ttest61\ttest62\ttest63\ttest3";
     #[test]
     fn filter_multiple_groups_varying_length() {
       let reference_library_data = "\
+header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest1
 test20\ttest21\ttest22\ttest23\ttest1
 test30\ttest31\ttest32\ttest33\ttest1
