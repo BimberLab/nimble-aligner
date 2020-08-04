@@ -1,11 +1,11 @@
 mod filter;
 mod utils;
 
-use std::env;
 use std::path;
 use std::fs::File;
 use std::io::Write;
 use std::collections::HashMap;
+use clap::{App, load_yaml};
 use bio::io::fasta;
 use bio::io::fastq;
 use debruijn::dna_string::DnaString;
@@ -13,24 +13,23 @@ use debruijn::dna_string::DnaString;
 type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<debruijn::kmer::VarIntKmer<u64, debruijn::kmer::K20>>;
 
 fn main() {
-  // Program parameters
-  // TODO: Get these from the reference library or console
-  const MATCH_THRESHOLD: usize = 60;
-  const NUM_CORES: usize = 4;
+  // Parse arguments based on the yaml schema
+  let yaml = load_yaml!("cli.yml");
+  let matches = App::from_yaml(yaml).get_matches();
 
-  // Record sizes
-  // TODO: Get these from reference library and/or data files
+  let input_files: Vec<&str> = matches.values_of("input").unwrap().collect();
+  let library = matches.value_of("library").unwrap();
+  let library_fasta = matches.value_of("library_fasta").unwrap();
+  let num_cores = matches.value_of("num_cores").unwrap_or("1").parse::<usize>().expect("Please provide an integer value for the number of cores.");
+
+  // Parameters for alignment
+  const MATCH_THRESHOLD: usize = 60;
   const REFERENCE_GENOME_SIZE: usize = 1209;
   const READS_SIZE: usize = 2786342;
 
-  // TODO: Make this safely parse arguments
-  let args: Vec<String> = env::args().collect();
-
   // Get iterators to records in the reference genome file and library
-  // TODO: Make handle FASTQ.gz rather than having to uncompress manually first
-  // TODO: Replace unwraps() with error handling where appropriate
-  let reference_genome = fasta::Reader::from_file(path::Path::new(&args[1])).unwrap().records();
-  let reference_library = utils::get_tsv_reader(File::open(path::Path::new(&args[4])).unwrap());
+  let reference_genome = fasta::Reader::from_file(library_fasta).unwrap().records();
+  let reference_library = utils::get_tsv_reader(File::open(path::Path::new(library)).unwrap());
 
   // Load reference genome and library into memory
   let mut reference_seqs = Vec::new();
@@ -46,38 +45,36 @@ fn main() {
   }
 
   // Create debruijn-mapped index of the reference library
-  // TODO: Check ways to make NUM_CORES more effective
   let reference_index = debruijn_mapping::build_index::build_index::<debruijn_mapping::config::KmerType>(
     &reference_seqs,
     &reference_names,
     &HashMap::new(),
-    NUM_CORES
+    num_cores
   ).unwrap();
 
   // Get iterator to the sequences that will be aligned to the reference from the sequence genome file(s)
-  // TODO: Handle single-end sequences, currently only does paired-end
-  let sequences = fastq::Reader::from_file(path::Path::new(&args[2])).unwrap().records().map(|record| DnaString::from_acgt_bytes(record.unwrap().seq()));
-  let reverse_sequences = fastq::Reader::from_file(path::Path::new(&args[3])).unwrap().records().map(|record| DnaString::from_acgt_bytes(record.unwrap().seq()));
-  let mut sequences = sequences.zip(reverse_sequences);
+  let sequences = fastq::Reader::from_file(path::Path::new(input_files[0])).unwrap().records().map(|record| DnaString::from_acgt_bytes(record.unwrap().seq()));
+  let mut reverse_sequences = None;
 
-  // Subset values for development
-  // TODO: Remove/parameterize this on the console
-  let mut subset_values = Vec::new();
-  for _ in 0..READS_SIZE {
-    subset_values.push(sequences.next().unwrap());
+  if input_files.len() > 1 {
+    reverse_sequences = Some(fastq::Reader::from_file(path::Path::new(input_files[1])).unwrap().records().map(|record| DnaString::from_acgt_bytes(record.unwrap().seq())));
   }
-  let sequences = subset_values.iter();
 
   // Map over the sequence iterator, producing an iterator of score vectors for each sequence
   let reference_scores = sequences.fold(vec![0.0; REFERENCE_GENOME_SIZE], 
-    |mut acc, (sequence, reverse_sequence)| {
+    |mut acc, read| {
 
-      /* Generate score and equivalence class for this read by aligning the sequence and reverse sequence against
+      /* Generate score and equivalence class for this read by aligning the sequence against
        * the current reference. This alignment returns any scores that are greater than the match threshold. */
-      let seq_score = pseduoalign(&sequence, &reference_index, MATCH_THRESHOLD);
-      let rev_seq_score = pseduoalign(&reverse_sequence, &reference_index, MATCH_THRESHOLD);
+      let seq_score = pseduoalign(&read, &reference_index, MATCH_THRESHOLD);
+      let mut rev_seq_score = None;
 
-      // Get the greater of the two scores and the associated equivalence class
+      // If there's a reversed sequence, do the paired-end alignment
+      if let Some(itr) = &mut reverse_sequences {
+        rev_seq_score = Some(pseduoalign(&itr.next().unwrap(), &reference_index, MATCH_THRESHOLD));
+      }
+
+      // Get the score and the associated equivalence class
       let mut max_score = 0;
       let mut max_eqv_class = Vec::new();
       if let Some((eqv_class, score)) = seq_score {
@@ -85,7 +82,8 @@ fn main() {
         max_eqv_class = eqv_class;
       } 
 
-      if let Some((eqv_class, score)) = rev_seq_score {
+      // If there's a reverse sequence and it matches, compare to the previous score and replace it if this score is higher
+      if let Some(Some((eqv_class, score))) = rev_seq_score {
         if score > max_score {
           max_eqv_class = eqv_class;
         }
@@ -105,14 +103,8 @@ fn main() {
   // Normalize the results vector down to a percentage
   let reference_scores: Vec<f32> = reference_scores.iter().map(|score| (score / READS_SIZE as f32) * 100.0).collect();
 
-  /* Create reference library iterator and filter results by lineage.
-   * 
-   * TODO: Make whether or not to do this configurable in the library.
-   * 
-   * TODO: This just works based on the grouping string e.g. lineage. There should be some handling
-   * after this to heuristically generate names for groups without a name.
-   */
-  let reference_library = utils::get_tsv_reader(File::open(path::Path::new(&args[4])).unwrap());
+  // Create reference library iterator and filter results by lineage.
+  let reference_library = utils::get_tsv_reader(File::open(path::Path::new(library)).unwrap());
   let results = filter::collapse_results_by_lineage(reference_library.into_records(), reference_scores.iter());
 
   // Write filtered results to file
