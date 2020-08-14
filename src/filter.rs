@@ -29,7 +29,7 @@ pub fn collapse_results_by_lineage<R: Read>(mut reference_library: StringRecords
 
   for (i, reference) in reference_library.enumerate() {
     if reference.is_err() {
-      print!("Warning -- could not read reference {}\n", i);
+      println!("Warning -- could not read reference {}", i);
       continue;
     }
 
