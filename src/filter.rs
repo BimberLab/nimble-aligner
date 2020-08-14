@@ -21,25 +21,33 @@ pub fn collapse_results_by_lineage<R: Read>(mut reference_library: StringRecords
   // Initialize group collapse state manager to the first element of the reference and score iterators
   let mut group_collapse_state = GroupCollapseState {
     results: Vec::new(),
-    curr_group: reference_library.next().unwrap().unwrap()[GROUP_COLUMN].to_string(),
-    curr_score: *scores.next().unwrap()
+    curr_group: reference_library.next()
+                                 .expect("Error -- reference library empty: ")
+                                 .expect("Error -- cannot parse first element of reference library: ")[GROUP_COLUMN].to_string(),
+    curr_score: *scores.next().expect("Error -- empty scores list: ")
   };
 
-  for reference in reference_library {
+  for (i, reference) in reference_library.enumerate() {
+    if reference.is_err() {
+      print!("Warning -- could not read reference {}\n", i);
+      continue;
+    }
+
     let reference = reference.unwrap();
+    let next_score = scores.next().expect("Error -- scores and reference lists are not the same length");
 
     /* If the group hasn't changed, add the score to the current score. Otherwise, push the current 
      * score to the results vector, change to the new group and the new starting score, and continue
      */
     if reference[GROUP_COLUMN] == group_collapse_state.curr_group {
-      group_collapse_state.curr_score += scores.next().unwrap();
+      group_collapse_state.curr_score += next_score;
     } else {
       // Cut results to 5 digits to remove any imprecision
       group_collapse_state.curr_score = (group_collapse_state.curr_score * ROUND_FACTOR).round() / ROUND_FACTOR;
 
       group_collapse_state.results.push((group_collapse_state.curr_group, group_collapse_state.curr_score));
       group_collapse_state.curr_group = reference[GROUP_COLUMN].to_string();
-      group_collapse_state.curr_score = *scores.next().unwrap();
+      group_collapse_state.curr_score = *next_score;
     }
   }
 
