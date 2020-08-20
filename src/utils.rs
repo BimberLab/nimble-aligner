@@ -55,21 +55,25 @@ pub fn get_valid_reference_pairs(reference_genome: bio::io::fasta::Records<File>
 }
 
 
+// Takes a result from the filtration pipeline and converts all the scores to percent matches
+pub fn convert_scores_to_percentage(scores: Vec<(String, i32)>, total_reads: usize) -> Vec<(String, f32)> {
+  scores.iter().map(|(name, score)| (name.to_string(), (*score as f32 / total_reads as f32) * 100.0)).collect()
+}
+
+
 // Write the given vector of tuples to a TSV file
-pub fn write_to_tsv(results: Vec<(String, i32)>) {
+pub fn write_to_tsv(results: Vec<(String, f32)>) {
   let mut str_rep = String::new();
 
   str_rep += "lineage";
   str_rep += "\t";
-  str_rep += "number of matches\n";
+  str_rep += "match percentage\n";
 
   for (group, score) in results {
-    if score > 0 {
-      str_rep += &group.to_string();
-      str_rep += "\t";
-      str_rep += &score.to_string();
-      str_rep += "\n";
-    }
+    str_rep += &group.to_string();
+    str_rep += "\t";
+    str_rep += &score.to_string();
+    str_rep += "\n";
   }
 
   let mut file = File::create("results.tsv").expect("Error -- could not create results file");

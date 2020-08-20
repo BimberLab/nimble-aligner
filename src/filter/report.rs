@@ -52,13 +52,27 @@ pub fn collapse_results_by_lineage<R: Read>(mut reference_library: StringRecords
 }
 
 
+// Takes a result vector from the filtration pipeline and returns all results above a given score threshold
+pub fn threshold_percentage(scores: Vec<(String, f32)>, threshold: f32) -> Vec<(String, f32)> {
+  let mut results = Vec::new();
+
+  for (name, score) in scores {
+    if score > threshold {
+      results.push((name, score));
+    }
+  }
+
+  results
+}
+
+
 #[cfg(test)]
 mod tests {
     use crate::utils;
 
     // Case where each reference has a unique group
     #[test]
-    fn filter_all_unique_groups() {
+    fn collapse_all_unique_groups() {
       let reference_library_data = "\
 header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest14
@@ -84,7 +98,7 @@ test40\ttest41\ttest42\ttest43\ttest44";
 
     // Case where each reference belongs to the same group
     #[test]
-    fn filter_single_group() {
+    fn collapse_single_group() {
       let reference_library_data = "\
 header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest
@@ -107,7 +121,7 @@ test40\ttest41\ttest42\ttest43\ttest";
 
     // Case where there are several groups of the same size
     #[test]
-    fn filter_multiple_groups_same_length() {
+    fn collapse_multiple_groups_same_length() {
       let reference_library_data = "\
 header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest1
@@ -134,7 +148,7 @@ test60\ttest61\ttest62\ttest63\ttest3";
 
     // Case where there are several groups, each of different sizes
     #[test]
-    fn filter_multiple_groups_varying_length() {
+    fn collapse_multiple_groups_varying_length() {
       let reference_library_data = "\
 header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest1
