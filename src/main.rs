@@ -20,11 +20,15 @@ fn main() {
   let input_files: Vec<&str> = matches.values_of("input").unwrap().collect();
   let num_cores = matches.value_of("num_cores").unwrap_or("1").parse::<usize>().expect("Error -- please provide an integer value for the number of cores");
 
-  // Parameters for alignment
+  // Parameters for alignment, alignment filtering, and report filtering
   const SCORE_THRESHOLD: usize = 60;
   const REFERENCE_GENOME_SIZE: usize = 1209;
   const READS_SIZE: usize = 2786342;
   const PERCENT_THRESHOLD: f32 = 0.0;
+  const NUM_MISMATCHES: usize = 150;
+  const DISCARD_DIFFERING_READ_PAIRS: bool = false;
+  const DISCARD_NONZERO_MISMATCH: bool = false;
+  const DISCARD_MULTIPLE_MATCHES: bool = true;
 
   // Get iterators to records in the reference genome file and library
   let reference_genome  = fasta::Reader::from_file(library_fasta).expect(
@@ -62,8 +66,18 @@ fn main() {
 
   println!("Pseudo-aligning reads to reference index");
 
-  // Perform pseudoalignment
-  let reference_scores = align::score(sequences, reverse_sequences, reference_index, REFERENCE_GENOME_SIZE, SCORE_THRESHOLD);
+  // Configure aligner
+  let align_config = align::AlignFilterConfig {
+    reference_genome_size: REFERENCE_GENOME_SIZE,
+    score_threshold: SCORE_THRESHOLD,
+    num_mismatches: NUM_MISMATCHES,
+    discard_differing_read_pairs: DISCARD_DIFFERING_READ_PAIRS,
+    discard_nonzero_mismatch: DISCARD_NONZERO_MISMATCH,
+    discard_multiple_matches: DISCARD_MULTIPLE_MATCHES
+  };
+
+  // Perform filtered pseudoalignment 
+  let reference_scores = align::score(sequences, reverse_sequences, reference_index, align_config);
 
   println!("Filtering results by lineage");
 

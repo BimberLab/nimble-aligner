@@ -65,9 +65,7 @@ pub fn convert_scores_to_percentage(scores: Vec<(String, i32)>, total_reads: usi
 pub fn write_to_tsv(results: Vec<(String, f32)>) {
   let mut str_rep = String::new();
 
-  str_rep += "lineage";
-  str_rep += "\t";
-  str_rep += "match percentage\n";
+  str_rep += "lineage\tmatch percentage\n";
 
   for (group, score) in results {
     str_rep += &group.to_string();

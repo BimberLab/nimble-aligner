@@ -10,4 +10,4 @@ clap = { version = "2.33.1", features = ["yaml"] }
 csv = "1.1.3"
 rust-htslib = "0.32.0"
 debruijn = { git = "https://github.com/10XGenomics/rust-debruijn" }
-debruijn_mapping = { git = "https://github.com/10XGenomics/rust-pseudoaligner", rev = "8533e36a8c7c70de23b57b088d382139fd4d6a2c" }
+debruijn_mapping = { git = "https://github.com/devsebb/rust-pseudoaligner", branch = "pseudoaligner/configure-mismatch" }
