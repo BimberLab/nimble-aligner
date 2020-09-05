@@ -10,7 +10,7 @@ pub struct AlignFilterConfig {
   pub score_threshold: usize,
   pub num_mismatches: usize,
   pub discard_differing_read_pairs: bool,   // TODO
-  pub discard_nonzero_mismatch: bool,       // TODO
+  pub discard_nonzero_mismatch: bool,
   pub discard_multiple_matches: bool
 }
 
@@ -26,13 +26,15 @@ pub fn score(sequences: impl Iterator<Item = Result<DnaString, Error>>,
     |mut acc, read| {
       /* Generate score and equivalence class for this read by aligning the sequence against
        * the current reference. This alignment returns any scores that are greater than the match threshold. */
-      let seq_score = pseudoalign(read, &index, config.num_mismatches, config.score_threshold, config.discard_multiple_matches);
+      let seq_score = pseudoalign(read, &index, config.num_mismatches, config.score_threshold,
+        config.discard_multiple_matches, config.discard_nonzero_mismatch);
       let mut rev_seq_score = None;
 
       // If there's a reversed sequence, do the paired-end alignment
       if let Some(itr) = &mut reverse_sequences {
         let reverse_read = itr.next().expect("Error -- read and reverse read files do not have matching lengths: ");
-        rev_seq_score = Some(pseudoalign(reverse_read, &index, config.num_mismatches, config.score_threshold, config.discard_multiple_matches));
+        rev_seq_score = Some(pseudoalign(reverse_read, &index, config.num_mismatches, config.score_threshold, 
+          config.discard_multiple_matches, config.discard_nonzero_mismatch));
       }
 
       // Get the score and the associated equivalence class of the forward sequence
@@ -65,13 +67,19 @@ pub fn score(sequences: impl Iterator<Item = Result<DnaString, Error>>,
 
 // Align the given sequence against the given reference with a score threshold
 fn pseudoalign(sequence: Result<DnaString, Error>, reference_index: &PseudoAligner,
-  match_threshold: usize, allowed_mismatches: usize, discard_multiple_matches: bool) -> Option<(Vec<u32>, usize)> {
+  match_threshold: usize, allowed_mismatches: usize, discard_multiple_matches: bool, discard_nonzero_mismatch: bool) -> Option<(Vec<u32>, usize)> {
   if sequence.is_err() {
     return None;
   }
 
   match reference_index.map_read_with_mismatch(&sequence.unwrap(), allowed_mismatches) {
-    Some((equiv_class, score, mismatches)) => filter::align::filter_by_alignment_score(score, equiv_class, match_threshold, discard_multiple_matches),
+    Some((equiv_class, score, mismatches)) => {
+      if discard_nonzero_mismatch && mismatches != 0 {
+        return None
+      }
+
+      filter::align::filter_by_alignment_score(score, equiv_class, match_threshold, discard_multiple_matches)
+    },
     None => None
   }
 }
