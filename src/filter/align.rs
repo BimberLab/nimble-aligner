@@ -1,6 +1,6 @@
 /* Takes a given alignment and returns it if it's above the given match threshold and
  * has an equivalence class. Can be configured to discard alignments with more than one match. */
-pub fn filter_by_alignment_score(score: usize, equiv_class: Vec<u32>, score_threshold: usize, discard_multiple_matches: bool) -> Option<(Vec<u32>, usize)> {
+pub fn filter_alignment_by_metrics(score: usize, equiv_class: Vec<u32>, score_threshold: usize, discard_multiple_matches: bool) -> Option<(Vec<u32>, usize)> {
   if score >= score_threshold && !equiv_class.is_empty() { 
     if discard_multiple_matches && equiv_class.len() > 1 {
       None
@@ -21,7 +21,7 @@ mod tests {
       let score = 100;
       let equiv_class = vec![1, 2];
 
-      let results = super::filter_by_alignment_score(score, equiv_class, 50, false);
+      let results = super::filter_alignment_by_metrics(score, equiv_class, 50, false);
       let expected_results = Some((vec![1, 2], 100));
 
       assert_eq!(results, expected_results);
@@ -33,7 +33,7 @@ mod tests {
       let score = 25;
       let equiv_class = vec![1, 2];
 
-      let results = super::filter_by_alignment_score(score, equiv_class, 50, false);
+      let results = super::filter_alignment_by_metrics(score, equiv_class, 50, false);
       let expected_results = None;
 
       assert_eq!(results, expected_results);
@@ -46,7 +46,7 @@ mod tests {
       let score = 100;
       let equiv_class = vec![1, 2];
 
-      let results = super::filter_by_alignment_score(score, equiv_class, 50, true);
+      let results = super::filter_alignment_by_metrics(score, equiv_class, 50, true);
       let expected_results = None;
 
       assert_eq!(results, expected_results);

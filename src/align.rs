@@ -72,13 +72,17 @@ fn pseudoalign(sequence: Result<DnaString, Error>, reference_index: &PseudoAlign
     return None;
   }
 
+  // Perform alignment
   match reference_index.map_read_with_mismatch(&sequence.unwrap(), allowed_mismatches) {
     Some((equiv_class, score, mismatches)) => {
+      
+      // Filter nonzero mismatch
       if discard_nonzero_mismatch && mismatches != 0 {
         return None
       }
 
-      filter::align::filter_by_alignment_score(score, equiv_class, match_threshold, discard_multiple_matches)
+      // Filter by score and match threshold
+      filter::align::filter_alignment_by_metrics(score, equiv_class, match_threshold, discard_multiple_matches)
     },
     None => None
   }
