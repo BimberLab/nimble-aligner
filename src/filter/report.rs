@@ -52,13 +52,28 @@ pub fn collapse_results_by_lineage<R: Read>(mut reference_library: StringRecords
 }
 
 
+// Takes a result vector from the filtration pipeline and returns all results above a given score threshold
+pub fn threshold_percentage(scores: Vec<(String, f32)>, threshold: f32) -> Vec<(String, f32)> {
+  let mut results = Vec::new();
+
+  for (name, score) in scores {
+    if score > threshold {
+      results.push((name, score));
+    }
+  }
+
+  results
+}
+
+
 #[cfg(test)]
 mod tests {
     use crate::utils;
 
-    // Case where each reference has a unique group
+    // Tests for collapse_results_by_lineage
+    // Case where each reference has a unique group -- filtering should do nothing
     #[test]
-    fn filter_all_unique_groups() {
+    fn collapse_all_unique_groups() {
       let reference_library_data = "\
 header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest14
@@ -82,9 +97,9 @@ test40\ttest41\ttest42\ttest43\ttest44";
       assert_eq!(results, expected_results);
     }
 
-    // Case where each reference belongs to the same group
+    // Case where each reference belongs to the same group -- filtering should collapse to a single group
     #[test]
-    fn filter_single_group() {
+    fn collapse_to_single_group() {
       let reference_library_data = "\
 header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest
@@ -107,7 +122,7 @@ test40\ttest41\ttest42\ttest43\ttest";
 
     // Case where there are several groups of the same size
     #[test]
-    fn filter_multiple_groups_same_length() {
+    fn collapse_multiple_groups_same_length() {
       let reference_library_data = "\
 header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest1
@@ -134,7 +149,7 @@ test60\ttest61\ttest62\ttest63\ttest3";
 
     // Case where there are several groups, each of different sizes
     #[test]
-    fn filter_multiple_groups_varying_length() {
+    fn collapse_multiple_groups_varying_length() {
       let reference_library_data = "\
 header1\theader2\theader3\theader4\theader5
 test10\ttest11\ttest12\ttest13\ttest1
@@ -163,5 +178,49 @@ test110\ttest111\ttest112\ttest113\ttest4";
 
       assert_eq!(results.len(), 4);
       assert_eq!(results, expected_results);
+    }
+
+
+    // Tests for threshold_percentage
+    // Case where the threshold is 0.0 -- nothing gets thresholded out
+    #[test]
+    fn threshold_percentage_no_threshold() {
+      let scores = vec![(String::from("name1"), 50.5), (String::from("name2"), 17.2), (String::from("name3"), 98.3)];
+      let results = super::threshold_percentage(scores, 0.0);
+
+      let mut expected_results: Vec<(String, f32)> = Vec::new();
+      expected_results.push((String::from("name1"), 50.5));
+      expected_results.push((String::from("name2"), 17.2));
+      expected_results.push((String::from("name3"), 98.3));
+
+      assert_eq!(results.len(), 3);
+      assert_eq!(results, expected_results);
+    }
+
+    // Case where the threshold is 100% -- nothing should get included
+    #[test]
+    fn threshold_percentage_max_threshold() {
+      let scores = vec![(String::from("name1"), 50.5), (String::from("name2"), 17.2), (String::from("name3"), 98.2)];
+      let results = super::threshold_percentage(scores, 100.0);
+
+      let expected_results: Vec<(String, f32)> = Vec::new();
+
+      assert_eq!(results.len(), 0);
+      assert_eq!(results, expected_results);
+    }
+
+    // Case where the threshold is an arbitrary value -- some should be filtered out
+    #[test]
+    fn threshold_percentage_half_threshold() {
+      let scores = vec![(String::from("name1"), 50.5), (String::from("name2"), 17.2), (String::from("name3"), 98.3)];
+      let results = super::threshold_percentage(scores, 25.0);
+
+      let mut expected_results: Vec<(String, f32)> = Vec::new();
+      expected_results.push((String::from("name1"), 50.5));
+      expected_results.push((String::from("name3"), 98.3));
+
+      assert_eq!(results.len(), 2);
+      assert_eq!(results, expected_results);
+
     }
 }

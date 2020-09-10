@@ -1,15 +1,12 @@
 mod filter;
 mod utils;
+mod align;
 
 use std::path;
 use std::fs::File;
-use std::io::Error;
 use std::collections::HashMap;
 use clap::{App, load_yaml};
 use bio::io::fasta;
-use debruijn::dna_string::DnaString;
-
-type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<debruijn::kmer::VarIntKmer<u64, debruijn::kmer::K20>>;
 
 fn main() {
   println!("Loading and preprocessing data");
@@ -23,10 +20,15 @@ fn main() {
   let input_files: Vec<&str> = matches.values_of("input").unwrap().collect();
   let num_cores = matches.value_of("num_cores").unwrap_or("1").parse::<usize>().expect("Error -- please provide an integer value for the number of cores");
 
-  // Parameters for alignment
+  // Parameters for alignment, alignment filtering, and report filtering
   const SCORE_THRESHOLD: usize = 60;
   const REFERENCE_GENOME_SIZE: usize = 1209;
-  //const READS_SIZE: usize = 2786342;
+  const READS_SIZE: usize = 2786342;
+  const PERCENT_THRESHOLD: f32 = 0.0;
+  const NUM_MISMATCHES: usize = 150;
+  const DISCARD_DIFFERING_READ_PAIRS: bool = false;
+  const DISCARD_NONZERO_MISMATCH: bool = false;
+  const DISCARD_MULTIPLE_MATCHES: bool = true;
 
   // Get iterators to records in the reference genome file and library
   let reference_genome  = fasta::Reader::from_file(library_fasta).expect(
@@ -64,8 +66,18 @@ fn main() {
 
   println!("Pseudo-aligning reads to reference index");
 
-  // Perform pseudoalignment
-  let reference_scores = score(sequences, reverse_sequences, reference_index, REFERENCE_GENOME_SIZE, SCORE_THRESHOLD);
+  // Configure aligner
+  let align_config = align::AlignFilterConfig {
+    reference_genome_size: REFERENCE_GENOME_SIZE,
+    score_threshold: SCORE_THRESHOLD,
+    num_mismatches: NUM_MISMATCHES,
+    discard_differing_read_pairs: DISCARD_DIFFERING_READ_PAIRS,
+    discard_nonzero_mismatch: DISCARD_NONZERO_MISMATCH,
+    discard_multiple_matches: DISCARD_MULTIPLE_MATCHES
+  };
+
+  // Perform filtered pseudoalignment 
+  let reference_scores = align::score(sequences, reverse_sequences, reference_index, align_config);
 
   println!("Filtering results by lineage");
 
@@ -74,73 +86,14 @@ fn main() {
     "Error -- could not read reference library for filtration"
   )).into_records();
 
-  let results = filter::collapse_results_by_lineage(reference_library, reference_scores.iter());
+  // Post-alignment filtration pipeline
+  let results = filter::report::collapse_results_by_lineage(reference_library, reference_scores.iter());
+  let results = utils::convert_scores_to_percentage(results, READS_SIZE);
+  let results = filter::report::threshold_percentage(results, PERCENT_THRESHOLD);
 
   println!("Writing results to file");
 
   utils::write_to_tsv(results);
 
   print!("Output results written to ./results.tsv")
-}
-
-
-
-/* Takes a set of sequences and optionally, reverse sequences, a debrujin map index of the reference
- * genome, the size of the reference genome, and the threshold to match against, and performs a
- * debrujin-graph based pseduoalignment, returning a score for each readable reference in the reference
- * genome. */
-fn score(sequences: impl Iterator<Item = Result<DnaString, Error>>, 
-  mut reverse_sequences: Option<impl Iterator<Item = Result<DnaString, Error>>>,
-  index: PseudoAligner, reference_genome_size: usize, match_threshold: usize) -> Vec<i32> {
-  sequences.fold(vec![0; reference_genome_size], 
-    |mut acc, read| {
-      /* Generate score and equivalence class for this read by aligning the sequence against
-       * the current reference. This alignment returns any scores that are greater than the match threshold. */
-      let seq_score = pseudoalign(read, &index, match_threshold);
-      let mut rev_seq_score = None;
-
-      // If there's a reversed sequence, do the paired-end alignment
-      if let Some(itr) = &mut reverse_sequences {
-        let reverse_read = itr.next().expect("Error -- read and reverse read files do not have matching lengths: ");
-        rev_seq_score = Some(pseudoalign(reverse_read, &index, match_threshold));
-      }
-
-      // Get the score and the associated equivalence class of the forward sequence
-      let mut max_score = 0;
-      let mut max_eqv_class = Vec::new();
-      if let Some((eqv_class, score)) = seq_score {
-        max_score = score;
-        max_eqv_class = eqv_class;
-      } 
-
-      // If there's a reverse sequence and it matches, compare to the forward score and replace it if this score is higher
-      if let Some(Some((eqv_class, score))) = rev_seq_score {
-        if score > max_score {
-          max_eqv_class = eqv_class;
-        }
-      }
-
-      // If there was a match, update the results accordingly
-      if !max_eqv_class.is_empty() {
-        for idx in max_eqv_class {
-          acc[idx as usize] += 1;
-        }
-      }
-
-      acc
-    }
-  )
-}
-
-
-// Align the given sequence against the given reference with a score threshold
-fn pseudoalign(sequence: Result<DnaString, Error>, reference_index: &PseudoAligner, match_threshold: usize) -> Option<(Vec<u32>, usize)> {
-  if sequence.is_err() {
-    return None;
-  }
-
-  match reference_index.map_read(&sequence.unwrap()) {
-    Some((equiv_class, score)) => if score >= match_threshold && !equiv_class.is_empty() { Some((equiv_class, score)) } else { None }
-    None => None
-  }
 }
