@@ -1,7 +1,8 @@
-mod filter;
-mod utils;
-mod align;
+extern crate immuno_genotyper;
 
+use immuno_genotyper::score;
+use immuno_genotyper::utils;
+use immuno_genotyper::align;
 use std::path;
 use std::fs::File;
 use std::collections::HashMap;
@@ -25,7 +26,7 @@ fn main() {
   const REFERENCE_GENOME_SIZE: usize = 1209;
   const READS_SIZE: usize = 2786342;
   const PERCENT_THRESHOLD: f32 = 0.0;
-  const NUM_MISMATCHES: usize = 150;
+  const NUM_MISMATCHES: usize = 0;
   const DISCARD_DIFFERING_READ_PAIRS: bool = false;
   const DISCARD_NONZERO_MISMATCH: bool = false;
   const DISCARD_MULTIPLE_MATCHES: bool = true;
@@ -76,20 +77,7 @@ fn main() {
     discard_multiple_matches: DISCARD_MULTIPLE_MATCHES
   };
 
-  // Perform filtered pseudoalignment 
-  let reference_scores = align::score(sequences, reverse_sequences, reference_index, align_config);
-
-  println!("Filtering results by lineage");
-
-  // Create reference library iterator to filter the scores by lineage
-  let reference_library = utils::get_tsv_reader(File::open(path::Path::new(library)).expect(
-    "Error -- could not read reference library for filtration"
-  )).into_records();
-
-  // Post-alignment filtration pipeline
-  let results = filter::report::collapse_results_by_lineage(reference_library, reference_scores.iter());
-  let results = utils::convert_scores_to_percentage(results, READS_SIZE);
-  let results = filter::report::threshold_percentage(results, PERCENT_THRESHOLD);
+  let results = score::score(sequences, reverse_sequences, reference_index, library, align_config);
 
   println!("Writing results to file");
 

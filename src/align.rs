@@ -5,6 +5,7 @@ use debruijn::dna_string::DnaString;
 
 type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<debruijn::kmer::VarIntKmer<u64, debruijn::kmer::K20>>;
 
+
 pub struct AlignFilterConfig {
   pub reference_genome_size: usize,
   pub score_threshold: usize,
