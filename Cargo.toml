@@ -4,6 +4,14 @@ version = "0.0.1"
 authors = ["Sebastian Benjamin <sebastiancbenjamin@gmail.com>"]
 edition = "2018"
 
+[lib]
+name = "immuno_genotyper"
+path = "src/lib.rs"
+
+[[bin]]
+name = "immuno_genotyper"
+path = "src/bin/main.rs"
+
 [dependencies]
 bio = "0.31.0"
 clap = { version = "2.33.1", features = ["yaml"] }
