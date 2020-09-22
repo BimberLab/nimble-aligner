@@ -1,16 +1,14 @@
 extern crate immuno_genotyper;
 extern crate debruijn;
 extern crate debruijn_mapping;
+extern crate csv;
 
 use std::io::Error;
 use std::collections::HashMap;
 use debruijn::dna_string::DnaString;
+use debruijn_mapping::pseudoaligner::Pseudoaligner;
 
-#[test]
-/* 'A02' is a portion of a the macaque MHC sequence Mamu-A1*002. A02-1 and A02-2 are 1bp and 2bp changes form A02 (see lower-case bases).  
-A02-LC is the same sequence as A02, just with some upper -> lower case changes to ensure that our results are case-insensitive. */
-// Case with zero mismatches
-fn basic_single_strand_no_mismatch() {
+fn get_basic_single_strand_data<'a>() -> (Vec<Result<DnaString, Error>>, Pseudoaligner<debruijn_mapping::config::KmerType>, csv::Reader<&'a[u8]>) {
   let reference_names = vec!["A02-0", "A02-1", "A02-2", "A02-LC", "KIR2DL-4"];
   let reference_names = reference_names.into_iter().map(|name| String::from(name)).collect();
 
@@ -18,7 +16,7 @@ fn basic_single_strand_no_mismatch() {
     "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGGAAGGAGACGCTGCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCGTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
     "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGGAAGGAGACGCTcCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCGTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
     "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGCAAGGAGACGCTcCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCcTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
-    "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGCAAGGAGACGCTcCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCcTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
+    "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGgAAGGAGACGCTgCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCgTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
     "CACTCCCCCACTGAGTGGTCGGCACCCAGCAACCCCCTGGTGATCATGGTCACAGGTCTATATGAGAAACCTTCTCTCTCAGCCCAGCCGGGCCCCACGGTTCCCACAGGAGAGAACATGACCTTGTCCTGCAGTTCCCGGCGCTCCTTTGACATGTACCATCTATCCAGGGAGGGGGAG"];
   let reference_sequences: Vec<DnaString> = reference_sequences.into_iter().map(|seq| DnaString::from_dna_string(seq)).collect();
 
@@ -39,6 +37,15 @@ fn basic_single_strand_no_mismatch() {
 
   let library = "header\nA02-0\nA02-1\nA02-2\nA02-LC\nKIR2DL-4";
   let library = immuno_genotyper::utils::get_tsv_reader(library.as_bytes());
+  (sequences, reference_index, library)
+}
+
+#[test]
+/* 'A02' is a portion of a the macaque MHC sequence Mamu-A1*002. A02-1 and A02-2 are 1bp and 2bp changes form A02 (see lower-case bases).  
+A02-LC is the same sequence as A02, just with some upper -> lower case changes to ensure that our results are case-insensitive. */
+// Case with zero mismatches
+fn basic_single_strand_no_mismatch() {
+  let (sequences, reference_index, library) = get_basic_single_strand_data();
 
   // Configure aligner
   let align_config = immuno_genotyper::align::AlignFilterConfig {
@@ -53,10 +60,10 @@ fn basic_single_strand_no_mismatch() {
   let results = immuno_genotyper::score::score(sequences.into_iter(), None, reference_index, library.into_records(), align_config, 0);
 
   let expected_results = vec![
-    (String::from("A02-0"), 2.0), 
+    (String::from("A02-0"), 2.0),
     (String::from("A02-1"), 3.0),
-    (String::from("A02-2"), 1.0), 
+    (String::from("A02-2"), 1.0),
     (String::from("A02-LC"), 2.0),
-    (String::from("KIRDL-4"), 0.0)];
+    (String::from("KIR2DL-4"), 0.0)];
   assert_eq!(results, expected_results);
 }
