@@ -30,6 +30,7 @@ fn main() {
   const DISCARD_DIFFERING_READ_PAIRS: bool = false;
   const DISCARD_NONZERO_MISMATCH: bool = false;
   const DISCARD_MULTIPLE_MATCHES: bool = true;
+  const GROUP_COLUMN: usize = 4;
 
   // Get iterators to records in the reference genome file and library
   let reference_genome  = fasta::Reader::from_file(library_fasta).expect(
@@ -77,7 +78,12 @@ fn main() {
     discard_multiple_matches: DISCARD_MULTIPLE_MATCHES
   };
 
-  let results = score::score(sequences, reverse_sequences, reference_index, library, align_config);
+  // Create reference library iterator to filter the scores by lineage
+  let reference_library = utils::get_tsv_reader(File::open(path::Path::new(library)).expect(
+    "Error -- could not read reference library for filtration"
+  )).into_records();
+
+  let results = score::score(sequences, reverse_sequences, reference_index, reference_library, align_config, GROUP_COLUMN);
 
   println!("Writing results to file");
 

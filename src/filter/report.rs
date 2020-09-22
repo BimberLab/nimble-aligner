@@ -13,15 +13,13 @@ struct GroupCollapseState {
  * scores. Collapses the reference score list by merging the scores for by group
  * Returns a score vector with a length equal to the number of groups in the references
  */
-pub fn collapse_results_by_lineage<R: Read>(mut reference_library: StringRecordsIntoIter<R>, mut scores: Iter<i32>) -> Vec<(String, i32)> {
-  const GROUP_COLUMN: usize = 4;
-  
+pub fn collapse_results_by_lineage<R: Read>(mut reference_library: StringRecordsIntoIter<R>, mut scores: Iter<i32>, group_column: usize) -> Vec<(String, i32)> {
   // Initialize group collapse state manager to the first element of the reference and score iterators
   let mut group_collapse_state = GroupCollapseState {
     results: Vec::new(),
     curr_group: reference_library.next()
                                  .expect("Error -- reference library empty: ")
-                                 .expect("Error -- cannot parse first element of reference library: ")[GROUP_COLUMN].to_string(),
+                                 .expect("Error -- cannot parse first element of reference library: ")[group_column].to_string(),
     curr_score: *scores.next().expect("Error -- empty scores list: ")
   };
 
@@ -37,11 +35,11 @@ pub fn collapse_results_by_lineage<R: Read>(mut reference_library: StringRecords
     /* If the group hasn't changed, add the score to the current score. Otherwise, push the current 
      * score to the results vector, change to the new group and the new starting score, and continue
      */
-    if reference[GROUP_COLUMN] == group_collapse_state.curr_group {
+    if reference[group_column] == group_collapse_state.curr_group {
       group_collapse_state.curr_score += next_score;
     } else {
       group_collapse_state.results.push((group_collapse_state.curr_group, group_collapse_state.curr_score));
-      group_collapse_state.curr_group = reference[GROUP_COLUMN].to_string();
+      group_collapse_state.curr_group = reference[group_column].to_string();
       group_collapse_state.curr_score = *next_score;
     }
   }
@@ -57,7 +55,7 @@ pub fn threshold_percentage(scores: Vec<(String, f32)>, threshold: f32) -> Vec<(
   let mut results = Vec::new();
 
   for (name, score) in scores {
-    if score > threshold {
+    if score >= threshold {
       results.push((name, score));
     }
   }
@@ -85,7 +83,7 @@ test40\ttest41\ttest42\ttest43\ttest44";
 
       let scores = vec![100, 200, 50, 2000];
 
-      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter());
+      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter(), 4);
 
       let mut expected_results: Vec<(String, i32)> = Vec::new();
       expected_results.push((String::from("test14"), 100));
@@ -111,7 +109,7 @@ test40\ttest41\ttest42\ttest43\ttest";
 
       let scores = vec![100, 500, 200, 300];
 
-      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter());
+      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter(), 4);
 
       let mut expected_results: Vec<(String, i32)> = Vec::new();
       expected_results.push((String::from("test"), 1100));
@@ -136,7 +134,7 @@ test60\ttest61\ttest62\ttest63\ttest3";
 
       let scores = vec![100, 200, 50, 20, 30, 6000];
 
-      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter());
+      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter(), 4);
 
       let mut expected_results: Vec<(String, i32)> = Vec::new();
       expected_results.push((String::from("test1"), 300));
@@ -168,7 +166,7 @@ test110\ttest111\ttest112\ttest113\ttest4";
 
       let scores = vec![50, 60, 20, 1000, 200, 300, 100, 200, 200, 300, 1000];
 
-      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter());
+      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter(), 4);
 
       let mut expected_results: Vec<(String, i32)> = Vec::new();
       expected_results.push((String::from("test1"), 130));
