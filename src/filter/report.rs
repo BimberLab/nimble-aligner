@@ -13,7 +13,7 @@ struct GroupCollapseState {
  * scores. Collapses the reference score list by merging the scores for by group
  * Returns a score vector with a length equal to the number of groups in the references
  */
-pub fn collapse_results_by_lineage<R: Read>(mut reference_library: StringRecordsIntoIter<R>, mut scores: Iter<i32>, group_column: usize) -> Vec<(String, i32)> {
+pub fn collapse_results_by_column<R: Read>(mut reference_library: StringRecordsIntoIter<R>, mut scores: Iter<i32>, group_column: usize) -> Vec<(String, i32)> {
   // Initialize group collapse state manager to the first element of the reference and score iterators
   let mut group_collapse_state = GroupCollapseState {
     results: Vec::new(),
@@ -83,7 +83,7 @@ test40\ttest41\ttest42\ttest43\ttest44";
 
       let scores = vec![100, 200, 50, 2000];
 
-      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter(), 4);
+      let results = super::collapse_results_by_column(reference_library.into_records(), scores.iter(), 4);
 
       let mut expected_results: Vec<(String, i32)> = Vec::new();
       expected_results.push((String::from("test14"), 100));
@@ -109,7 +109,7 @@ test40\ttest41\ttest42\ttest43\ttest";
 
       let scores = vec![100, 500, 200, 300];
 
-      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter(), 4);
+      let results = super::collapse_results_by_column(reference_library.into_records(), scores.iter(), 4);
 
       let mut expected_results: Vec<(String, i32)> = Vec::new();
       expected_results.push((String::from("test"), 1100));
@@ -134,7 +134,7 @@ test60\ttest61\ttest62\ttest63\ttest3";
 
       let scores = vec![100, 200, 50, 20, 30, 6000];
 
-      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter(), 4);
+      let results = super::collapse_results_by_column(reference_library.into_records(), scores.iter(), 4);
 
       let mut expected_results: Vec<(String, i32)> = Vec::new();
       expected_results.push((String::from("test1"), 300));
@@ -166,7 +166,7 @@ test110\ttest111\ttest112\ttest113\ttest4";
 
       let scores = vec![50, 60, 20, 1000, 200, 300, 100, 200, 200, 300, 1000];
 
-      let results = super::collapse_results_by_lineage(reference_library.into_records(), scores.iter(), 4);
+      let results = super::collapse_results_by_column(reference_library.into_records(), scores.iter(), 4);
 
       let mut expected_results: Vec<(String, i32)> = Vec::new();
       expected_results.push((String::from("test1"), 130));

@@ -26,29 +26,17 @@ pub fn get_error_checked_fastq_reader(file_path: &str) -> impl Iterator<Item = R
 
 
 /* Takes a vector of potential reference genome results and an iterator to the reference library TSV.
- * Produces 2 vectors of sequence-name pairs. Skip and log references that cannot be read.
+ * Produces 2 vectors of sequence-name pairs. Panics if there is a reference sequence that cannot be read.
  * If they can be read, converts the given sequence to a DnaString and get the associated name. */
-pub fn get_valid_reference_pairs(reference_genome: bio::io::fasta::Records<File>, 
-  mut reference_library: csv::StringRecordsIntoIter<std::fs::File>) -> (Vec<DnaString>, Vec<String>) {
+pub fn validate_reference_pairs<'a>(reference_genome: bio::io::fasta::Records<File>, 
+  mut reference_library: impl Iterator<Item = &'a String>) -> (Vec<DnaString>, Vec<String>) {
 
-  let mut reference_seqs = Vec::new();
-  let mut reference_names = Vec::new();
+  let mut reference_seqs: Vec<DnaString> = Vec::new();
+  let mut reference_names: Vec<String> = Vec::new();
 
   for (i, reference) in reference_genome.enumerate() {
-    let reference_name = reference_library.next();
-
-    if let Ok(reference) = reference {
-      if let Some(Ok(record)) = reference_name {
-        reference_seqs.push(DnaString::from_acgt_bytes(reference.seq())); // Convert raw data to DNAString
-        reference_names.push(record[0].to_string());
-      } else {
-        println!("Warning: Could not read library name #{}", i);
-        continue;
-      }
-    } else {
-      println!("Warning: Could not read library reference #{}", i);
-      continue;
-    }
+    reference_seqs.push(DnaString::from_acgt_bytes(reference.expect(&format!("Error -- could not read reference sequence #{}", i)).seq()));
+    reference_names.push(reference_library.next().expect(&format!("Error -- could not read library name #{} after JSON parse, corrupted internal state.", i)).clone());
   }
 
   (reference_seqs, reference_names)
