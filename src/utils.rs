@@ -1,6 +1,7 @@
 use std::path;
 use std::io::{Write, Read, Error, ErrorKind};
 use std::fs::File;
+use std::collections::HashMap;
 use csv::Reader;
 use bio::io::fastq;
 use debruijn::dna_string::DnaString;

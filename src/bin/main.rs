@@ -54,14 +54,14 @@ fn main() {
     None
   };
 
-  println!("Pseudo-aligning reads to reference index");
+  println!("Pseudo-aligning reads to reference index with filtration");
 
-  /*// Perform alignment and filtration using the score package
+  // Perform alignment and filtration using the score package
   let results = score::score(sequences, reverse_sequences, reference_index, reference_metadata, align_config);
 
   println!("Writing results to file");
 
-  //utils::write_to_tsv(results);
+  utils::write_to_tsv(results);
 
-  print!("Output results written to ./results.tsv");*/
+  print!("Output results written to ./results.tsv");
 }

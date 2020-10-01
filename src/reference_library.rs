@@ -6,7 +6,7 @@ use crate::align;
 
 #[derive(Debug)]
 pub struct ReferenceMetadata {
-  pub group_on: Vec<usize>,
+  pub group_on: usize,
   pub headers: Vec<String>,
   pub columns: Vec<Vec<String>>,
   pub nt_sequence_idx: usize
@@ -31,7 +31,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
   let percent_threshold = config_obj["percent_threshold"].as_f64().expect("Error -- could not parse percent_threshold as float64");
   let num_mismatches = config_obj["num_mismatches"].as_i64().expect("Error -- could not parse num_mismatches as int64") as usize;
   let discard_multiple_matches = config_obj["discard_multiple_matches"].as_bool().expect("Error -- could not parse discard_multiple_mismatches as boolean");
-  let group_on = to_string_vec(&config_obj["group_on"], "group_on");
+  let group_on = config_obj["group_on"].as_str().expect("Error -- could not parse group_on as string").to_string();
 
   let align_config = align::AlignFilterConfig {
     reference_genome_size: 1209,
@@ -47,8 +47,13 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
   let reference = &v[1];
   let headers = to_string_vec(&reference["headers"], "headers");
   let columns = &reference["columns"];
-  let group_on: Vec<usize> = group_on.into_iter().map(|group| get_column_index(&headers, &group).expect(&format!("Error -- could not parse group {}", group))).collect();
   let nt_sequence_idx = get_column_index(&headers, "nt_sequence").expect("Could not find header nt_sequence");
+  let group_on = if group_on == "" {
+    nt_sequence_idx
+  } else {
+    get_column_index(&headers, &group_on).expect(&format!("Error -- could not find column for group_on {}", &group_on))
+  };
+
 
   // Parse columns into a matrix of strings
   let columns = columns.as_array().expect("Error -- could not parse columns as array");
