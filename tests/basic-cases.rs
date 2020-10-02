@@ -5,6 +5,7 @@ extern crate csv;
 
 use std::io::Error;
 use immuno_genotyper::reference_library;
+use immuno_genotyper::utils;
 use std::collections::HashMap;
 use debruijn::dna_string::DnaString;
 use debruijn_mapping::pseudoaligner::Pseudoaligner;
@@ -52,9 +53,14 @@ fn get_basic_single_strand_data() -> (Vec<Result<DnaString, Error>>, Pseudoalign
 }
 
 
-fn sort_score_vector(mut scores: Vec<(String, f32)>) -> Vec<(String, f32)> {
-  scores.sort_by(|a, b| a.0.cmp(&b.0));
-  scores
+fn get_group_by_data() -> (Vec<Result<DnaString, Error>>, Pseudoaligner<debruijn_mapping::config::KmerType>, reference_library::ReferenceMetadata) {
+  let (sequences, reference_index, mut reference_metadata) = get_basic_single_strand_data();
+
+  reference_metadata.group_on = 3;
+  reference_metadata.headers.push("test_group_on".to_string());
+  reference_metadata.columns.push(vec!["g1", "g2", "g2", "g1", "g1"].into_iter().map(|column| column.to_string()).collect());
+
+  (sequences, reference_index, reference_metadata)
 }
 
 
@@ -70,18 +76,19 @@ fn basic_single_strand_no_mismatch() {
     num_mismatches: 0,
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
-    discard_multiple_matches: false 
+    discard_multiple_matches: false,
+    percent_threshold: 0.0
   };
 
-  let results = immuno_genotyper::score::score(sequences.into_iter(), None, reference_index, reference_metadata, align_config);
-  let results = sort_score_vector(results);
+  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, reference_metadata, &align_config);
+  let results = utils::sort_score_vector(results);
 
   let expected_results = vec![
-    (String::from("A02-0"), 2.0),
-    (String::from("A02-1"), 3.0),
-    (String::from("A02-2"), 1.0),
-    (String::from("A02-LC"), 2.0)];
-  let expected_results = sort_score_vector(expected_results);
+    (String::from("A02-0"), 2),
+    (String::from("A02-1"), 3),
+    (String::from("A02-2"), 1),
+    (String::from("A02-LC"), 2)];
+  let expected_results = utils::sort_score_vector(expected_results);
 
   assert_eq!(results, expected_results);
 }
@@ -99,18 +106,19 @@ fn basic_single_strand_one_mismatch() {
     num_mismatches: 1,
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
-    discard_multiple_matches: false 
+    discard_multiple_matches: false,
+    percent_threshold: 0.0
   };
 
-  let results = immuno_genotyper::score::score(sequences.into_iter(), None, reference_index, reference_metadata, align_config);
-  let results = sort_score_vector(results);
+  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, reference_metadata, &align_config);
+  let results = utils::sort_score_vector(results);
 
   let expected_results = vec![
-    (String::from("A02-0"), 2.0),
-    (String::from("A02-1"), 3.0),
-    (String::from("A02-2"), 1.0),
-    (String::from("A02-LC"), 2.0)];
-  let expected_results = sort_score_vector(expected_results);
+    (String::from("A02-0"), 2),
+    (String::from("A02-1"), 3),
+    (String::from("A02-2"), 1),
+    (String::from("A02-LC"), 2)];
+  let expected_results = utils::sort_score_vector(expected_results);
 
   assert_eq!(results, expected_results);
 }
@@ -128,18 +136,47 @@ fn basic_single_strand_two_mismatch() {
     num_mismatches: 2,
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
-    discard_multiple_matches: false 
+    discard_multiple_matches: false,
+    percent_threshold: 0.0
   };
 
-  let results = immuno_genotyper::score::score(sequences.into_iter(), None, reference_index, reference_metadata, align_config);
-  let results = sort_score_vector(results);
+  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, reference_metadata, &align_config);
+  let results = utils::sort_score_vector(results);
 
   let expected_results = vec![
-    (String::from("A02-0"), 2.0),
-    (String::from("A02-1"), 3.0),
-    (String::from("A02-2"), 1.0),
-    (String::from("A02-LC"), 2.0)];
-  let expected_results = sort_score_vector(expected_results);
+    (String::from("A02-0"), 2),
+    (String::from("A02-1"), 3),
+    (String::from("A02-2"), 1),
+    (String::from("A02-LC"), 2)];
+  let expected_results = utils::sort_score_vector(expected_results);
 
   assert_eq!(results, expected_results);
 }
+
+
+#[test]
+// Case with group_by instead of basic allele-level reporting
+fn group_by() {
+  let (sequences, reference_index, reference_metadata) = get_group_by_data();
+
+  // Configure aligner
+  let align_config = immuno_genotyper::align::AlignFilterConfig {
+    reference_genome_size: 5,
+    score_threshold: 60,
+    num_mismatches: 0,
+    discard_differing_read_pairs: false,
+    discard_nonzero_mismatch: false,
+    discard_multiple_matches: false,
+    percent_threshold: 0.0
+  };
+
+  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, reference_metadata, &align_config);
+  let results = utils::sort_score_vector(results);
+  
+  let expected_results = vec![
+    (String::from("g1"), 2),
+    (String::from("g2"), 3)];
+  let expected_results = utils::sort_score_vector(expected_results);
+
+  assert_eq!(results, expected_results);
+} 

@@ -66,3 +66,9 @@ pub fn write_to_tsv(results: Vec<(String, f32)>) {
   let mut file = File::create("results.tsv").expect("Error -- could not create results file");
   file.write_all(str_rep.as_bytes()).expect("Error -- could not write results to file");
 }
+
+
+pub fn sort_score_vector<T>(mut scores: Vec<(String, T)>) -> Vec<(String, T)> {
+  scores.sort_by(|a, b| a.0.cmp(&b.0));
+  scores
+}

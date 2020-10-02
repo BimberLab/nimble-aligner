@@ -33,14 +33,6 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
   let discard_multiple_matches = config_obj["discard_multiple_matches"].as_bool().expect("Error -- could not parse discard_multiple_mismatches as boolean");
   let group_on = config_obj["group_on"].as_str().expect("Error -- could not parse group_on as string").to_string();
 
-  let align_config = align::AlignFilterConfig {
-    reference_genome_size: 1209,
-    score_threshold,
-    num_mismatches,
-    discard_differing_read_pairs: false,
-    discard_nonzero_mismatch: false,
-    discard_multiple_matches
-  };
 
 
   // Get reference library metadata from the second JSON object in the file
@@ -58,6 +50,18 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
   // Parse columns into a matrix of strings
   let columns = columns.as_array().expect("Error -- could not parse columns as array");
   let columns: Vec<Vec<String>> = columns.into_iter().map(|column| to_string_vec(column, "column")).collect();
+
+
+  let align_config = align::AlignFilterConfig {
+    reference_genome_size: columns[nt_sequence_idx].len(),
+    score_threshold,
+    num_mismatches,
+    discard_differing_read_pairs: false,
+    discard_nonzero_mismatch: false,
+    discard_multiple_matches,
+    percent_threshold: percent_threshold as f32
+  };
+
 
   let reference_metadata = ReferenceMetadata {
     group_on,
