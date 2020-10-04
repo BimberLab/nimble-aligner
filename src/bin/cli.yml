@@ -3,10 +3,10 @@ version: "0.0.1"
 author: Sebastian B. <benjamse@ohsu.edu>
 about: Configurable RNA-seq aligner against arbitrary reference genomes
 args:
-  - library:
+  - reference:
       help: File defining the reference library that will be used for alignment, in ImmunoGenotyper .json format
       required: true
-  - library_fasta:
+  - reference_fasta:
       help: fasta/fasta.gz file containing the reference library genetic data
       required: true
   - input:

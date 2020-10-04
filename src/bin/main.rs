@@ -2,9 +2,9 @@ extern crate immuno_genotyper;
 
 use immuno_genotyper::score;
 use immuno_genotyper::utils;
-use immuno_genotyper::align;
-use std::path;
-use std::fs::File;
+use immuno_genotyper::reference_library;
+
+use std::path::Path;
 use std::collections::HashMap;
 use clap::{App, load_yaml};
 use bio::io::fasta;
@@ -12,37 +12,25 @@ use bio::io::fasta;
 fn main() {
   println!("Loading and preprocessing data");
 
-  // Parse arguments based on the yaml schema
+  // Parse command line arguments based on the yaml schema
   let yaml = load_yaml!("cli.yml");
   let matches = App::from_yaml(yaml).get_matches();
 
-  let library = matches.value_of("library").unwrap();
-  let library_fasta = matches.value_of("library_fasta").unwrap();
+  let reference_json_path = matches.value_of("reference").unwrap();
+  let reference_fasta = matches.value_of("reference_fasta").unwrap();
   let input_files: Vec<&str> = matches.values_of("input").unwrap().collect();
   let num_cores = matches.value_of("num_cores").unwrap_or("1").parse::<usize>().expect("Error -- please provide an integer value for the number of cores");
 
-  // Parameters for alignment, alignment filtering, and report filtering
-  const SCORE_THRESHOLD: usize = 60;
-  const REFERENCE_GENOME_SIZE: usize = 1209;
-  const READS_SIZE: usize = 2786342;
-  const PERCENT_THRESHOLD: f32 = 0.0;
-  const NUM_MISMATCHES: usize = 0;
-  const DISCARD_DIFFERING_READ_PAIRS: bool = false;
-  const DISCARD_NONZERO_MISMATCH: bool = false;
-  const DISCARD_MULTIPLE_MATCHES: bool = true;
-  const GROUP_COLUMN: usize = 4;
+  // Read library alignment config info and reference library metadata from library json
+  let (align_config, reference_metadata) = reference_library::get_reference_library(Path::new(reference_json_path));
 
-  // Get iterators to records in the reference genome file and library
-  let reference_genome  = fasta::Reader::from_file(library_fasta).expect(
+  // Get iterators to records in the reference genome .fasta
+  let reference_genome  = fasta::Reader::from_file(reference_fasta).expect(
     "Error -- could not read reference genome"
   ).records();
 
-  let reference_library = utils::get_tsv_reader(File::open(path::Path::new(library)).expect(
-    "Error -- could not read reference library for alignment"
-  )).into_records();
-
-  // Parse out reference/reference name pairs that cannot be read for whatever reason
-  let (reference_seqs, reference_names) = utils::get_valid_reference_pairs(reference_genome, reference_library);
+  // Generate error-checked vectors of seqs and names for the debrujin index
+  let (reference_seqs, reference_names) = utils::validate_reference_pairs(reference_genome, reference_metadata.columns[reference_metadata.nt_sequence_idx].iter());
 
   // Create debruijn-mapped index of the reference library
   let reference_index = debruijn_mapping::build_index::build_index::<debruijn_mapping::config::KmerType>(
@@ -66,28 +54,14 @@ fn main() {
     None
   };
 
-  println!("Pseudo-aligning reads to reference index");
+  println!("Pseudo-aligning reads to reference index with filtration");
 
-  // Configure aligner
-  let align_config = align::AlignFilterConfig {
-    reference_genome_size: REFERENCE_GENOME_SIZE,
-    score_threshold: SCORE_THRESHOLD,
-    num_mismatches: NUM_MISMATCHES,
-    discard_differing_read_pairs: DISCARD_DIFFERING_READ_PAIRS,
-    discard_nonzero_mismatch: DISCARD_NONZERO_MISMATCH,
-    discard_multiple_matches: DISCARD_MULTIPLE_MATCHES
-  };
-
-  // Create reference library iterator to filter the scores by lineage
-  let reference_library = utils::get_tsv_reader(File::open(path::Path::new(library)).expect(
-    "Error -- could not read reference library for filtration"
-  )).into_records();
-
-  let results = score::score(sequences, reverse_sequences, reference_index, reference_library, align_config, GROUP_COLUMN);
+  // Perform alignment and filtration using the score package
+  let results = score::score(sequences, reverse_sequences, reference_index, &reference_metadata, align_config);
 
   println!("Writing results to file");
 
-  utils::write_to_tsv(results);
+  utils::write_to_tsv(results, reference_metadata);
 
-  print!("Output results written to ./results.tsv")
+  print!("Output results written to ./results.tsv");
 }
