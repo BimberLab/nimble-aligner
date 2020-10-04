@@ -56,16 +56,24 @@ pub fn convert_scores_to_percentage(scores: Vec<(String, i32)>, total_reads: usi
 pub fn write_to_tsv(results: Vec<(String, f32)>, mut reference_metadata: ReferenceMetadata) {
   let mut str_rep = String::new();
 
-  // If we have a group_on index that isn't nt_sequence, remove nt_sequence from the header list and drop the relevant column
+  // If we have a group_on index that isn't nt_sequence, remove nt_sequence from the header list and drop the relevant columns
   if reference_metadata.group_on != reference_metadata.nt_sequence_idx {
+    // Get the header we're grouping on -- we'll need to search the header list later
+    let group_on_header = reference_metadata.headers[reference_metadata.group_on].clone();
+
+    // Remove nt_sequence
     reference_metadata.headers.retain(|header| header != "nt_sequence");
     reference_metadata.columns.remove(reference_metadata.nt_sequence_idx);
-  }
 
-  // Remove the unnecessary nt_length metadata from header and columns
-  let nt_len_idx = reference_metadata.headers.iter().position(|header| header == "nt_length").expect("Error -- no header nt_length found when writing results to disk");
-  reference_metadata.headers.retain(|header| header != "nt_length");
-  reference_metadata.columns.remove(nt_len_idx);
+    // Remove nt_length metadata
+    let nt_len_idx = reference_metadata.headers.iter().position(|header| header == "nt_length").expect("Error -- no header nt_length found when writing results to disk");
+    reference_metadata.headers.retain(|header| header != "nt_length");
+    reference_metadata.columns.remove(nt_len_idx);
+
+    // get group_on index again -- it may have changed as we were deleting columns
+    let group_on_idx = reference_metadata.headers.iter().position(|header| header == &group_on_header).expect("Error -- no group_on header found when writing results to disk");
+    reference_metadata.group_on = group_on_idx;
+  }
 
   // Add the headers to the top of the string representation of the tsv file
   str_rep += &(reference_metadata.headers.join("\t") + "\tmatch percentage\n");

@@ -20,4 +20,3 @@ rust-htslib = "0.32.0"
 debruijn = { git = "https://github.com/10XGenomics/rust-debruijn" }
 debruijn_mapping = { git = "https://github.com/devsebb/rust-pseudoaligner", branch = "pseudoaligner/configure-mismatch" }
 serde_json = "1.0.56"
-permutation = "0.2.5"
