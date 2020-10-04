@@ -28,7 +28,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
   // Get aligner configuration from the first JSON object in the file
   let config_obj = &v[0];
   let score_threshold = config_obj["score_threshold"].as_i64().expect("Error -- could not parse score_threshold as int64") as usize;
-  let percent_threshold = config_obj["percent_threshold"].as_f64().expect("Error -- could not parse percent_threshold as float64");
+  let score_filter = config_obj["score_filter"].as_i64().expect("Error -- could not parse percent_threshold as int64");
   let num_mismatches = config_obj["num_mismatches"].as_i64().expect("Error -- could not parse num_mismatches as int64") as usize;
   let discard_multiple_matches = config_obj["discard_multiple_matches"].as_bool().expect("Error -- could not parse discard_multiple_mismatches as boolean");
   let group_on = config_obj["group_on"].as_str().expect("Error -- could not parse group_on as string").to_string();
@@ -59,7 +59,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
     discard_multiple_matches,
-    percent_threshold: percent_threshold as f32
+    score_filter: score_filter as i32
   };
 
 

@@ -77,10 +77,10 @@ fn basic_single_strand_no_mismatch() {
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
-    percent_threshold: 0.0
+    score_filter: 0
   };
 
-  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, reference_metadata, &align_config);
+  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
   let results = utils::sort_score_vector(results);
 
   let expected_results = vec![
@@ -107,10 +107,10 @@ fn basic_single_strand_one_mismatch() {
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
-    percent_threshold: 0.0
+    score_filter: 0
   };
 
-  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, reference_metadata, &align_config);
+  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
   let results = utils::sort_score_vector(results);
 
   let expected_results = vec![
@@ -137,10 +137,10 @@ fn basic_single_strand_two_mismatch() {
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
-    percent_threshold: 0.0
+    score_filter: 0
   };
 
-  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, reference_metadata, &align_config);
+  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
   let results = utils::sort_score_vector(results);
 
   let expected_results = vec![
@@ -167,10 +167,10 @@ fn group_by() {
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
-    percent_threshold: 0.0
+    score_filter: 0
   };
 
-  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, reference_metadata, &align_config);
+  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
   let results = utils::sort_score_vector(results);
   
   let expected_results = vec![

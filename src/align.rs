@@ -17,7 +17,7 @@ pub struct AlignFilterConfig {
   pub discard_differing_read_pairs: bool,   // TODO
   pub discard_nonzero_mismatch: bool,
   pub discard_multiple_matches: bool,
-  pub percent_threshold: f32
+  pub score_filter: i32
 }
 
 /* Takes a set of sequences and optionally, reverse sequences, a debrujin map index of the reference
@@ -25,7 +25,7 @@ pub struct AlignFilterConfig {
  * debrujin-graph based pseduoalignment, returning a score for each readable reference in the reference
  * genome.
  * This function does some alignment-time filtration based on the provided parameters. */
-pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAligner, reference_metadata: ReferenceMetadata,
+pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAligner, reference_metadata: &ReferenceMetadata,
   config: &AlignFilterConfig) -> Vec<(String, i32)>
   where 
     I: Iterator<Item = Result<DnaString, Error>>
