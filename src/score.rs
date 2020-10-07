@@ -9,7 +9,7 @@ use debruijn_mapping::pseudoaligner::Pseudoaligner;
 
 pub fn score<I>(sequences: I, reverse_sequences: Option<I>,
   reference_index: Pseudoaligner<debruijn_mapping::config::KmerType>,
-  reference_metadata: &ReferenceMetadata, align_config: align::AlignFilterConfig) -> Vec<(String, f32)>
+  reference_metadata: &ReferenceMetadata, align_config: align::AlignFilterConfig) -> Vec<(String, i32, f32)>
   where 
     I: Iterator<Item = Result<DnaString, Error>>
   {

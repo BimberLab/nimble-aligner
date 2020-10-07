@@ -31,6 +31,9 @@ pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAli
     I: Iterator<Item = Result<DnaString, Error>>
   {
 
+  let mut i = 0;
+  let mut eqv_test: Vec<u32> = vec![0, 0, 0, 0];
+  let mut eqv_rev_test: Vec<u32> = vec![0, 0, 0, 0];
   let mut score_map: HashMap<String, (i32, bool)> = HashMap::new();
 
   for read in sequences {
@@ -55,12 +58,15 @@ pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAli
     let mut max_score = 0;
     let mut max_eqv_class = Vec::new();
     if let Some((eqv_class, score)) = seq_score {
+      eqv_test = eqv_class.clone();
       max_score = score;
       max_eqv_class = eqv_class;
     } 
 
     // If there's a reverse sequence and it matches, compare to the forward score and replace it if this score is higher
     if let Some(Some((eqv_class, score))) = rev_seq_score {
+      eqv_rev_test = eqv_class.clone();
+
       if score > max_score {
         max_eqv_class = eqv_class;
       }
@@ -68,6 +74,13 @@ pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAli
 
     // If there was a match, update the results accordingly
     if !max_eqv_class.is_empty() {
+      if max_eqv_class.contains(&0) {
+        print!("seq: {:?}\n", eqv_test);
+        print!("rev seq: {:?}\n", eqv_rev_test);
+        i += 1;
+        print!("{}\n\n", i);
+      }
+      
       for idx in max_eqv_class {
         let key = &reference_metadata.columns[reference_metadata.group_on][idx as usize];
         let accessor = score_map.entry(key.to_string()).or_insert((1, true));
