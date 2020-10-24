@@ -20,9 +20,11 @@ fn main() {
   let reference_fasta = matches.value_of("reference_fasta").unwrap();
   let input_files: Vec<&str> = matches.values_of("input").unwrap().collect();
   let num_cores = matches.value_of("num_cores").unwrap_or("1").parse::<usize>().expect("Error -- please provide an integer value for the number of cores");
+  let debug_reference = matches.value_of("debug_reference").unwrap_or("");
 
   // Read library alignment config info and reference library metadata from library json
-  let (align_config, reference_metadata) = reference_library::get_reference_library(Path::new(reference_json_path));
+  let (mut align_config, reference_metadata) = reference_library::get_reference_library(Path::new(reference_json_path));
+  align_config.debug_reference = debug_reference.to_string();
 
   // Get iterators to records in the reference genome .fasta
   let reference_genome  = fasta::Reader::from_file(reference_fasta).expect(

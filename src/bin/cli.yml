@@ -21,3 +21,10 @@ args:
       help: The number of cores to use during alignment
       takes_value: true
       default_value: "1"
+  - debug_reference:
+      short: d
+      long: debug_reference
+      value_name: DEBUG_REFERENCE
+      help: The name of the reference to generate debug information about
+      takes_value: true
+      default_value: ""

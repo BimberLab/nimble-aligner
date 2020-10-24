@@ -4,6 +4,7 @@ extern crate debruijn_mapping;
 extern crate csv;
 
 use std::io::Error;
+use immuno_genotyper::align::IntersectLevel;
 use immuno_genotyper::reference_library;
 use std::collections::HashMap;
 use debruijn::dna_string::DnaString;
@@ -80,7 +81,9 @@ fn basic_single_strand_no_mismatch() {
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
-    score_filter: 0
+    score_filter: 0,
+    intersect_level: IntersectLevel::NoIntersect,
+    debug_reference: String::new()
   };
 
   let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
@@ -110,7 +113,9 @@ fn basic_single_strand_one_mismatch() {
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
-    score_filter: 0
+    score_filter: 0,
+    intersect_level: IntersectLevel::NoIntersect,
+    debug_reference: String::new()
   };
 
   let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
@@ -140,7 +145,9 @@ fn basic_single_strand_two_mismatch() {
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
-    score_filter: 0
+    score_filter: 0,
+    intersect_level: IntersectLevel::NoIntersect,
+    debug_reference: String::new()
   };
 
   let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
@@ -170,7 +177,9 @@ fn group_by() {
     discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
-    score_filter: 0
+    score_filter: 0,
+    intersect_level: IntersectLevel::NoIntersect,
+    debug_reference: String::new()
   };
 
   let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
