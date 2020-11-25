@@ -13,11 +13,11 @@ pub struct ReferenceMetadata {
 }
 
 
-// Reads the reference library and returns it in the iterator format consumed by the aligner library
+// Parses a .json that contains a reference library. Returns a tuple of the library's config information and the library data
 pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, ReferenceMetadata) {
   // Parse raw JSON to serde_json value
   let raw_json_string = read_to_string(path).expect(
-    "Error -- could not read reference library for filtration"
+    "Error -- could not read reference library"
   );
 
   let v: Value = serde_json::from_str(&raw_json_string).expect(
@@ -64,7 +64,6 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
     reference_genome_size: columns[nt_sequence_idx].len(),
     score_threshold,
     num_mismatches,
-    discard_differing_read_pairs: false,
     discard_nonzero_mismatch: false,
     discard_multiple_matches,
     score_filter: score_filter as i32,
@@ -84,6 +83,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
 }
 
 
+// Given a column header, find the index of the corresponding column if it exists
 fn get_column_index(headers: &Vec<String>, search_header: &str) -> Option<usize> {
   for (i, header) in headers.into_iter().enumerate() {
     if header == search_header {
@@ -95,6 +95,7 @@ fn get_column_index(headers: &Vec<String>, search_header: &str) -> Option<usize>
 }
 
 
+// Convert a given serde_json value into a string array if possible, and crash otherwise
 fn to_string_vec(v: &Value, array_name: &str) -> Vec<String> {
   let result: Vec<String> = v.as_array().expect(&format!("Error -- could not parse {} as array", array_name)).into_iter().map(|string| {
     string.as_str().expect(&format!("Error -- could not parse {} element \"{}\" as a string", array_name, string)).to_string()

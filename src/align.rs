@@ -21,7 +21,6 @@ pub struct AlignFilterConfig {
   pub reference_genome_size: usize,
   pub score_threshold: usize,
   pub num_mismatches: usize,
-  pub discard_differing_read_pairs: bool,   // TODO
   pub discard_nonzero_mismatch: bool,
   pub discard_multiple_matches: bool,
   pub score_filter: i32,
@@ -30,39 +29,44 @@ pub struct AlignFilterConfig {
 }
 
 /* Takes a set of sequences and optionally, reverse sequences, a debrujin map index of the reference
- * genome, the size of the reference genome, and the threshold to match against, and performs a
+ * genome, the reference library metadata object, and the aligner configuration, and performs a
  * debrujin-graph based pseduoalignment, returning a score for each readable reference in the reference
  * genome.
- * This function does some alignment-time filtration based on the provided parameters. */
+ * This function does some alignment-time filtration based on the provided configuration. */
 pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAligner, reference_metadata: &ReferenceMetadata,
   config: &AlignFilterConfig) -> Vec<(String, i32)>
   where 
     I: Iterator<Item = Result<DnaString, Error>>
   {
 
-  // Variables to configure debugging and header tsv info
+  // Variables to configure debugging/headers for the debug TSV
   let mut debug_str_rep = String::new();
   debug_str_rep += "sequence\tscore\n\n\n";
   debug_str_rep += "Reference: ";
   debug_str_rep += &config.debug_reference;
   debug_str_rep += "\n\n\n";
 
+  /* Map for determining whether a reference has been matched to or not by a given read.
+   * This is used to ensure that a read doesn't increment a reference's score multiple times
+   * if we are not reporting per-allele results. */
   let mut score_map: HashMap<String, (i32, bool)> = HashMap::new();
 
+  // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references
   for read in sequences {
+    // Clear the score map
     for (_, value) in score_map.iter_mut() {
       *value = (value.0, false);
     }
 
     let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
     /* Generate score and equivalence class for this read by aligning the sequence against
-     * the current reference. This alignment returns any scores that are greater than the match threshold. */
+     * the current reference, if there is a match.*/
     let seq_score = pseudoalign(&read, &index, config.score_threshold, config.num_mismatches,
       config.discard_multiple_matches, config.discard_nonzero_mismatch);
 
+    // If there's a reversed sequence, do the paired-end alignment
     let mut rev_seq_score = None;
     let mut reverse_read = DnaString::new();
-    // If there's a reversed sequence, do the paired-end alignment
     if let Some(itr) = &mut reverse_sequences {
       reverse_read = itr.next().expect(
         "Error -- read and reverse read files do not have matching lengths: "
@@ -71,20 +75,23 @@ pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAli
         config.discard_multiple_matches, config.discard_nonzero_mismatch));
     }
 
-    /* Get the score and the associated equivalence class of the forward sequence. If there's a reverse sequence and it 
-     * matches, and there wasn't a match on the forward read, use that match instead */
+    // Take the "best" alignment. The specific behavior is determined by the intersect level set in the aligner config
     let match_eqv_class = match config.intersect_level {
       IntersectLevel::NoIntersect => get_best_reads(&seq_score, &rev_seq_score),
       IntersectLevel::IntersectWithFallback => get_intersecting_reads(&seq_score, &rev_seq_score, true),
       IntersectLevel::ForceIntersect => get_intersecting_reads(&seq_score, &rev_seq_score, false)
     };
 
-    // If there was a match, update the results accordingly
+    // If there was a match, update the corresponding reference.
     if !match_eqv_class.is_empty() {
+      // For each reference in the equivalence class
       for idx in match_eqv_class {
+
+        /* Get a key to add to the score map. If we're reporting allele-level data, the key will be unique
+         * for each reference. Otherwise, it may not be unique per-reference in the case of e.g. lineage or locus. */
         let key = &reference_metadata.columns[reference_metadata.group_on][idx as usize];
 
-        // Write debug output for specified reference
+        // Write debug output for specified reference if debugging is enabled
         if key == &config.debug_reference {
           let r1_seq = read.to_string();
           let r1_score = if let Some((_, score)) = seq_score {
@@ -114,8 +121,10 @@ pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAli
           debug_str_rep += "\n\n";
         }
 
+        // Record that this read has matched against the given reference/group based on the aforementioned score_map key
         let accessor = score_map.entry(key.to_string()).or_insert((1, true));
 
+        // If the given reference/group has already been matched against by this read, don't increment the score again
         if accessor.1 == false {
           accessor.0 += 1;
           accessor.1 = true;
@@ -124,6 +133,7 @@ pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAli
     }
   }
 
+  // Update the results map
   let mut results = Vec::new();
   for (key, value) in score_map.into_iter() {
     results.push((key, value.0));
@@ -135,6 +145,7 @@ pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAli
     file.write_all(debug_str_rep.as_bytes()).expect("Error -- could not write debug info to file");
     println!("Debug results written to ./debug.tsv");
   }
+
   results
 }
 
