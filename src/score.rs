@@ -12,7 +12,7 @@ use debruijn_mapping::pseudoaligner::Pseudoaligner;
  * of the sequences to the reference library. */
 pub fn score<I>(sequences: I, reverse_sequences: Option<I>,
   reference_index: Pseudoaligner<debruijn_mapping::config::KmerType>,
-  reference_metadata: &ReferenceMetadata, align_config: align::AlignFilterConfig) -> Vec<(String, i32, f32)>
+  reference_metadata: &ReferenceMetadata, align_config: align::AlignFilterConfig) -> Vec<(Vec<String>, i32)>
   where 
     I: Iterator<Item = Result<DnaString, Error>>
   {
@@ -21,11 +21,7 @@ pub fn score<I>(sequences: I, reverse_sequences: Option<I>,
   let reference_scores = align::score(sequences, reverse_sequences, reference_index, &reference_metadata, &align_config);
 
   // Remove scores below the score threshold
-  let reference_scores: Vec<(String, i32)> = reference_scores.into_iter().filter(|(_, val)| val > &align_config.score_filter).collect();
+  let reference_scores: Vec<(Vec<String>, i32)> = reference_scores.into_iter().filter(|(_, val)| val > &align_config.score_filter).collect();
 
-  // Append match percentages for each reference result
-  let num_reads: i32 = reference_scores.iter().map(|(_, val)| val).sum();
-  let results = utils::append_match_percent(reference_scores, num_reads as usize);
-
-  utils::sort_score_vector(results)
+  utils::sort_score_vector(reference_scores)
 }
