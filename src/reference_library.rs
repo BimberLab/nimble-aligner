@@ -67,8 +67,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
     discard_nonzero_mismatch: false,
     discard_multiple_matches,
     score_filter: score_filter as i32,
-    intersect_level,
-    debug_reference: String::new()
+    intersect_level
   };
 
 

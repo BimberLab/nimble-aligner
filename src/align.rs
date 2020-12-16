@@ -1,9 +1,8 @@
 use crate::filter;
 use crate::reference_library;
 
-use std::io::{Write, Error};
+use std::io::{Error};
 use std::collections::HashMap;
-use std::fs::File;
 
 use debruijn::dna_string::DnaString;
 use array_tool::vec::Intersect;
@@ -24,8 +23,7 @@ pub struct AlignFilterConfig {
   pub discard_nonzero_mismatch: bool,
   pub discard_multiple_matches: bool,
   pub score_filter: i32,
-  pub intersect_level: IntersectLevel,
-  pub debug_reference: String
+  pub intersect_level: IntersectLevel
 }
 
 /* Takes a set of sequences and optionally, reverse sequences, a debrujin map index of the reference
@@ -34,29 +32,16 @@ pub struct AlignFilterConfig {
  * genome.
  * This function does some alignment-time filtration based on the provided configuration. */
 pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAligner, reference_metadata: &ReferenceMetadata,
-  config: &AlignFilterConfig) -> Vec<(String, i32)>
+  config: &AlignFilterConfig) -> Vec<(Vec<String>, i32)>
   where 
     I: Iterator<Item = Result<DnaString, Error>>
   {
 
-  // Variables to configure debugging/headers for the debug TSV
-  let mut debug_str_rep = String::new();
-  debug_str_rep += "sequence\tscore\n\n\n";
-  debug_str_rep += "Reference: ";
-  debug_str_rep += &config.debug_reference;
-  debug_str_rep += "\n\n\n";
+  // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
+  let mut score_map: HashMap<Vec<String>, i32> = HashMap::new();
 
-  /* Map for determining whether a reference has been matched to or not by a given read.
-   * This is used to ensure that a read doesn't increment a reference's score multiple times
-   * if we are not reporting per-allele results. */
-  let mut score_map: HashMap<String, (i32, bool)> = HashMap::new();
-
-  // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references
+  // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
   for read in sequences {
-    // Clear the score map
-    for (_, value) in score_map.iter_mut() {
-      *value = (value.0, false);
-    }
 
     let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
     /* Generate score and equivalence class for this read by aligning the sequence against
@@ -66,9 +51,8 @@ pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAli
 
     // If there's a reversed sequence, do the paired-end alignment
     let mut rev_seq_score = None;
-    let mut reverse_read = DnaString::new();
     if let Some(itr) = &mut reverse_sequences {
-      reverse_read = itr.next().expect(
+      let reverse_read = itr.next().expect(
         "Error -- read and reverse read files do not have matching lengths: "
       ).expect("Error -- could not parse reverse read. Input R2 data malformed.");
       rev_seq_score = Some(pseudoalign(&reverse_read, &index, config.score_threshold, config.num_mismatches,
@@ -82,68 +66,19 @@ pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAli
       IntersectLevel::ForceIntersect => get_intersecting_reads(&seq_score, &rev_seq_score, false)
     };
 
-    // If there was a match, update the corresponding reference.
     if !match_eqv_class.is_empty() {
-      // For each reference in the equivalence class
-      for idx in match_eqv_class {
+      let key = get_score_map_key(match_eqv_class, reference_metadata); // Process the equivalence class into a score key
 
-        /* Get a key to add to the score map. If we're reporting allele-level data, the key will be unique
-         * for each reference. Otherwise, it may not be unique per-reference in the case of e.g. lineage or locus. */
-        let key = &reference_metadata.columns[reference_metadata.group_on][idx as usize];
-
-        // Write debug output for specified reference if debugging is enabled
-        if key == &config.debug_reference {
-          let r1_seq = read.to_string();
-          let r1_score = if let Some((_, score)) = seq_score {
-            score.to_string()
-          } else {
-            String::from("NO MATCH")
-          };
-
-          let mut r2_seq = String::from("NO REVERSE READ");
-          if reverse_read.len() != 0 {
-            r2_seq = reverse_read.to_string();
-          }
-          let r2_score = if let Some(Some((_, score))) = rev_seq_score {
-            score.to_string()
-          } else {
-            String::from("NO MATCH")
-          };
-
-          debug_str_rep += &r1_seq;
-          debug_str_rep += "\t";
-          debug_str_rep += &r1_score;
-          debug_str_rep += "\n";
-
-          debug_str_rep += &r2_seq;
-          debug_str_rep += "\t";
-          debug_str_rep += &r2_score;
-          debug_str_rep += "\n\n";
-        }
-
-        // Record that this read has matched against the given reference/group based on the aforementioned score_map key
-        let accessor = score_map.entry(key.to_string()).or_insert((1, true));
-
-        // If the given reference/group has already been matched against by this read, don't increment the score again
-        if accessor.1 == false {
-          accessor.0 += 1;
-          accessor.1 = true;
-        }
-      }
+      // Add the key to the score map and increment the score
+      let accessor = score_map.entry(key).or_insert(0); 
+      *accessor += 1;
     }
   }
 
   // Update the results map
   let mut results = Vec::new();
   for (key, value) in score_map.into_iter() {
-    results.push((key, value.0));
-  }
-
-  // If debug mode is on, write the debug file to disk
-  if config.debug_reference != "" {
-    let mut file = File::create("debug.tsv").expect("Error -- could not create debug file");
-    file.write_all(debug_str_rep.as_bytes()).expect("Error -- could not write debug info to file");
-    println!("Debug results written to ./debug.tsv");
+    results.push((key, value));
   }
 
   results
@@ -154,12 +89,10 @@ pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAli
 fn get_intersecting_reads(seq_score: &Option<(Vec<u32>, usize)>, rev_seq_score: &Option<Option<(Vec<u32>, usize)>>, fallback_on_intersect_fail: bool) -> Vec<u32> {
   if let (Some((eqv_class_seq, _)), Some(Some((eqv_class_rev_seq, _)))) = (&seq_score, &rev_seq_score) {
     eqv_class_seq.intersect(eqv_class_rev_seq.to_vec())
-  } else {
-    if fallback_on_intersect_fail {
+  } else if fallback_on_intersect_fail {
       get_best_reads(seq_score, rev_seq_score)
-    } else {
-      Vec::new()
-    }
+  } else {
+    Vec::new()
   }
 }
 
@@ -176,6 +109,26 @@ fn get_best_reads(seq_score: &Option<(Vec<u32>, usize)>, rev_seq_score: &Option<
 }
 
 
+/* Takes a equivalence class and returns a list of strings. If we're processing allele-level data, the strings will be
+ * the nt_sequences of the relevant alleles. Otherwise, if we're doing a group_by, the equivalence class will be
+ * filtered such that there is only one hit per group_by string (e.g. one hit per lineage) and the corresponding strings
+ * (e.g. lineage name) will be returned. */
+fn get_score_map_key(equiv_class: Vec<u32>, reference_metadata: &ReferenceMetadata) -> Vec<String> {
+  if reference_metadata.headers[reference_metadata.group_on] == "nt_sequence" {
+    equiv_class.into_iter().map(|ref_idx| reference_metadata.columns[reference_metadata.group_on][ref_idx as usize].clone()).collect()
+  } else {
+    let mut results = Vec::new();
+
+    for ref_idx in equiv_class {
+      let group = &reference_metadata.columns[reference_metadata.group_on][ref_idx as usize];
+      if !results.contains(group) {
+        results.push(group.to_string());
+      }
+    }
+
+    results
+  }
+}
 
 
 // Align the given sequence against the given reference with a score threshold
