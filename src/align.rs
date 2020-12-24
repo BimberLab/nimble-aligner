@@ -24,7 +24,8 @@ pub struct AlignFilterConfig {
   pub discard_multiple_matches: bool,
   pub score_filter: i32,
   pub intersect_level: IntersectLevel,
-  pub require_valid_pair: bool
+  pub require_valid_pair: bool,
+  pub discard_multi_hits: usize
 }
 
 /* Takes a set of sequences and optionally, reverse sequences, a debrujin map index of the reference
@@ -89,7 +90,7 @@ pub fn score<I>(sequences: I, mut reverse_sequences: Option<I>, index: PseudoAli
     };
 
     if !match_eqv_class.is_empty() {
-      let key = get_score_map_key(match_eqv_class, reference_metadata); // Process the equivalence class into a score key
+      let key = get_score_map_key(match_eqv_class, reference_metadata, &config); // Process the equivalence class into a score key
 
       // Add the key to the score map and increment the score
       let accessor = score_map.entry(key).or_insert(0); 
@@ -135,7 +136,7 @@ fn get_best_reads(seq_score: &Option<(Vec<u32>, usize)>, rev_seq_score: &Option<
  * the nt_sequences of the relevant alleles. Otherwise, if we're doing a group_by, the equivalence class will be
  * filtered such that there is only one hit per group_by string (e.g. one hit per lineage) and the corresponding strings
  * (e.g. lineage name) will be returned. */
-fn get_score_map_key(equiv_class: Vec<u32>, reference_metadata: &ReferenceMetadata) -> Vec<String> {
+fn get_score_map_key(equiv_class: Vec<u32>, reference_metadata: &ReferenceMetadata, config: &AlignFilterConfig) -> Vec<String> {
   if reference_metadata.headers[reference_metadata.group_on] == "nt_sequence" {
     equiv_class.into_iter().map(|ref_idx| reference_metadata.columns[reference_metadata.group_on][ref_idx as usize].clone()).collect()
   } else {
@@ -148,7 +149,12 @@ fn get_score_map_key(equiv_class: Vec<u32>, reference_metadata: &ReferenceMetada
       }
     }
 
-    results
+    // Filter based on discard_multi_hits
+    if config.discard_multi_hits > 0 && results.len() > config.discard_multi_hits {
+      Vec::new()
+    } else {
+      results
+    }
   }
 }
 
