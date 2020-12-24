@@ -81,6 +81,7 @@ fn basic_single_strand_no_mismatch() {
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
     score_filter: 0,
+    require_valid_pair: false,
     intersect_level: IntersectLevel::NoIntersect
   };
 
@@ -110,6 +111,7 @@ fn basic_single_strand_one_mismatch() {
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
     score_filter: 0,
+    require_valid_pair: false,
     intersect_level: IntersectLevel::NoIntersect
   };
 
@@ -139,6 +141,7 @@ fn basic_single_strand_two_mismatch() {
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
     score_filter: 0,
+    require_valid_pair: false,
     intersect_level: IntersectLevel::NoIntersect
   };
 
@@ -168,6 +171,7 @@ fn group_by() {
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
     score_filter: 0,
+    require_valid_pair: false,
     intersect_level: IntersectLevel::NoIntersect
   };
 

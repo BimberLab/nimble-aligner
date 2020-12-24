@@ -9,7 +9,7 @@ pub struct ReferenceMetadata {
   pub group_on: usize,
   pub headers: Vec<String>,
   pub columns: Vec<Vec<String>>,
-  pub nt_sequence_idx: usize
+  pub nt_sequence_idx: usize,
 }
 
 
@@ -31,6 +31,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
   let score_filter = config_obj["score_filter"].as_i64().expect("Error -- could not parse percent_threshold as int64");
   let num_mismatches = config_obj["num_mismatches"].as_i64().expect("Error -- could not parse num_mismatches as int64") as usize;
   let discard_multiple_matches = config_obj["discard_multiple_matches"].as_bool().expect("Error -- could not parse discard_multiple_mismatches as boolean");
+  let require_valid_pair = config_obj["require_valid_pair"].as_bool().expect("Error -- could not parse require_valid_pair as boolean");
   let intersect_level = config_obj["intersect_level"].as_i64().expect("Error -- could not parse intersect_level as int64");
   let intersect_level = match intersect_level {
     0 => align::IntersectLevel::NoIntersect,
@@ -67,6 +68,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
     discard_nonzero_mismatch: false,
     discard_multiple_matches,
     score_filter: score_filter as i32,
+    require_valid_pair,
     intersect_level
   };
 
