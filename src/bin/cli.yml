@@ -9,6 +9,9 @@ args:
   - reference_fasta:
       help: fasta/fasta.gz file containing the reference library genetic data
       required: true
+  - output:
+      help: Output TSV file name
+      required: true
   - input:
       help: Single fastq.gz/fastq file, or two if you need to do paired-end alignment
       required: true

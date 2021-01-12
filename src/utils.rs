@@ -56,7 +56,7 @@ pub fn append_match_percent(scores: Vec<(Vec<String>, i32)>, total_hits: usize) 
 
 
 // Write the given vector of scores to a TSV file
-pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>) {
+pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>, output_path: &str) {
   let mut str_rep = String::new();
 
   // Add the headers to the top of the string representation of the tsv file
@@ -70,7 +70,7 @@ pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>) {
     str_rep += "\n";
   }
 
-  let mut file = File::create("results.tsv").expect("Error -- could not create results file");
+  let mut file = File::create(output_path).expect("Error -- could not create results file");
   file.write_all(str_rep.as_bytes()).expect("Error -- could not write results to file");
 }
 
