@@ -1,5 +1,5 @@
 use std::path;
-use std::io::{Write, Read, Error, ErrorKind};
+use std::io::{Write, Read, Error, ErrorKind, Cursor};
 use std::fs::File;
 use csv::Reader;
 use unwrap::unwrap;
@@ -14,10 +14,15 @@ pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R>{
 }
 
 
-// Takes the path to a fastq file and returns an error-checked iterator of the DnaStrings of the file
+// Takes the path to a fastq.gz file and returns an error-checked iterator of the DnaStrings of the file
 pub fn get_error_checked_fastq_reader(file_path: &str) -> impl Iterator<Item = Result<DnaString, Error>> {
-  fastq::Reader::from_file(path::Path::new(file_path))
-    .expect("Error -- cannot read sequence file: ")
+  let (mut reader, _) = unwrap!(niffler::from_path(path::Path::new(file_path)),
+    "Error -- could not determine compression format for {}", file_path);
+
+  let mut contents = vec![];
+  unwrap!(reader.read_to_end(&mut contents), "Error -- could not read full contents of {}", file_path);
+
+  fastq::Reader::new(Cursor::new(contents))
     .records()
     .map(|record| match record { 
       Ok(rec) => Ok(DnaString::from_acgt_bytes(rec.seq())),

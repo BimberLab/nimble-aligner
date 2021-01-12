@@ -21,3 +21,4 @@ debruijn_mapping = { git = "https://github.com/10XGenomics/rust-pseudoaligner" }
 serde_json = "1.0.56"
 array_tool = "1.0.3"
 unwrap = "1.2.1"
+niffler = "2.2.0"
