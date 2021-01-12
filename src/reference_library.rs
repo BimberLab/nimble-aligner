@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::fs::read_to_string;
+use unwrap::unwrap;
 use serde_json::Value;
 use crate::align;
 
@@ -53,13 +54,13 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
   let group_on = if group_on == "" {
     nt_sequence_idx
   } else {
-    get_column_index(&headers, &group_on).expect(&format!("Error -- could not find column for group_on {}", &group_on))
+    unwrap!(get_column_index(&headers, &group_on), "Error -- could not find column for group_on {}", &group_on)
   };
 
 
   // Parse columns into a matrix of strings
   let columns = columns.as_array().expect("Error -- could not parse columns as array");
-  let columns: Vec<Vec<String>> = columns.into_iter().map(|column| to_string_vec(column, "column")).collect();
+  let columns: Vec<Vec<String>> = columns.iter().map(|column| to_string_vec(column, "column")).collect();
 
 
   let align_config = align::AlignFilterConfig {
@@ -87,8 +88,8 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
 
 
 // Given a column header, find the index of the corresponding column if it exists
-fn get_column_index(headers: &Vec<String>, search_header: &str) -> Option<usize> {
-  for (i, header) in headers.into_iter().enumerate() {
+fn get_column_index(headers: &[String], search_header: &str) -> Option<usize> {
+  for (i, header) in headers.iter().enumerate() {
     if header == search_header {
       return Some(i);
     }
@@ -100,8 +101,8 @@ fn get_column_index(headers: &Vec<String>, search_header: &str) -> Option<usize>
 
 // Convert a given serde_json value into a string array if possible, and crash otherwise
 fn to_string_vec(v: &Value, array_name: &str) -> Vec<String> {
-  let result: Vec<String> = v.as_array().expect(&format!("Error -- could not parse {} as array", array_name)).into_iter().map(|string| {
-    string.as_str().expect(&format!("Error -- could not parse {} element \"{}\" as a string", array_name, string)).to_string()
+  let result: Vec<String> = unwrap!(v.as_array(), "Error -- could not parse {} as array", array_name).iter().map(|string| {
+    unwrap!(string.as_str(), "Error -- could not parse {} element \"{}\" as a string", array_name, string).to_string()
   }).collect();
 
   result

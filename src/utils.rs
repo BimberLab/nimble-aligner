@@ -2,6 +2,7 @@ use std::path;
 use std::io::{Write, Read, Error, ErrorKind};
 use std::fs::File;
 use csv::Reader;
+use unwrap::unwrap;
 use bio::io::fastq;
 use debruijn::dna_string::DnaString;
 
@@ -35,8 +36,8 @@ pub fn validate_reference_pairs<'a>(reference_genome: bio::io::fasta::Records<Fi
   let mut reference_names: Vec<String> = Vec::new();
 
   for (i, reference) in reference_genome.enumerate() {
-    reference_seqs.push(DnaString::from_acgt_bytes(reference.expect(&format!("Error -- could not read reference sequence #{}", i)).seq()));
-    reference_names.push(reference_library.next().expect(&format!("Error -- could not read library name #{} after JSON parse, corrupted internal state.", i)).clone());
+    reference_seqs.push(DnaString::from_acgt_bytes(unwrap!(reference, "Error -- could not read reference sequence #{}", i).seq()));
+    reference_names.push(unwrap!(reference_library.next(), "Error -- could not read library name #{} after JSON parse, corrupted internal state.", i).clone());
   }
 
   (reference_seqs, reference_names)
