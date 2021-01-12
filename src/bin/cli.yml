@@ -1,5 +1,5 @@
 name: ImmunoGenotyper
-version: "0.0.1"
+version: "0.1.0"
 author: Sebastian B. <benjamse@ohsu.edu>
 about: Configurable RNA-seq aligner against arbitrary reference genomes
 args:
