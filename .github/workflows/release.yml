@@ -57,6 +57,7 @@ jobs:
         with:
           name: url
       - name: Read release URL
+        id: url
         uses: pCYSl5EDgo/cat@master
         with:
           path: url.txt
