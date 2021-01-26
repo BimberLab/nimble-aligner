@@ -22,7 +22,7 @@ jobs:
           prerelease: true
       - shell: bash
         run: |
-          ${{ steps.create_release.outputs.upload_url }} > url.txt
+          ${{ echo steps.create_release.outputs.upload_url }} > url.txt
       - name: Save release URL
         uses: actions/upload-artifact@v2
         with:
@@ -30,6 +30,7 @@ jobs:
           path: url.txt
 
   build:
+    needs: release
     name: Build and upload release asset
     runs-on: ${{ matrix.os }}
     strategy:
