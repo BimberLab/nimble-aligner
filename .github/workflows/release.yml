@@ -22,7 +22,7 @@ jobs:
           prerelease: true
       - shell: bash
         run: |
-          ${{ echo steps.create_release.outputs.upload_url }} > url.txt
+          echo ${{ steps.create_release.outputs.upload_url }} > url.txt
       - name: Save release URL
         uses: actions/upload-artifact@v2
         with:
