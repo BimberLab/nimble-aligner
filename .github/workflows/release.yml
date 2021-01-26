@@ -12,7 +12,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Create release
-        name: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -59,11 +58,9 @@ jobs:
           name: url
       - name: Read release URL
         uses: pCYSl5EDgo/cat@master
-        name: url
         with:
           path: url.txt
       - name: Upload binary to release
-        name: upload-release-asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
