@@ -18,6 +18,7 @@ fn main() {
 
   let reference_json_path = matches.value_of("reference").unwrap();
   let reference_fasta = matches.value_of("reference_fasta").unwrap();
+  let output_path = matches.value_of("output").unwrap();
   let input_files: Vec<&str> = matches.values_of("input").unwrap().collect();
   let num_cores = matches.value_of("num_cores").unwrap_or("1").parse::<usize>().expect("Error -- please provide an integer value for the number of cores");
 
@@ -61,7 +62,7 @@ fn main() {
 
   println!("Writing results to file");
 
-  utils::write_to_tsv(results);
+  utils::write_to_tsv(results, output_path);
 
-  print!("Output results written to ./results.tsv");
+  print!("Output results written to output path");
 }

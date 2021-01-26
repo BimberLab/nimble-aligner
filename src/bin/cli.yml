@@ -1,5 +1,5 @@
 name: ImmunoGenotyper
-version: "0.0.1"
+version: "0.1.0"
 author: Sebastian B. <benjamse@ohsu.edu>
 about: Configurable RNA-seq aligner against arbitrary reference genomes
 args:
@@ -8,6 +8,9 @@ args:
       required: true
   - reference_fasta:
       help: fasta/fasta.gz file containing the reference library genetic data
+      required: true
+  - output:
+      help: Output TSV file name
       required: true
   - input:
       help: Single fastq.gz/fastq file, or two if you need to do paired-end alignment

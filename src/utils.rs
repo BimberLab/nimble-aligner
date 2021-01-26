@@ -2,6 +2,7 @@ use std::path;
 use std::io::{Write, Read, Error, ErrorKind};
 use std::fs::File;
 use csv::Reader;
+use unwrap::unwrap;
 use bio::io::fastq;
 use debruijn::dna_string::DnaString;
 
@@ -13,10 +14,15 @@ pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R>{
 }
 
 
-// Takes the path to a fastq file and returns an error-checked iterator of the DnaStrings of the file
+// Takes the path to a fastq.gz file and returns an error-checked iterator of the DnaStrings of the file
 pub fn get_error_checked_fastq_reader(file_path: &str) -> impl Iterator<Item = Result<DnaString, Error>> {
-  fastq::Reader::from_file(path::Path::new(file_path))
-    .expect("Error -- cannot read sequence file: ")
+  let (reader, _) = unwrap!(niffler::from_path(path::Path::new(file_path)),
+    "Error -- could not determine compression format for {}", file_path);
+
+  //let mut contents = vec![];
+  //unwrap!(reader.read_to_end(&mut contents), "Error -- could not read full contents of {}", file_path);
+
+  fastq::Reader::new(reader)
     .records()
     .map(|record| match record { 
       Ok(rec) => Ok(DnaString::from_acgt_bytes(rec.seq())),
@@ -35,8 +41,8 @@ pub fn validate_reference_pairs<'a>(reference_genome: bio::io::fasta::Records<Fi
   let mut reference_names: Vec<String> = Vec::new();
 
   for (i, reference) in reference_genome.enumerate() {
-    reference_seqs.push(DnaString::from_acgt_bytes(reference.expect(&format!("Error -- could not read reference sequence #{}", i)).seq()));
-    reference_names.push(reference_library.next().expect(&format!("Error -- could not read library name #{} after JSON parse, corrupted internal state.", i)).clone());
+    reference_seqs.push(DnaString::from_acgt_bytes(unwrap!(reference, "Error -- could not read reference sequence #{}", i).seq()));
+    reference_names.push(unwrap!(reference_library.next(), "Error -- could not read library name #{} after JSON parse, corrupted internal state.", i).clone());
   }
 
   (reference_seqs, reference_names)
@@ -50,7 +56,7 @@ pub fn append_match_percent(scores: Vec<(Vec<String>, i32)>, total_hits: usize) 
 
 
 // Write the given vector of scores to a TSV file
-pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>) {
+pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>, output_path: &str) {
   let mut str_rep = String::new();
 
   // Add the headers to the top of the string representation of the tsv file
@@ -64,7 +70,7 @@ pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>) {
     str_rep += "\n";
   }
 
-  let mut file = File::create("results.tsv").expect("Error -- could not create results file");
+  let mut file = File::create(output_path).expect("Error -- could not create results file");
   file.write_all(str_rep.as_bytes()).expect("Error -- could not write results to file");
 }
 

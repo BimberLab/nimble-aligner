@@ -81,7 +81,9 @@ fn basic_single_strand_no_mismatch() {
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
     score_filter: 0,
-    intersect_level: IntersectLevel::NoIntersect
+    require_valid_pair: false,
+    intersect_level: IntersectLevel::NoIntersect,
+    discard_multi_hits: 0
   };
 
   let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
@@ -110,7 +112,9 @@ fn basic_single_strand_one_mismatch() {
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
     score_filter: 0,
-    intersect_level: IntersectLevel::NoIntersect
+    require_valid_pair: false,
+    intersect_level: IntersectLevel::NoIntersect,
+    discard_multi_hits: 0
   };
 
   let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
@@ -139,7 +143,9 @@ fn basic_single_strand_two_mismatch() {
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
     score_filter: 0,
-    intersect_level: IntersectLevel::NoIntersect
+    require_valid_pair: false,
+    intersect_level: IntersectLevel::NoIntersect,
+    discard_multi_hits: 0
   };
 
   let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
@@ -168,7 +174,9 @@ fn group_by() {
     discard_nonzero_mismatch: false,
     discard_multiple_matches: false,
     score_filter: 0,
-    intersect_level: IntersectLevel::NoIntersect
+    require_valid_pair: false,
+    intersect_level: IntersectLevel::NoIntersect,
+    discard_multi_hits: 0
   };
 
   let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);

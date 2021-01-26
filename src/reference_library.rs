@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::fs::read_to_string;
+use unwrap::unwrap;
 use serde_json::Value;
 use crate::align;
 
@@ -9,7 +10,7 @@ pub struct ReferenceMetadata {
   pub group_on: usize,
   pub headers: Vec<String>,
   pub columns: Vec<Vec<String>>,
-  pub nt_sequence_idx: usize
+  pub nt_sequence_idx: usize,
 }
 
 
@@ -31,6 +32,8 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
   let score_filter = config_obj["score_filter"].as_i64().expect("Error -- could not parse percent_threshold as int64");
   let num_mismatches = config_obj["num_mismatches"].as_i64().expect("Error -- could not parse num_mismatches as int64") as usize;
   let discard_multiple_matches = config_obj["discard_multiple_matches"].as_bool().expect("Error -- could not parse discard_multiple_mismatches as boolean");
+  let require_valid_pair = config_obj["require_valid_pair"].as_bool().expect("Error -- could not parse require_valid_pair as boolean");
+  let discard_multi_hits = config_obj["discard_multi_hits"].as_i64().expect("Error -- could not parse discard_multi_hits as int64") as usize;
   let intersect_level = config_obj["intersect_level"].as_i64().expect("Error -- could not parse intersect_level as int64");
   let intersect_level = match intersect_level {
     0 => align::IntersectLevel::NoIntersect,
@@ -51,13 +54,13 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
   let group_on = if group_on == "" {
     nt_sequence_idx
   } else {
-    get_column_index(&headers, &group_on).expect(&format!("Error -- could not find column for group_on {}", &group_on))
+    unwrap!(get_column_index(&headers, &group_on), "Error -- could not find column for group_on {}", &group_on)
   };
 
 
   // Parse columns into a matrix of strings
   let columns = columns.as_array().expect("Error -- could not parse columns as array");
-  let columns: Vec<Vec<String>> = columns.into_iter().map(|column| to_string_vec(column, "column")).collect();
+  let columns: Vec<Vec<String>> = columns.iter().map(|column| to_string_vec(column, "column")).collect();
 
 
   let align_config = align::AlignFilterConfig {
@@ -67,6 +70,8 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
     discard_nonzero_mismatch: false,
     discard_multiple_matches,
     score_filter: score_filter as i32,
+    require_valid_pair,
+    discard_multi_hits,
     intersect_level
   };
 
@@ -83,8 +88,8 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
 
 
 // Given a column header, find the index of the corresponding column if it exists
-fn get_column_index(headers: &Vec<String>, search_header: &str) -> Option<usize> {
-  for (i, header) in headers.into_iter().enumerate() {
+fn get_column_index(headers: &[String], search_header: &str) -> Option<usize> {
+  for (i, header) in headers.iter().enumerate() {
     if header == search_header {
       return Some(i);
     }
@@ -96,8 +101,8 @@ fn get_column_index(headers: &Vec<String>, search_header: &str) -> Option<usize>
 
 // Convert a given serde_json value into a string array if possible, and crash otherwise
 fn to_string_vec(v: &Value, array_name: &str) -> Vec<String> {
-  let result: Vec<String> = v.as_array().expect(&format!("Error -- could not parse {} as array", array_name)).into_iter().map(|string| {
-    string.as_str().expect(&format!("Error -- could not parse {} element \"{}\" as a string", array_name, string)).to_string()
+  let result: Vec<String> = unwrap!(v.as_array(), "Error -- could not parse {} as array", array_name).iter().map(|string| {
+    unwrap!(string.as_str(), "Error -- could not parse {} element \"{}\" as a string", array_name, string).to_string()
   }).collect();
 
   result
