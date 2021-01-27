@@ -29,46 +29,46 @@ jobs:
           name: url
           path: url.txt
 
-  build:
-    needs: release
-    name: Build and upload release asset
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            artifact_name: Ubuntu.out
-            asset_name: Ubuntu.out
-          - os: ubuntu-latest
-            container: iyxd/centos7-rust
-            artifact_name: Centos.out
-            asset_name: Centos.out
-          - os: macos-latest
-            artifact_name: MacOS.out
-            asset_name: MacOS.out
-          - os: windows-latest
-            artifact_name: windows.exe
-            asset_name: windows.exe
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Build
-        run: cargo build --release
-      - name: Download release url
-        uses: actions/download-artifact@v2
-        with:
-          name: url
-      - name: Read release URL
-        id: url
-        uses: pCYSl5EDgo/cat@master
-        with:
-          path: url.txt
-      - name: Upload binary to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.url.outputs.url }}
-          asset_path: target/release/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-          asset_content_type: application/octet-stream
+#  build:
+#    needs: release
+#    name: Build and upload release asset
+#    runs-on: ${{ matrix.os }}
+#    strategy:
+#      matrix:
+#        include:
+#          - os: ubuntu-latest
+#            artifact_name: Ubuntu.out
+#            asset_name: Ubuntu.out
+#          - os: ubuntu-latest
+#            container: iyxd/centos7-rust
+#            artifact_name: Centos.out
+#            asset_name: Centos.out
+#          - os: macos-latest
+#            artifact_name: MacOS.out
+#            asset_name: MacOS.out
+#          - os: windows-latest
+#            artifact_name: windows.exe
+#            asset_name: windows.exe
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v2
+#      - name: Build
+#        run: cargo build --release
+#      - name: Download release url
+#        uses: actions/download-artifact@v2
+#        with:
+#          name: url
+#      - name: Read release URL
+#        id: url
+#        uses: pCYSl5EDgo/cat@master
+#        with:
+#          path: url.txt
+#      - name: Upload binary to release
+#        uses: actions/upload-release-asset@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          upload_url: ${{ steps.url.outputs.url }}
+#          asset_path: target/release/${{ matrix.artifact_name }}
+#          asset_name: ${{ matrix.asset_name }}
+#          asset_content_type: application/octet-stream
