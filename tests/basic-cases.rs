@@ -1,11 +1,11 @@
-extern crate immuno_genotyper;
+extern crate nimble;
 extern crate debruijn;
 extern crate debruijn_mapping;
 extern crate csv;
 
 use std::io::Error;
-use immuno_genotyper::align::IntersectLevel;
-use immuno_genotyper::reference_library;
+use nimble::align::IntersectLevel;
+use nimble::reference_library;
 use std::collections::HashMap;
 use debruijn::dna_string::DnaString;
 use debruijn_mapping::pseudoaligner::Pseudoaligner;
@@ -74,7 +74,7 @@ fn basic_single_strand_no_mismatch() {
   let (sequences, reference_index, reference_metadata) = get_basic_single_strand_data();
 
   // Configure aligner
-  let align_config = immuno_genotyper::align::AlignFilterConfig {
+  let align_config = nimble::align::AlignFilterConfig {
     reference_genome_size: 5,
     score_threshold: 60,
     num_mismatches: 0,
@@ -86,7 +86,7 @@ fn basic_single_strand_no_mismatch() {
     discard_multi_hits: 0
   };
 
-  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
+  let results = nimble::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
   let results = sort_score_vector(results);
 
   let expected_results = vec![
@@ -105,7 +105,7 @@ fn basic_single_strand_one_mismatch() {
   let (sequences, reference_index, reference_metadata) = get_basic_single_strand_data();
 
   // Configure aligner
-  let align_config = immuno_genotyper::align::AlignFilterConfig {
+  let align_config = nimble::align::AlignFilterConfig {
     reference_genome_size: 5,
     score_threshold: 60,
     num_mismatches: 1,
@@ -117,7 +117,7 @@ fn basic_single_strand_one_mismatch() {
     discard_multi_hits: 0
   };
 
-  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
+  let results = nimble::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
   let results = sort_score_vector(results);
 
   let expected_results = vec![
@@ -136,7 +136,7 @@ fn basic_single_strand_two_mismatch() {
   let (sequences, reference_index, reference_metadata) = get_basic_single_strand_data();
 
   // Configure aligner
-  let align_config = immuno_genotyper::align::AlignFilterConfig {
+  let align_config = nimble::align::AlignFilterConfig {
     reference_genome_size: 5,
     score_threshold: 60,
     num_mismatches: 2,
@@ -148,7 +148,7 @@ fn basic_single_strand_two_mismatch() {
     discard_multi_hits: 0
   };
 
-  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
+  let results = nimble::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
   let results = sort_score_vector(results);
 
   let expected_results = vec![
@@ -167,7 +167,7 @@ fn group_by() {
   let (sequences, reference_index, reference_metadata) = get_group_by_data();
 
   // Configure aligner
-  let align_config = immuno_genotyper::align::AlignFilterConfig {
+  let align_config = nimble::align::AlignFilterConfig {
     reference_genome_size: 5,
     score_threshold: 60,
     num_mismatches: 0,
@@ -179,7 +179,7 @@ fn group_by() {
     discard_multi_hits: 0
   };
 
-  let results = immuno_genotyper::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
+  let results = nimble::align::score(sequences.into_iter(), None, reference_index, &reference_metadata, &align_config);
   let results = sort_score_vector(results);
   
   let expected_results = vec![

@@ -1,8 +1,8 @@
-extern crate immuno_genotyper;
+extern crate nimble;
 
-use immuno_genotyper::score;
-use immuno_genotyper::utils;
-use immuno_genotyper::reference_library;
+use nimble::score;
+use nimble::utils;
+use nimble::reference_library;
 
 use std::path::Path;
 use std::collections::HashMap;
