@@ -10,8 +10,6 @@ use clap::{App, load_yaml};
 use bio::io::fasta;
 
 fn main() {
-  println!("Loading and preprocessing reference data");
-
   // Parse command line arguments based on the yaml schema
   let yaml = load_yaml!("cli.yml");
   let matches = App::from_yaml(yaml).get_matches();
@@ -21,6 +19,8 @@ fn main() {
   let output_path = matches.value_of("output").unwrap();
   let input_files: Vec<&str> = matches.values_of("input").unwrap().collect();
   let num_cores = matches.value_of("num_cores").unwrap_or("1").parse::<usize>().expect("Error -- please provide an integer value for the number of cores");
+
+  println!("Loading and preprocessing reference data");
 
   // Read library alignment config info and reference library metadata from library json
   let (align_config, reference_metadata) = reference_library::get_reference_library(Path::new(reference_json_path));
