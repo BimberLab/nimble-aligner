@@ -6,9 +6,6 @@ args:
   - reference:
       help: File defining the reference library that will be used for alignment, in nimble .json format
       required: true
-  - reference_fasta:
-      help: fasta/fasta.gz file containing the reference library genetic data
-      required: true
   - output:
       help: Output TSV file name
       required: true

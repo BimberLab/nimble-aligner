@@ -6,6 +6,7 @@ extern crate csv;
 use std::io::Error;
 use nimble::align::IntersectLevel;
 use nimble::reference_library;
+use nimble::utils::validate_reference_pairs;
 use std::collections::HashMap;
 use debruijn::dna_string::DnaString;
 use debruijn_mapping::pseudoaligner::Pseudoaligner;
@@ -13,18 +14,19 @@ use debruijn_mapping::pseudoaligner::Pseudoaligner;
 
 // Shared function for generating basic single strand test data
 fn get_basic_single_strand_data() -> (Vec<Result<DnaString, Error>>, Pseudoaligner<debruijn_mapping::config::KmerType>, reference_library::ReferenceMetadata) {
-  /* 'A02' is a portion of a the macaque MHC sequence Mamu-A1*002. A02-1 and A02-2 are 1bp and 2bp changes form A02 (see lower-case bases).  
-  A02-LC is the same sequence as A02, just with some upper -> lower case changes to ensure that our results are case-insensitive. */
-  let columns: Vec<Vec<String>> = vec![vec!["test", "test", "test"], vec!["A02-0", "A02-1", "A02-2", "A02-LC", "KIR2DL-4"], vec!["180", "180", "180"]].into_iter().map(|column| column.into_iter().map(|val| val.to_string()).collect()).collect();
 
-  // Data associated with the aforementioned names
+  // Sequence reference data
   let reference_sequences = vec![
     "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGGAAGGAGACGCTGCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCGTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
     "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGGAAGGAGACGCTcCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCGTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
     "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGGAAGGAGACGCTcCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCcTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
     "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGgAAGGAGACGCTgCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCgTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
     "CACTCCCCCACTGAGTGGTCGGCACCCAGCAACCCCCTGGTGATCATGGTCACAGGTCTATATGAGAAACCTTCTCTCTCAGCCCAGCCGGGCCCCACGGTTCCCACAGGAGAGAACATGACCTTGTCCTGCAGTTCCCGGCGCTCCTTTGACATGTACCATCTATCCAGGGAGGGGGAG"];
-  let reference_sequences: Vec<DnaString> = reference_sequences.into_iter().map(|seq| DnaString::from_dna_string(seq)).collect();
+
+  /* 'A02' is a portion of a the macaque MHC sequence Mamu-A1*002. A02-1 and A02-2 are 1bp and 2bp changes form A02 (see lower-case bases).  
+  A02-LC is the same sequence as A02, just with some upper -> lower case changes to ensure that our results are case-insensitive. */
+  let columns: Vec<Vec<String>> = vec![vec!["test", "test", "test"], vec!["A02-0", "A02-1", "A02-2", "A02-LC", "KIR2DL-4"], vec!["180", "180", "180"], reference_sequences].into_iter().map(|column| column.into_iter().map(|val| val.to_string()).collect()).collect();
+
 
   // Test sequences
   let sequences = vec![
@@ -35,19 +37,24 @@ fn get_basic_single_strand_data() -> (Vec<Result<DnaString, Error>>, Pseudoalign
   ];
   let sequences: Vec<Result<DnaString, Error>> = sequences.into_iter().map(|seq| Ok(DnaString::from_dna_string(seq))).collect();
 
-  let reference_index = debruijn_mapping::build_index::build_index::<debruijn_mapping::config::KmerType>(
-    &reference_sequences.as_slice(),
-    &columns[1],
-    &HashMap::new(),
-    1
-  ).expect("Error -- could not create pseudoaligner index of the reference library");
 
   let reference_metadata = reference_library::ReferenceMetadata {
     group_on: 1,
-    headers: vec!["reference_genome", "nt_sequence", "nt_length"].into_iter().map(|header| header.to_string()).collect(),
+    headers: vec!["reference_genome", "sequence_name_idx", "nt_length", "sequence_idx"].into_iter().map(|header| header.to_string()).collect(),
     columns,
-    nt_sequence_idx: 1
+    sequence_name_idx: 1,
+    sequence_idx: 3
   };
+
+
+  let (reference_seqs, reference_names) = validate_reference_pairs(&reference_metadata);
+
+  let reference_index = debruijn_mapping::build_index::build_index::<debruijn_mapping::config::KmerType>(
+    &reference_seqs,
+    &reference_names,
+    &HashMap::new(),
+    1
+  ).expect("Error -- could not create pseudoaligner index of the reference library");
 
   (sequences, reference_index, reference_metadata)
 }
@@ -56,7 +63,7 @@ fn get_basic_single_strand_data() -> (Vec<Result<DnaString, Error>>, Pseudoalign
 fn get_group_by_data() -> (Vec<Result<DnaString, Error>>, Pseudoaligner<debruijn_mapping::config::KmerType>, reference_library::ReferenceMetadata) {
   let (sequences, reference_index, mut reference_metadata) = get_basic_single_strand_data();
 
-  reference_metadata.group_on = 3;
+  reference_metadata.group_on = 4;
   reference_metadata.headers.push("test_group_on".to_string());
   reference_metadata.columns.push(vec!["g1", "g2", "g2", "g1", "g1"].into_iter().map(|column| column.to_string()).collect());
 

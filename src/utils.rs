@@ -5,6 +5,7 @@ use csv::Reader;
 use unwrap::unwrap;
 use bio::io::fastq;
 use debruijn::dna_string::DnaString;
+use crate::reference_library::ReferenceMetadata;
 
 // Takes a reader and returns a csv reader that wraps it, configures to use tab delimiters
 pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R>{
@@ -34,14 +35,16 @@ pub fn get_error_checked_fastq_reader(file_path: &str) -> impl Iterator<Item = R
 /* Takes a vector of potential reference genome results and an iterator to the reference library TSV.
  * Produces 2 vectors of sequence-name pairs. Panics if there is a reference sequence that cannot be read.
  * If they can be read, converts the given sequence to a DnaString and get the associated name. */
-pub fn validate_reference_pairs<'a>(reference_genome: bio::io::fasta::Records<File>, 
-  mut reference_library: impl Iterator<Item = &'a String>) -> (Vec<DnaString>, Vec<String>) {
+pub fn validate_reference_pairs(reference: &ReferenceMetadata) -> (Vec<DnaString>, Vec<String>) {
+
+  let reference_genome = reference.columns[reference.sequence_idx].iter();
+  let mut reference_library = reference.columns[reference.sequence_name_idx].iter();
 
   let mut reference_seqs: Vec<DnaString> = Vec::new();
   let mut reference_names: Vec<String> = Vec::new();
 
   for (i, reference) in reference_genome.enumerate() {
-    reference_seqs.push(DnaString::from_acgt_bytes(unwrap!(reference, "Error -- could not read reference sequence #{}", i).seq()));
+    reference_seqs.push(DnaString::from_acgt_bytes(reference.as_bytes()));
     reference_names.push(unwrap!(reference_library.next(), "Error -- could not read library name #{} after JSON parse, corrupted internal state.", i).clone());
   }
 

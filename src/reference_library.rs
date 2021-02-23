@@ -10,7 +10,8 @@ pub struct ReferenceMetadata {
   pub group_on: usize,
   pub headers: Vec<String>,
   pub columns: Vec<Vec<String>>,
-  pub nt_sequence_idx: usize,
+  pub sequence_name_idx: usize,
+  pub sequence_idx: usize
 }
 
 
@@ -44,18 +45,17 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
    
   let group_on = config_obj["group_on"].as_str().expect("Error -- could not parse group_on as string").to_string();
 
-
-
   // Get reference library metadata from the second JSON object in the file
   let reference = &v[1];
   let headers = to_string_vec(&reference["headers"], "headers");
   let columns = &reference["columns"];
-  let nt_sequence_idx = get_column_index(&headers, "nt_sequence").expect("Could not find header nt_sequence");
+  let sequence_name_idx = get_column_index(&headers, "sequence_name").expect("Could not find header sequence_name");
   let group_on = if group_on == "" {
-    nt_sequence_idx
+    sequence_name_idx
   } else {
     unwrap!(get_column_index(&headers, &group_on), "Error -- could not find column for group_on {}", &group_on)
   };
+  let sequence_idx = get_column_index(&headers, "sequence").expect("Error -- could not find sequences column");
 
 
   // Parse columns into a matrix of strings
@@ -64,7 +64,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
 
 
   let align_config = align::AlignFilterConfig {
-    reference_genome_size: columns[nt_sequence_idx].len(),
+    reference_genome_size: columns[sequence_name_idx].len(),
     score_threshold,
     num_mismatches,
     discard_nonzero_mismatch: false,
@@ -80,7 +80,8 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
     group_on,
     headers,
     columns,
-    nt_sequence_idx 
+    sequence_name_idx,
+    sequence_idx
   };
   
   (align_config, reference_metadata)
