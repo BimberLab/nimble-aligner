@@ -1,13 +1,10 @@
-name: ImmunoGenotyper
+name: nimble
 version: "0.1.0"
 author: Sebastian B. <benjamse@ohsu.edu>
 about: Configurable RNA-seq aligner against arbitrary reference genomes
 args:
   - reference:
-      help: File defining the reference library that will be used for alignment, in ImmunoGenotyper .json format
-      required: true
-  - reference_fasta:
-      help: fasta/fasta.gz file containing the reference library genetic data
+      help: File defining the reference library that will be used for alignment, in nimble .json format
       required: true
   - output:
       help: Output TSV file name

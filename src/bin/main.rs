@@ -1,13 +1,12 @@
-extern crate immuno_genotyper;
+extern crate nimble;
 
-use immuno_genotyper::score;
-use immuno_genotyper::utils;
-use immuno_genotyper::reference_library;
+use nimble::score;
+use nimble::utils;
+use nimble::reference_library;
 
 use std::path::Path;
 use std::collections::HashMap;
 use clap::{App, load_yaml};
-use bio::io::fasta;
 
 fn main() {
   // Parse command line arguments based on the yaml schema
@@ -15,23 +14,17 @@ fn main() {
   let matches = App::from_yaml(yaml).get_matches();
 
   let reference_json_path = matches.value_of("reference").unwrap();
-  let reference_fasta = matches.value_of("reference_fasta").unwrap();
   let output_path = matches.value_of("output").unwrap();
   let input_files: Vec<&str> = matches.values_of("input").unwrap().collect();
   let num_cores = matches.value_of("num_cores").unwrap_or("1").parse::<usize>().expect("Error -- please provide an integer value for the number of cores");
 
   println!("Loading and preprocessing reference data");
 
-  // Read library alignment config info and reference library metadata from library json
+  // Read library alignment config info, reference library metadata, and sequences from library json
   let (align_config, reference_metadata) = reference_library::get_reference_library(Path::new(reference_json_path));
 
-  // Get iterator to records in the reference genome .fasta
-  let reference_genome  = fasta::Reader::from_file(reference_fasta).expect(
-    "Error -- could not read reference genome"
-  ).records();
-
   // Generate error-checked vectors of seqs and names for the debrujin index
-  let (reference_seqs, reference_names) = utils::validate_reference_pairs(reference_genome, reference_metadata.columns[reference_metadata.nt_sequence_idx].iter());
+  let (reference_seqs, reference_names) = utils::validate_reference_pairs(&reference_metadata);
 
   // Create debruijn index of the reference library
   let reference_index = debruijn_mapping::build_index::build_index::<debruijn_mapping::config::KmerType>(

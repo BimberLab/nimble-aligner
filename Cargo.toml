@@ -1,15 +1,15 @@
 [package]
-name = "immuno_genotyper"
+name = "nimble"
 version = "0.1.0"
 authors = ["Sebastian Benjamin <sebastiancbenjamin@gmail.com>"]
 edition = "2018"
 
 [lib]
-name = "immuno_genotyper"
+name = "nimble"
 path = "src/lib.rs"
 
 [[bin]]
-name = "immuno_genotyper"
+name = "nimble"
 path = "src/bin/main.rs"
 
 [dependencies]
