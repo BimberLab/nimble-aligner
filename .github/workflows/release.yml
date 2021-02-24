@@ -57,7 +57,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Build
-        run: cargo rustc --release --bin nimble -- -C target-cpu=native
+        run: cargo build --release
       - shell: bash
         run: |
           mv ./target/release/nimble ./target/release/${{ matrix.artifact_name }}
