@@ -8,6 +8,8 @@ use std::io::{Error, ErrorKind, Read, Write};
 use std::path;
 use unwrap::unwrap;
 
+pub type DNAStringIter = impl Iterator<Item = Result<DnaString, Error>>;
+
 // Takes a reader and returns a csv reader that wraps it, configures to use tab delimiters
 pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
     csv::ReaderBuilder::new()
@@ -16,17 +18,14 @@ pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
 }
 
 // Takes the path to a fastq.gz file and returns an error-checked iterator of the DnaStrings of the file
-pub fn get_error_checked_fastq_reader(
+fn get_error_checked_fastq_reader(
     file_path: &str,
-) -> impl Iterator<Item = Result<DnaString, Error>> {
+) -> DNAStringIter {
     let (reader, _) = unwrap!(
         niffler::from_path(path::Path::new(file_path)),
         "Error -- could not determine compression format for {}",
         file_path
     );
-
-    //let mut contents = vec![];
-    //unwrap!(reader.read_to_end(&mut contents), "Error -- could not read full contents of {}", file_path);
 
     fastq::Reader::new(reader)
         .records()

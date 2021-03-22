@@ -1,8 +1,8 @@
 use crate::filter;
 use crate::reference_library;
+use crate::utils::DNAStringIter;
 
 use std::collections::HashMap;
-use std::io::Error;
 
 use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
@@ -35,18 +35,47 @@ pub struct AlignFilterConfig {
  * debrujin-graph based pseduoalignment, returning a score for each readable reference in the reference
  * genome.
  * This function does some alignment-time filtration based on the provided configuration. */
-pub fn score<I>(
-    sequences: I,
-    mut reverse_sequences: Option<I>,
+pub fn score(
+    sequence_iter_pair: (DNAStringIter, DNAStringIter),
+    mut reverse_sequence_iter_pair: Option<(DNAStringIter, DNAStringIter)>,
     index_pair: (PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
 ) -> Vec<(Vec<String>, i32)>
-where
-    I: Iterator<Item = Result<DnaString, Error>>,
 {
-    let (index, index_reverse) = index_pair;
+    let (index_forward, index_backward) = index_pair;
+    let (sequences, sequences_2) = sequence_iter_pair;
+    let (reverse_sequences, reverse_sequences_2) = match reverse_sequence_iter_pair {
+        Some((l, r)) => (Some(l), Some(r)),
+        None => (None, None),
+    };
 
+    let forward_score = generate_score(
+        sequences,
+        reverse_sequences,
+        index_forward,
+        reference_metadata,
+        config,
+    );
+    let backward_score = generate_score(
+        sequences_2,
+        reverse_sequences_2,
+        index_backward,
+        reference_metadata,
+        config,
+    );
+
+    forward_score
+}
+
+fn generate_score(
+    sequences: DNAStringIter,
+    mut reverse_sequences: Option<DNAStringIter>,
+    index: PseudoAligner,
+    reference_metadata: &ReferenceMetadata,
+    config: &AlignFilterConfig,
+) -> Vec<(Vec<String>, i32)>
+{
     // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
     let mut score_map: HashMap<Vec<String>, i32> = HashMap::new();
 
@@ -68,30 +97,11 @@ where
         }
 
         // If there are no reverse sequences, ignore the require_valid_pair filter
-        if reverse_sequences.is_some() {
-            // Otherwise, check if the user enabled the require_valid_pair filter
-            if config.require_valid_pair {
-                // Unpack the data to check if the pairs have the same eq_class. If they both contain data, do the comparison
-                if let (Some(Some((mut rev_eq_class, _))), Some((mut eq_class, _))) =
-                    ((&rev_seq_score).clone(), (&seq_score).clone())
-                {
-                    // Sort the vectors and compare them by counting matching elements. If they don't match, don't modify the score for this read
-                    rev_eq_class.sort();
-                    eq_class.sort();
-                    let matching = eq_class
-                        .iter()
-                        .zip(&rev_eq_class)
-                        .filter(|&(classl, classr)| classl == classr)
-                        .count();
-
-                    if matching != eq_class.len() || matching != rev_eq_class.len() {
-                        continue;
-                    }
-                } else {
-                    // Otherwise, require_valid_pair is on and rev_score != seq_score, or they're both None. In either case, don't modify score
-                    continue;
-                }
-            }
+        if reverse_sequences.is_some()
+            && config.require_valid_pair
+            && filter_pair(&seq_score, &rev_seq_score)
+        {
+            continue;
         }
 
         // Take the "best" alignment. The specific behavior is determined by the intersect level set in the aligner config
@@ -121,6 +131,34 @@ where
     }
 
     results
+}
+
+// Determine whether a given pair of equivalence classes constitute a valid pair
+fn filter_pair(
+    seq_score: &Option<(Vec<u32>, usize)>,
+    rev_seq_score: &Option<Option<(Vec<u32>, usize)>>,
+) -> bool {
+    // Unpack the data to check if the pairs have the same eq_class. If they both contain data, do the comparison
+    if let (Some(Some((mut rev_eq_class, _))), Some((mut eq_class, _))) =
+        ((rev_seq_score).clone(), (seq_score).clone())
+    {
+        // Sort the vectors and compare them by counting matching elements. If they don't match, don't modify the score for this read
+        rev_eq_class.sort();
+        eq_class.sort();
+        let matching = eq_class
+            .iter()
+            .zip(&rev_eq_class)
+            .filter(|&(classl, classr)| classl == classr)
+            .count();
+
+        if matching != eq_class.len() || matching != rev_eq_class.len() {
+            return true;
+        }
+    } else {
+        // Otherwise, require_valid_pair is on and rev_score != seq_score, or they're both None. In either case, don't modify score
+        return true;
+    }
+    false
 }
 
 // Return matches that match in both seq_score and rev_seq_score; if soft intersection is enabled, fall back to best read if one of the reads is empty

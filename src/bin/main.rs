@@ -58,12 +58,12 @@ fn main() {
 
     /* Get error-checked iterators to the sequences that will be aligned to the reference from the
      * sequence genome file(s) */
-    let sequences = utils::get_error_checked_fastq_reader(input_files[0]);
+    let sequences = utils::get_error_checked_fastq_readers(input_files[0]);
 
     // Only get reverse sequences if a reverse sequence file is provided
     let reverse_sequences = if input_files.len() > 1 {
         println!("Reading reverse sequences");
-        Some(utils::get_error_checked_fastq_reader(input_files[1]))
+        Some(utils::get_error_checked_fastq_readers(input_files[1]))
     } else {
         None
     };

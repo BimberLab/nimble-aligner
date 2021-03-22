@@ -1,3 +1,4 @@
+#![feature(min_type_alias_impl_trait)]
 extern crate csv;
 extern crate debruijn;
 extern crate debruijn_mapping;
@@ -8,7 +9,7 @@ use debruijn::dna_string::DnaString;
 use nimble::align;
 use nimble::align::IntersectLevel;
 use nimble::reference_library;
-use nimble::utils::validate_reference_pairs;
+use nimble::utils::{validate_reference_pairs, DNAStringIter};
 use std::collections::HashMap;
 use std::io::Error;
 
@@ -49,7 +50,7 @@ fn get_raw_data(reverse_comp_ref: bool) -> (Vec<String>, Vec<String>) {
 fn get_basic_single_strand_data(
     reverse_comp_ref: bool,
 ) -> (
-    Vec<Result<DnaString, Error>>,
+    (DNAStringIter, DNAStringIter),
     (align::PseudoAligner, align::PseudoAligner),
     reference_library::ReferenceMetadata,
 ) {
@@ -103,11 +104,15 @@ fn get_basic_single_strand_data(
 
     let reference_index = (reference_index_forward, reference_index_reverse);
 
-    (sequences, reference_index, reference_metadata)
+    (cast_to_iter_pair(sequences), reference_index, reference_metadata)
+}
+
+fn cast_to_iter_pair(sequences: Vec<Result<DnaString, Error>>) -> (DNAStringIter, DNAStringIter) {
+  (sequences.into_iter(), sequences.into_iter())
 }
 
 fn get_group_by_data() -> (
-    Vec<Result<DnaString, Error>>,
+    (DNAStringIter, DNAStringIter),
     (align::PseudoAligner, align::PseudoAligner),
     reference_library::ReferenceMetadata,
 ) {
@@ -149,7 +154,7 @@ fn basic_single_strand_no_mismatch_forward() {
     };
 
     let results = nimble::align::score(
-        sequences.into_iter(),
+        sequences,
         None,
         reference_index,
         &reference_metadata,
@@ -194,7 +199,7 @@ fn basic_single_strand_one_mismatch_forward() {
     };
 
     let results = nimble::align::score(
-        sequences.into_iter(),
+        sequences,
         None,
         reference_index,
         &reference_metadata,
@@ -239,7 +244,7 @@ fn basic_single_strand_two_mismatch_forward() {
     };
 
     let results = nimble::align::score(
-        sequences.into_iter(),
+        sequences,
         None,
         reference_index,
         &reference_metadata,
@@ -284,7 +289,7 @@ fn basic_single_strand_no_mismatch_reverse() {
     };
 
     let results = nimble::align::score(
-        sequences.into_iter(),
+        sequences,
         None,
         reference_index,
         &reference_metadata,
@@ -329,7 +334,7 @@ fn basic_single_strand_one_mismatch_reverse() {
     };
 
     let results = nimble::align::score(
-        sequences.into_iter(),
+        sequences,
         None,
         reference_index,
         &reference_metadata,
@@ -374,7 +379,7 @@ fn basic_single_strand_two_mismatch_reverse() {
     };
 
     let results = nimble::align::score(
-        sequences.into_iter(),
+        sequences,
         None,
         reference_index,
         &reference_metadata,
@@ -419,7 +424,7 @@ fn group_by() {
     };
 
     let results = nimble::align::score(
-        sequences.into_iter(),
+        sequences,
         None,
         reference_index,
         &reference_metadata,
