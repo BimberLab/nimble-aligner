@@ -4,7 +4,6 @@ extern crate debruijn;
 extern crate debruijn_mapping;
 extern crate nimble;
 
-use bio::alphabets::rna::revcomp;
 use debruijn::dna_string::DnaString;
 use nimble::align;
 use nimble::align::IntersectLevel;
@@ -12,39 +11,6 @@ use nimble::reference_library;
 use nimble::utils::{validate_reference_pairs, DNAStringIter};
 use std::collections::HashMap;
 use std::io::Error;
-
-fn get_raw_data(reverse_comp_ref: bool) -> (Vec<String>, Vec<String>) {
-    let reference_sequences = vec![
-    "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGGAAGGAGACGCTGCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCGTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
-    "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGGAAGGAGACGCTcCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCGTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
-    "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGGAAGGAGACGCTcCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCcTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
-    "CGCAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGgAAGGAGACGCTgCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCgTCTCTGACCAAGAGGCCACCCTGAGGTGCTGG",
-    "CACTCCCCCACTGAGTGGTCGGCACCCAGCAACCCCCTGGTGATCATGGTCACAGGTCTATATGAGAAACCTTCTCTCTCAGCCCAGCCGGGCCCCACGGTTCCCACAGGAGAGAACATGACCTTGTCCTGCAGTTCCCGGCGCTCCTTTGACATGTACCATCTATCCAGGGAGGGGGAG"];
-
-    // Test sequences
-    let sequences = vec![
-    "TACCTGGAGAACGGGAAGGAGACGCTGCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCGTCTCTGACCAAGAGGCCACCCTGAGGTGCT",                  // Test-Data-1: exact match to A02-0
-    "TACCTGGAGAACGGGAAGGAGACGCTcCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCGTCTCTGACCAAGAGGCCACCCTGAGGTGCT",                  // Test-Data-2: exact match to A02-1
-    "TACCTGGAGAACGGGAAGGAGACGCTcCAGCGCGCGGACCCCCCCAAGACACATGTGACCCACCACCCCGTCTCTGACCAAGAGGCCACCCTGAGGTGCTatgatgatagatag",    // Test-Data-3: exact match to A02-1, except has extraneous bases at end
-    "CAAGTGGGAGGCGGCGGGTGAGGCGGAGCAGCACAGAACCTACCTGGAGGGCGAGTGCCTGGAGTGGCTCCGCAGATACCTGGAGAACGGGAAGGAGACGC"                  // Test-Data-4: exact match to 5' end of A02-0 through A02-2
-  ];
-
-    let sequences = sequences.into_iter().map(String::from).collect();
-
-    let reference_sequences = if reverse_comp_ref {
-        reference_sequences
-            .into_iter()
-            .map(String::from)
-            .map(|seq| seq.into_bytes())
-            .map(revcomp)
-            .map(|seq| String::from_utf8(seq).unwrap())
-            .collect()
-    } else {
-        reference_sequences.into_iter().map(String::from).collect()
-    };
-
-    (reference_sequences, sequences)
-}
 
 // Shared function for generating basic single strand test data
 fn get_basic_single_strand_data(
@@ -54,7 +20,46 @@ fn get_basic_single_strand_data(
     (align::PseudoAligner, align::PseudoAligner),
     reference_library::ReferenceMetadata,
 ) {
-    let (reference_sequences, sequences) = get_raw_data(reverse_comp_ref);
+    let data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).push("tests/test-sequences");
+    let basic_cases = data_path.clone().push("/libraries/basic.fasta");
+    let basic_cases_reverse = data_path.clone().push("/libraries/basic-rev.fasta");
+    let sequences = data_path.clone().push("/libraries/basic.fastq");
+    
+    let (align_config, reference_metadata) =
+        reference_library::get_reference_library(Path::new(reference_json_path));
+
+    let (reference_seqs, reference_seqs_rev, reference_names) =
+        utils::validate_reference_pairs(&reference_metadata);
+
+    let reference_index_forward =
+        debruijn_mapping::build_index::build_index::<debruijn_mapping::config::KmerType>(
+            &reference_seqs,
+            &reference_names,
+            &HashMap::new(),
+            num_cores,
+        )
+        .expect("Error -- could not create pseudoaligner index of the reference library");
+
+    let reference_index_reverse =
+        debruijn_mapping::build_index::build_index::<debruijn_mapping::config::KmerType>(
+            &reference_seqs_rev,
+            &reference_names,
+            &HashMap::new(),
+            num_cores,
+        )
+        .expect("Error -- could not create reverse pseudoaligner index of the reference library");
+
+    let reference_index = (reference_index_forward, reference_index_reverse);
+
+    let sequences = utils::get_error_checked_fastq_readers(input_files[0]);
+
+    let reverse_sequences = if input_files.len() > 1 {
+        println!("Reading reverse sequences");
+        Some(utils::get_error_checked_fastq_readers(input_files[1]))
+    } else {
+        None
+    };
+    
 
     /* 'A02' is a portion of a the macaque MHC sequence Mamu-A1*002. A02-1 and A02-2 are 1bp and 2bp changes form A02 (see lower-case bases).
     A02-LC is the same sequence as A02, just with some upper -> lower case changes to ensure that our results are case-insensitive. */
