@@ -1,2 +1,2 @@
-pub mod report;
 pub mod align;
+pub mod report;
