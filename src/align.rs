@@ -37,7 +37,7 @@ pub struct AlignFilterConfig {
  * This function does some alignment-time filtration based on the provided configuration. */
 pub fn score(
     sequence_iter_pair: (DNAStringIter, DNAStringIter),
-    mut reverse_sequence_iter_pair: Option<(DNAStringIter, DNAStringIter)>,
+    reverse_sequence_iter_pair: Option<(DNAStringIter, DNAStringIter)>,
     index_pair: (PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
@@ -65,7 +65,11 @@ pub fn score(
         config,
     );
 
-    forward_score
+    if forward_score.len() > backward_score.len() {
+        forward_score
+    } else {
+        backward_score
+    }
 }
 
 fn generate_score(

@@ -24,7 +24,7 @@ fn get_basic_single_strand_data(
 
     let mut library = data_path.clone();
 
-    if reverse_comp_ref {
+    if !reverse_comp_ref {
         library.push("libraries/basic-rev.json");
     } else {
         library.push("libraries/basic.json");

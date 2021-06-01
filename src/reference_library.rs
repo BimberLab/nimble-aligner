@@ -11,6 +11,7 @@ pub struct ReferenceMetadata {
     pub columns: Vec<Vec<String>>,
     pub sequence_name_idx: usize,
     pub sequence_idx: usize,
+    pub data_type: String,
 }
 
 // Parses a .json that contains a reference library. Returns a tuple of the library's config information and the library data
@@ -85,6 +86,10 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
         .iter()
         .map(|column| to_string_vec(column, "column"))
         .collect();
+    let data_type = config_obj["data_type"]
+        .as_str()
+        .expect("Error -- could not parse data_type as string")
+        .to_string();
 
     let align_config = align::AlignFilterConfig {
         reference_genome_size: columns[sequence_name_idx].len(),
@@ -104,6 +109,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
         columns,
         sequence_name_idx,
         sequence_idx,
+        data_type
     };
 
     (align_config, reference_metadata)

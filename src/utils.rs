@@ -1,5 +1,5 @@
 use crate::reference_library::ReferenceMetadata;
-use bio::alphabets::rna::revcomp;
+use bio::alphabets::{rna, dna};
 use bio::io::fastq;
 use csv::Reader;
 use debruijn::dna_string::DnaString;
@@ -54,6 +54,12 @@ pub fn validate_reference_pairs(
     let mut reference_seqs: Vec<DnaString> = Vec::new();
     let mut reference_seqs_rev: Vec<DnaString> = Vec::new();
     let mut reference_names: Vec<String> = Vec::new();
+
+    let revcomp = match reference.data_type.as_str() {
+       "DNA" => dna::revcomp,
+       "RNA" => rna::revcomp,
+       _ => panic!("Error -- cannot determine revcomp method to use -- uncertain whether data_type is DNA or RNA")
+    };
 
     for (i, reference) in reference_genome.enumerate() {
         reference_seqs.push(DnaString::from_acgt_bytes(reference.as_bytes()));
