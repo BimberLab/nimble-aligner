@@ -12,8 +12,7 @@ pub fn score(
     reference_index: (align::PseudoAligner, align::PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     align_config: align::AlignFilterConfig,
-) -> Vec<(Vec<String>, i32)>
-{
+) -> Vec<(Vec<String>, i32)> {
     // Perform filtered pseudoalignment
     let reference_scores = align::score(
         sequences,

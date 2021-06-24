@@ -41,8 +41,7 @@ pub fn score(
     index_pair: (PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
-) -> Vec<(Vec<String>, i32)>
-{
+) -> Vec<(Vec<String>, i32)> {
     let (index_forward, index_backward) = index_pair;
     let (sequences, sequences_2) = sequence_iter_pair;
     let (reverse_sequences, reverse_sequences_2) = match reverse_sequence_iter_pair {
@@ -78,8 +77,7 @@ fn generate_score(
     index: PseudoAligner,
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
-) -> Vec<(Vec<String>, i32)>
-{
+) -> Vec<(Vec<String>, i32)> {
     // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
     let mut score_map: HashMap<Vec<String>, i32> = HashMap::new();
 

@@ -1,5 +1,5 @@
 use crate::reference_library::ReferenceMetadata;
-use bio::alphabets::{rna, dna};
+use bio::alphabets::{dna, rna};
 use bio::io::fastq;
 use csv::Reader;
 use debruijn::dna_string::DnaString;
@@ -18,10 +18,11 @@ pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
 }
 
 // Takes the path to a fastq.gz file and returns an error-checked iterator of the DnaStrings of the file
-pub fn get_error_checked_fastq_readers(
-    file_path: &str,
-) -> (DNAStringIter, DNAStringIter) {
-    (get_error_checked_fastq_reader(file_path), get_error_checked_fastq_reader(file_path))
+pub fn get_error_checked_fastq_readers(file_path: &str) -> (DNAStringIter, DNAStringIter) {
+    (
+        get_error_checked_fastq_reader(file_path),
+        get_error_checked_fastq_reader(file_path),
+    )
 }
 
 fn get_error_checked_fastq_reader(file_path: &str) -> DNAStringIter {
@@ -56,9 +57,13 @@ pub fn validate_reference_pairs(
     let mut reference_names: Vec<String> = Vec::new();
 
     let revcomp = match reference.data_type.as_str() {
-       "DNA" => dna::revcomp,
-       "RNA" => rna::revcomp,
-       _ => panic!("Error -- cannot determine revcomp method to use -- uncertain whether data_type is DNA or RNA")
+        "DNA" => dna::revcomp,
+        "fasta" => rna::revcomp,
+        "bam" => rna::revcomp,
+        "single-cell" => rna::revcomp,
+        _ => panic!(
+            "Error -- cannot determine revcomp method to use -- ensure data_type is a valid type"
+        ),
     };
 
     for (i, reference) in reference_genome.enumerate() {
