@@ -1,7 +1,7 @@
 [package]
 name = "nimble"
 version = "0.1.0"
-authors = ["Sebastian Benjamin <sebastiancbenjamin@gmail.com>"]
+authors = ["Sebastian Benjamin <benjamse@ohsu.edu>"]
 edition = "2018"
 
 [lib]
