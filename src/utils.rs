@@ -58,9 +58,7 @@ pub fn validate_reference_pairs(
 
     let revcomp = match reference.data_type.as_str() {
         "DNA" => dna::revcomp,
-        "fasta" => rna::revcomp,
-        "bam" => rna::revcomp,
-        "single-cell" => rna::revcomp,
+        "RNA" => rna::revcomp,
         _ => panic!(
             "Error -- cannot determine revcomp method to use -- ensure data_type is a valid type"
         ),
