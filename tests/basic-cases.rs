@@ -7,14 +7,18 @@ extern crate nimble;
 use nimble::align;
 use nimble::reference_library;
 use nimble::utils;
+use nimble::parse::fastq;
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+use std::io::Error;
+use debruijn::dna_string::DnaString;
 
 // Shared function for generating basic single strand test data
 fn get_basic_single_strand_data(
     reverse_comp_ref: bool,
 ) -> (
-    (utils::DNAStringIter, utils::DNAStringIter),
+    (impl Iterator<Item = Result<DnaString, Error>>, impl Iterator<Item = Result<DnaString, Error>>),
     (align::PseudoAligner, align::PseudoAligner),
     reference_library::ReferenceMetadata,
     align::AlignFilterConfig,
@@ -53,7 +57,7 @@ fn get_basic_single_strand_data(
 
     let reference_index = (reference_index_forward, reference_index_reverse);
 
-    let sequences = utils::get_error_checked_fastq_readers(
+    let sequences = fastq::get_error_checked_fastq_readers(
         &sequences
             .into_os_string()
             .into_string()
@@ -66,7 +70,7 @@ fn get_basic_single_strand_data(
 fn get_group_by_data(
     reverse_comp_ref: bool,
 ) -> (
-    (utils::DNAStringIter, utils::DNAStringIter),
+    (impl Iterator<Item = Result<DnaString, Error>>, impl Iterator<Item = Result<DnaString, Error>>),
     (align::PseudoAligner, align::PseudoAligner),
     reference_library::ReferenceMetadata,
     align::AlignFilterConfig,

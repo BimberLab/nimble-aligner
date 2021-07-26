@@ -1,15 +1,17 @@
 use crate::align;
 use crate::reference_library;
 use crate::utils;
-use crate::parse_fastq::DNAStringIter;
 use reference_library::ReferenceMetadata;
+
+use debruijn::dna_string::DnaString;
+use std::io::Error;
 
 /* Takes a list of sequences and optionally reverse sequences, a reference library index, reference library metadata,
  * and an aligner configuration object, and returns a vector of scores and relative match percentages generated from an alignment
  * of the sequences to the reference library. */
 pub fn score(
-    sequences: (DNAStringIter, DNAStringIter),
-    reverse_sequences: Option<(DNAStringIter, DNAStringIter)>,
+    sequences: (impl Iterator<Item = Result<DnaString, Error>>, impl Iterator<Item = Result<DnaString, Error>>),
+    reverse_sequences: Option<(impl Iterator<Item = Result<DnaString, Error>>, impl Iterator<Item = Result<DnaString, Error>>)>,
     reference_index: (align::PseudoAligner, align::PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     align_config: align::AlignFilterConfig,
