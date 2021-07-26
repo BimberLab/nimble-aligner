@@ -1,4 +1,4 @@
-#![feature(min_type_alias_impl_trait)]
+#![feature(allocator_api)]
 extern crate csv;
 extern crate debruijn;
 extern crate debruijn_mapping;
@@ -7,18 +7,19 @@ extern crate nimble;
 use nimble::align;
 use nimble::reference_library;
 use nimble::utils;
-use nimble::parse::fastq;
+use nimble::parse;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use std::io::Error;
 use debruijn::dna_string::DnaString;
 
+
 // Shared function for generating basic single strand test data
 fn get_basic_single_strand_data(
     reverse_comp_ref: bool,
 ) -> (
-    (impl Iterator<Item = Result<DnaString, Error>>, impl Iterator<Item = Result<DnaString, Error>>),
+    (Box<dyn Iterator<Item = Result<DnaString, Error>>>, Box<dyn Iterator<Item = Result<DnaString, Error>>>),
     (align::PseudoAligner, align::PseudoAligner),
     reference_library::ReferenceMetadata,
     align::AlignFilterConfig,
@@ -57,7 +58,7 @@ fn get_basic_single_strand_data(
 
     let reference_index = (reference_index_forward, reference_index_reverse);
 
-    let sequences = fastq::get_error_checked_fastq_readers(
+    let sequences = parse::fastq::get_error_checked_fastq_readers(
         &sequences
             .into_os_string()
             .into_string()
@@ -70,7 +71,7 @@ fn get_basic_single_strand_data(
 fn get_group_by_data(
     reverse_comp_ref: bool,
 ) -> (
-    (impl Iterator<Item = Result<DnaString, Error>>, impl Iterator<Item = Result<DnaString, Error>>),
+    (Box<dyn Iterator<Item = Result<DnaString, Error>>>, Box<dyn Iterator<Item = Result<DnaString, Error>>>),
     (align::PseudoAligner, align::PseudoAligner),
     reference_library::ReferenceMetadata,
     align::AlignFilterConfig,

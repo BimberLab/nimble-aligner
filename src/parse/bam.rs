@@ -22,7 +22,7 @@ impl UMIReader {
         }
     }
 
-    pub fn next(&'static mut self) -> (bool, impl Iterator<Item = Result<DnaString, Error>>, impl Iterator<Item = Result<DnaString, Error>>) {
+    pub fn next(&'static mut self) -> (bool, Box<dyn Iterator<Item = Result<DnaString, Error>>>, Box<dyn Iterator<Item = Result<DnaString, Error>>>) {
         let mut can_call_next = true;
 
         if self.get_umi_from_bam().is_none() {
@@ -31,8 +31,8 @@ impl UMIReader {
 
         (
             can_call_next,
-            self.current_umi_group.iter().step_by(2).map(|rec| Ok(rec.to_owned())),
-            self.current_umi_group.iter().skip(1).step_by(2).map(|rec| Ok(rec.to_owned()))
+            Box::new(self.current_umi_group.iter().step_by(2).map(|rec| Ok(rec.to_owned()))),
+            Box::new(self.current_umi_group.iter().skip(1).step_by(2).map(|rec| Ok(rec.to_owned())))
         )
     }
 
