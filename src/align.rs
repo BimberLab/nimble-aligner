@@ -1,6 +1,6 @@
 use crate::filter;
 use crate::reference_library;
-use crate::utils::DNAStringIter;
+use crate::parse_fastq::DNAStringIter;
 
 use std::collections::HashMap;
 

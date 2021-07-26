@@ -1,14 +1,11 @@
 use crate::reference_library::ReferenceMetadata;
 use bio::alphabets::{dna, rna};
-use bio::io::fastq;
 use csv::Reader;
 use debruijn::dna_string::DnaString;
 use std::fs::File;
-use std::io::{Error, ErrorKind, Read, Write};
-use std::path;
+use std::io::{Read, Write};
 use unwrap::unwrap;
 
-pub type DNAStringIter = impl Iterator<Item = Result<DnaString, Error>>;
 
 // Takes a reader and returns a csv reader that wraps it, configures to use tab delimiters
 pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
@@ -17,31 +14,6 @@ pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
         .from_reader(reader)
 }
 
-// Takes the path to a fastq.gz file and returns an error-checked iterator of the DnaStrings of the file
-pub fn get_error_checked_fastq_readers(file_path: &str) -> (DNAStringIter, DNAStringIter) {
-    (
-        get_error_checked_fastq_reader(file_path),
-        get_error_checked_fastq_reader(file_path),
-    )
-}
-
-fn get_error_checked_fastq_reader(file_path: &str) -> DNAStringIter {
-    let (reader, _) = unwrap!(
-        niffler::from_path(path::Path::new(file_path)),
-        "Error -- could not determine compression format for {}",
-        file_path
-    );
-
-    fastq::Reader::new(reader)
-        .records()
-        .map(|record| match record {
-            Ok(rec) => Ok(DnaString::from_acgt_bytes(rec.seq())),
-            _ => Err(Error::new(
-                ErrorKind::InvalidData,
-                "Unable to read sequence",
-            )),
-        })
-}
 
 /* Takes a reference to the ReferenceMetadata structure.
  * Produces 3 vectors of sequence-name pairs. Panics if there is a reference sequence that cannot be read.
