@@ -1,8 +1,8 @@
 use crate::filter;
 use crate::reference_library;
 
-use std::io::Error;
 use std::collections::HashMap;
+use std::io::Error;
 
 use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
@@ -36,8 +36,14 @@ pub struct AlignFilterConfig {
  * genome.
  * This function does some alignment-time filtration based on the provided configuration. */
 pub fn score(
-    sequence_iter_pair: (Box<dyn Iterator<Item = Result<DnaString, Error>>>, Box<dyn Iterator<Item = Result<DnaString, Error>>>),
-    reverse_sequence_iter_pair: Option<(Box<dyn Iterator<Item = Result<DnaString, Error>>>, Box<dyn Iterator<Item = Result<DnaString, Error>>>)>,
+    sequence_iter_pair: (
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+    ),
+    reverse_sequence_iter_pair: Option<(
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+    )>,
     index_pair: (PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,

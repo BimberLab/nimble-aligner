@@ -6,14 +6,12 @@ use std::fs::File;
 use std::io::{Read, Write};
 use unwrap::unwrap;
 
-
 // Takes a reader and returns a csv reader that wraps it, configures to use tab delimiters
 pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
     csv::ReaderBuilder::new()
         .delimiter(b'\t')
         .from_reader(reader)
 }
-
 
 /* Takes a reference to the ReferenceMetadata structure.
  * Produces 3 vectors of sequence-name pairs. Panics if there is a reference sequence that cannot be read.
@@ -88,4 +86,49 @@ pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>, output_path: &str) {
 pub fn sort_score_vector(mut scores: Vec<(Vec<String>, i32)>) -> Vec<(Vec<String>, i32)> {
     scores.sort_by(|a, b| a.0.cmp(&b.0));
     scores
+}
+
+// Determine if a file is a .bam or a .fasta based on file extension
+pub fn is_fastq(file: &str) -> bool {
+    let mut is_fasta = true;
+    let components = file.split(".").skip(1);
+
+    for component in components {
+        if component == "bam" {
+            is_fasta = false;
+        }
+    }
+
+    is_fasta
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn is_fasta_short() {
+        let expected_results = true;
+        let results = super::is_fastq("reference.fastq");
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn is_fasta_long() {
+        let expected_results = true;
+        let results = super::is_fastq("reference.bin.fastq.gz");
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn is_bam_short() {
+        let expected_results = false;
+        let results = super::is_fastq("reference.bam.gz");
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn is_bam_long() {
+        let expected_results = false;
+        let results = super::is_fastq("reference.bin.bam.zip");
+        assert_eq!(results, expected_results);
+    }
 }

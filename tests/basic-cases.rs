@@ -5,21 +5,23 @@ extern crate debruijn_mapping;
 extern crate nimble;
 
 use nimble::align;
+use nimble::parse;
 use nimble::reference_library;
 use nimble::utils;
-use nimble::parse;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use std::io::Error;
 use debruijn::dna_string::DnaString;
-
+use std::io::Error;
 
 // Shared function for generating basic single strand test data
 fn get_basic_single_strand_data(
     reverse_comp_ref: bool,
 ) -> (
-    (Box<dyn Iterator<Item = Result<DnaString, Error>>>, Box<dyn Iterator<Item = Result<DnaString, Error>>>),
+    (
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+    ),
     (align::PseudoAligner, align::PseudoAligner),
     reference_library::ReferenceMetadata,
     align::AlignFilterConfig,
@@ -71,7 +73,10 @@ fn get_basic_single_strand_data(
 fn get_group_by_data(
     reverse_comp_ref: bool,
 ) -> (
-    (Box<dyn Iterator<Item = Result<DnaString, Error>>>, Box<dyn Iterator<Item = Result<DnaString, Error>>>),
+    (
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+    ),
     (align::PseudoAligner, align::PseudoAligner),
     reference_library::ReferenceMetadata,
     align::AlignFilterConfig,

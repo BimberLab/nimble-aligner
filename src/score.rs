@@ -10,8 +10,14 @@ use std::io::Error;
  * and an aligner configuration object, and returns a vector of scores and relative match percentages generated from an alignment
  * of the sequences to the reference library. */
 pub fn score(
-    sequences: (Box<dyn Iterator<Item = Result<DnaString, Error>>>, Box<dyn Iterator<Item = Result<DnaString, Error>>>),
-    reverse_sequences: Option<(Box<dyn Iterator<Item = Result<DnaString, Error>>>, Box<dyn Iterator<Item = Result<DnaString, Error>>>)>,
+    sequences: (
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+    ),
+    reverse_sequences: Option<(
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+    )>,
     reference_index: (align::PseudoAligner, align::PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     align_config: align::AlignFilterConfig,
