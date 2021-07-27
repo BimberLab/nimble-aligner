@@ -2,9 +2,9 @@ use debruijn::dna_string::DnaString;
 use rust_htslib::{bam, bam::record::Aux, bam::Read, bam::Reader};
 use std::io::Error;
 
-pub struct UMIReader {
+pub struct UMIReader{
     reader: bam::Reader,
-    pub current_umi_group: Vec<DnaString>,
+    current_umi_group: Vec<DnaString>,
     pub current_umi: String,
     next_umi_group: Vec<DnaString>,
     next_umi: String,
@@ -21,21 +21,21 @@ impl UMIReader {
         }
     }
 
-    pub fn next(
-        &'static mut self,
+    pub fn next<'a>(
+        &'a mut self,
     ) -> (
         bool,
-        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
-        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     ) {
-        let mut can_call_next = true;
+        let mut final_umi = false;
 
         if self.get_umi_from_bam().is_none() {
-            can_call_next = false;
+            final_umi = true;
         }
 
         (
-            can_call_next,
+            final_umi,
             Box::new(
                 self.current_umi_group
                     .iter()
