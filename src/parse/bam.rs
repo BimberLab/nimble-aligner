@@ -2,7 +2,7 @@ use debruijn::dna_string::DnaString;
 use rust_htslib::{bam, bam::record::Aux, bam::Read, bam::Reader};
 use std::io::Error;
 
-pub struct UMIReader{
+pub struct UMIReader {
     reader: bam::Reader,
     current_umi_group: Vec<DnaString>,
     pub current_umi: String,
@@ -25,8 +25,14 @@ impl UMIReader {
         &'a mut self,
     ) -> (
         bool,
-        Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
-        Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
+        (
+            Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
+            Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
+        ),
+        (
+            Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
+            Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
+        ),
     ) {
         let mut final_umi = false;
 
@@ -34,21 +40,25 @@ impl UMIReader {
             final_umi = true;
         }
 
+        let sequences = Box::new(
+            self.current_umi_group
+                .iter()
+                .step_by(2)
+                .map(|rec| Ok(rec.to_owned())),
+        );
+
+        let reverse_sequences = Box::new(
+            self.current_umi_group
+                .iter()
+                .skip(1)
+                .step_by(2)
+                .map(|rec| Ok(rec.to_owned())),
+        );
+
         (
             final_umi,
-            Box::new(
-                self.current_umi_group
-                    .iter()
-                    .step_by(2)
-                    .map(|rec| Ok(rec.to_owned())),
-            ),
-            Box::new(
-                self.current_umi_group
-                    .iter()
-                    .skip(1)
-                    .step_by(2)
-                    .map(|rec| Ok(rec.to_owned())),
-            ),
+            (sequences, sequences.clone()),
+            (reverse_sequences, reverse_sequences.clone()),
         )
     }
 
