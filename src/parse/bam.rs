@@ -55,10 +55,12 @@ impl UMIReader {
                 .map(|rec| Ok(rec.to_owned())),
         );
 
+        let sequences_clone = sequences.clone();
+        let reverse_sequences_clone = sequences.clone();
         (
             final_umi,
-            (sequences, sequences.clone()),
-            (reverse_sequences, reverse_sequences.clone()),
+            (sequences, sequences_clone),
+            (reverse_sequences, reverse_sequences_clone),
         )
     }
 
