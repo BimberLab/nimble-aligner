@@ -2,7 +2,7 @@ use crate::reference_library::ReferenceMetadata;
 use bio::alphabets::{dna, rna};
 use csv::Reader;
 use debruijn::dna_string::DnaString;
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use unwrap::unwrap;
 
@@ -77,7 +77,12 @@ pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>, output_path: &str) {
         str_rep += "\n";
     }
 
-    let mut file = File::create(output_path).expect("Error -- could not create results file");
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(output_path)
+        .expect("Error -- could not create results file");
+
     file.write_all(str_rep.as_bytes())
         .expect("Error -- could not write results to file");
 }

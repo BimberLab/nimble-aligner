@@ -1,9 +1,12 @@
+use std::io::Error;
+use debruijn::dna_string::DnaString;
+use array_tool::vec::Intersect;
+
 use crate::align::{AlignFilterConfig, PseudoAligner};
 use crate::parse::bam;
 use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
-use debruijn::dna_string::DnaString;
-use std::io::Error;
+use crate::utils::write_to_tsv;
 
 pub fn process(
     input_files: Vec<&str>,
@@ -19,12 +22,30 @@ pub fn process(
 
         let current_umi_group = reader.current_umi_group.clone();
 
-        let scores = get_score(
+        let s = get_score(
             &current_umi_group,
             reference_index,
             reference_metadata,
             align_config,
         );
+        let mut scores = s.iter();
+        
+        let first_score = scores.next().unwrap();
+        let mut group = first_score.0.clone();
+        let mut score = first_score.1;
+
+        loop {
+            let next = scores.next();
+
+            if next.is_none() {
+                break;
+            }
+
+            group = group.intersect(next.unwrap().0.clone());
+            score += next.unwrap().1;
+        }
+        
+        write_to_tsv(vec![(group, score)], output_path);
 
         if final_umi {
             return;
