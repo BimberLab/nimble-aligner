@@ -20,6 +20,10 @@ pub fn process(
     loop {
         let final_umi = reader.next();
 
+        if final_umi {
+            return;
+        };
+
         let current_umi_group = reader.current_umi_group.clone();
 
         let s = get_score(
@@ -28,6 +32,11 @@ pub fn process(
             reference_metadata,
             align_config,
         );
+        
+        if s.len() == 0 {
+            continue;
+        }
+
         let mut scores = s.iter();
         
         let first_score = scores.next().unwrap();
@@ -45,11 +54,9 @@ pub fn process(
             score += next.unwrap().1;
         }
         
-        write_to_tsv(vec![(group, score)], output_path);
-
-        if final_umi {
-            return;
-        };
+        if group.len() > 0 {
+            write_to_tsv(vec![(group, score)], output_path);
+        }
     }
 }
 
@@ -89,10 +96,18 @@ fn get_score<'a>(
             .map(|rec| Ok(rec.to_owned())),
     );
 
+    // TODO: Check on this logic. Currently, if the data isn't all read-pair, we throw out ALL of
+    // the reverse pairs.
+    let reverse_sequence_pair = if current_umi_group.len() % 2 == 0 {
+        Some((reverse_sequences, reverse_sequences_clone))
+    } else {
+        None
+    };
+
     // Perform alignment and filtration using the score package
     score(
         (sequences, sequences_clone),
-        Some((reverse_sequences, reverse_sequences_clone)),
+        reverse_sequence_pair,
         reference_index,
         &reference_metadata,
         align_config,
