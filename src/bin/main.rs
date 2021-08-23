@@ -59,17 +59,17 @@ fn main() {
     if utils::is_fastq(input_files[0]) {
         fastq::process(
             input_files,
-            reference_index,
-            reference_metadata,
-            align_config,
+            &reference_index,
+            &reference_metadata,
+            &align_config,
             output_path,
         );
     } else {
         bam::process(
             input_files,
-            reference_index,
-            reference_metadata,
-            align_config,
+            &reference_index,
+            &reference_metadata,
+            &align_config,
             output_path,
         );
     };

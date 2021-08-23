@@ -6,9 +6,9 @@ use crate::utils::write_to_tsv;
 
 pub fn process(
     input_files: Vec<&str>,
-    reference_index: (PseudoAligner, PseudoAligner),
-    reference_metadata: ReferenceMetadata,
-    align_config: AlignFilterConfig,
+    reference_index: &(PseudoAligner, PseudoAligner),
+    reference_metadata: &ReferenceMetadata,
+    align_config: &AlignFilterConfig,
     output_path: &str,
 ) {
     /* Get error-checked iterators to the sequences that will be aligned to the reference from the
@@ -30,7 +30,7 @@ pub fn process(
         sequences,
         reverse_sequences,
         reference_index,
-        &reference_metadata,
+        reference_metadata,
         align_config,
     );
 

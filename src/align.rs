@@ -35,16 +35,16 @@ pub struct AlignFilterConfig {
  * debrujin-graph based pseduoalignment, returning a score for each readable reference in the reference
  * genome.
  * This function does some alignment-time filtration based on the provided configuration. */
-pub fn score(
+pub fn score<'a>(
     sequence_iter_pair: (
-        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
-        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     ),
     reverse_sequence_iter_pair: Option<(
-        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
-        Box<dyn Iterator<Item = Result<DnaString, Error>>>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
+        Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     )>,
-    index_pair: (PseudoAligner, PseudoAligner),
+    index_pair: &(PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
 ) -> Vec<(Vec<String>, i32)> {
@@ -77,10 +77,10 @@ pub fn score(
     }
 }
 
-fn generate_score(
-    sequences: Box<dyn Iterator<Item = Result<DnaString, Error>>>,
-    mut reverse_sequences: Option<Box<dyn Iterator<Item = Result<DnaString, Error>>>>,
-    index: PseudoAligner,
+fn generate_score<'a>(
+    sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
+    mut reverse_sequences: Option<Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>>,
+    index: &PseudoAligner,
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
 ) -> Vec<(Vec<String>, i32)> {
@@ -92,7 +92,7 @@ fn generate_score(
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
         /* Generate score and equivalence class for this read by aligning the sequence against
          * the current reference, if there is a match.*/
-        let seq_score = pseudoalign(&read, &index, &config);
+        let seq_score = pseudoalign(&read, index, &config);
 
         // If there's a reversed sequence, do the paired-end alignment
         let mut rev_seq_score = None;
@@ -101,7 +101,7 @@ fn generate_score(
                 .next()
                 .expect("Error -- read and reverse read files do not have matching lengths: ")
                 .expect("Error -- could not parse reverse read. Input R2 data malformed.");
-            rev_seq_score = Some(pseudoalign(&reverse_read, &index, &config));
+            rev_seq_score = Some(pseudoalign(&reverse_read, index, &config));
         }
 
         // If there are no reverse sequences, ignore the require_valid_pair filter
