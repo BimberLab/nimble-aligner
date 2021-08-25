@@ -1,7 +1,7 @@
 extern crate nimble;
 
+use nimble::process::{bam, fastq};
 use nimble::reference_library;
-use nimble::score;
 use nimble::utils;
 
 use clap::{load_yaml, App};
@@ -56,32 +56,21 @@ fn main() {
 
     println!("Loading read sequences");
 
-    /* Get error-checked iterators to the sequences that will be aligned to the reference from the
-     * sequence genome file(s) */
-    let sequences = utils::get_error_checked_fastq_readers(input_files[0]);
-
-    // Only get reverse sequences if a reverse sequence file is provided
-    let reverse_sequences = if input_files.len() > 1 {
-        println!("Reading reverse sequences");
-        Some(utils::get_error_checked_fastq_readers(input_files[1]))
+    if utils::is_fastq(input_files[0]) {
+        fastq::process(
+            input_files,
+            &reference_index,
+            &reference_metadata,
+            &align_config,
+            output_path,
+        );
     } else {
-        None
+        bam::process(
+            input_files,
+            &reference_index,
+            &reference_metadata,
+            &align_config,
+            output_path,
+        );
     };
-
-    println!("Pseudo-aligning reads to reference index");
-
-    // Perform alignment and filtration using the score package
-    let results = score::score(
-        sequences,
-        reverse_sequences,
-        reference_index,
-        &reference_metadata,
-        align_config,
-    );
-
-    println!("Writing results to file");
-
-    utils::write_to_tsv(results, output_path);
-
-    print!("Output results written to output path");
 }

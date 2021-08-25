@@ -109,7 +109,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
         columns,
         sequence_name_idx,
         sequence_idx,
-        data_type
+        data_type,
     };
 
     (align_config, reference_metadata)

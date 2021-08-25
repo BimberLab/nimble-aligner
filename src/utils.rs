@@ -1,45 +1,16 @@
 use crate::reference_library::ReferenceMetadata;
-use bio::alphabets::{rna, dna};
-use bio::io::fastq;
+use bio::alphabets::{dna, rna};
 use csv::Reader;
 use debruijn::dna_string::DnaString;
-use std::fs::File;
-use std::io::{Error, ErrorKind, Read, Write};
-use std::path;
+use std::fs::OpenOptions;
+use std::io::{Read, Write};
 use unwrap::unwrap;
-
-pub type DNAStringIter = impl Iterator<Item = Result<DnaString, Error>>;
 
 // Takes a reader and returns a csv reader that wraps it, configures to use tab delimiters
 pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
     csv::ReaderBuilder::new()
         .delimiter(b'\t')
         .from_reader(reader)
-}
-
-// Takes the path to a fastq.gz file and returns an error-checked iterator of the DnaStrings of the file
-pub fn get_error_checked_fastq_readers(
-    file_path: &str,
-) -> (DNAStringIter, DNAStringIter) {
-    (get_error_checked_fastq_reader(file_path), get_error_checked_fastq_reader(file_path))
-}
-
-fn get_error_checked_fastq_reader(file_path: &str) -> DNAStringIter {
-    let (reader, _) = unwrap!(
-        niffler::from_path(path::Path::new(file_path)),
-        "Error -- could not determine compression format for {}",
-        file_path
-    );
-
-    fastq::Reader::new(reader)
-        .records()
-        .map(|record| match record {
-            Ok(rec) => Ok(DnaString::from_acgt_bytes(rec.seq())),
-            _ => Err(Error::new(
-                ErrorKind::InvalidData,
-                "Unable to read sequence",
-            )),
-        })
 }
 
 /* Takes a reference to the ReferenceMetadata structure.
@@ -56,9 +27,11 @@ pub fn validate_reference_pairs(
     let mut reference_names: Vec<String> = Vec::new();
 
     let revcomp = match reference.data_type.as_str() {
-       "DNA" => dna::revcomp,
-       "RNA" => rna::revcomp,
-       _ => panic!("Error -- cannot determine revcomp method to use -- uncertain whether data_type is DNA or RNA")
+        "DNA" => dna::revcomp,
+        "RNA" => rna::revcomp,
+        _ => panic!(
+            "Error -- cannot determine revcomp method to use -- ensure data_type is a valid type"
+        ),
     };
 
     for (i, reference) in reference_genome.enumerate() {
@@ -104,7 +77,12 @@ pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>, output_path: &str) {
         str_rep += "\n";
     }
 
-    let mut file = File::create(output_path).expect("Error -- could not create results file");
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(output_path)
+        .expect("Error -- could not create results file");
+
     file.write_all(str_rep.as_bytes())
         .expect("Error -- could not write results to file");
 }
@@ -113,4 +91,49 @@ pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>, output_path: &str) {
 pub fn sort_score_vector(mut scores: Vec<(Vec<String>, i32)>) -> Vec<(Vec<String>, i32)> {
     scores.sort_by(|a, b| a.0.cmp(&b.0));
     scores
+}
+
+// Determine if a file is a .bam or a .fasta based on file extension
+pub fn is_fastq(file: &str) -> bool {
+    let mut is_fasta = true;
+    let components = file.split(".").skip(1);
+
+    for component in components {
+        if component == "bam" {
+            is_fasta = false;
+        }
+    }
+
+    is_fasta
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn is_fasta_short() {
+        let expected_results = true;
+        let results = super::is_fastq("reference.fastq");
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn is_fasta_long() {
+        let expected_results = true;
+        let results = super::is_fastq("reference.bin.fastq.gz");
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn is_bam_short() {
+        let expected_results = false;
+        let results = super::is_fastq("reference.bam.gz");
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn is_bam_long() {
+        let expected_results = false;
+        let results = super::is_fastq("reference.bin.bam.zip");
+        assert_eq!(results, expected_results);
+    }
 }
