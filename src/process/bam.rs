@@ -1,6 +1,6 @@
-use std::io::Error;
-use debruijn::dna_string::DnaString;
 use array_tool::vec::Intersect;
+use debruijn::dna_string::DnaString;
+use std::io::Error;
 
 use crate::align::{AlignFilterConfig, PseudoAligner};
 use crate::parse::bam;
@@ -32,13 +32,13 @@ pub fn process(
             reference_metadata,
             align_config,
         );
-        
+
         if s.len() == 0 {
             continue;
         }
 
         let mut scores = s.iter();
-        
+
         let first_score = scores.next().unwrap();
         let mut group = first_score.0.clone();
         let mut score = first_score.1;
@@ -53,7 +53,7 @@ pub fn process(
             group = group.intersect(next.unwrap().0.clone());
             score += next.unwrap().1;
         }
-        
+
         if group.len() > 0 {
             write_to_tsv(vec![(group, score)], output_path);
         }

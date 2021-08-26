@@ -6,6 +6,7 @@ use nimble::utils;
 
 use clap::{load_yaml, App};
 use std::collections::HashMap;
+use std::fs::OpenOptions;
 use std::path::Path;
 
 fn main() {
@@ -73,4 +74,11 @@ fn main() {
             output_path,
         );
     };
+
+    // Ensure we've created the output_path file
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(output_path)
+        .expect("Error -- could not create results file");
 }
