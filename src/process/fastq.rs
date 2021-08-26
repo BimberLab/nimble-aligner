@@ -36,7 +36,7 @@ pub fn process(
 
     println!("Writing results to file");
 
-    write_to_tsv(results, output_path);
+    write_to_tsv(results, None, true, output_path);
 
     print!("Output results written to output path");
 }

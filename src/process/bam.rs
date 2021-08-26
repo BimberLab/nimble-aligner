@@ -16,6 +16,7 @@ pub fn process(
     output_path: &str,
 ) {
     let mut reader = bam::UMIReader::new(input_files[0]);
+    let mut has_written_headers = false;
 
     loop {
         let final_umi = reader.next();
@@ -55,7 +56,8 @@ pub fn process(
         }
 
         if group.len() > 0 {
-            write_to_tsv(vec![(group, score)], output_path);
+            write_to_tsv(vec![(group, score)], Some(reader.current_cell_barcode.clone()), !has_written_headers, output_path);
+            has_written_headers = true;
         }
     }
 }
