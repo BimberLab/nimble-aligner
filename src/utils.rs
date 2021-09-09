@@ -63,17 +63,38 @@ pub fn append_match_percent(
 }
 
 // Write the given vector of scores to a TSV file
-pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>, output_path: &str) {
+pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>, group_column: Option<String>, write_header: bool, output_path: &str) {
     let mut str_rep = String::new();
 
     // Add the headers to the top of the string representation of the tsv file
-    str_rep += "ambiguity class\tscore\n";
+    if write_header {
+        str_rep += "ambiguity class\tscore";
+
+        match group_column {
+            Some(ref _s) => {
+                str_rep += "\t";
+                str_rep += "cell barcode";
+            },
+            None => ()
+        }
+
+        str_rep += "\n";
+    }
 
     // Append the results to the tsv string
     for (group, score) in results {
         str_rep += &group.join(",");
         str_rep += "\t";
         str_rep += &score.to_string();
+
+        match group_column {
+            Some(ref s) => {
+                str_rep += "\t";
+                str_rep += s;
+            },
+            None => ()
+        }
+
         str_rep += "\n";
     }
 
