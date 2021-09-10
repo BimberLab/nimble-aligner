@@ -41,7 +41,7 @@ jobs:
             artifact_name: Ubuntu.out
             asset_name: Ubuntu.out
           - os: ubuntu-latest
-            container: iyxd/centos7-rust
+            container: 0xseb/centos7-rust
             artifact_name: CentOS.out
             asset_name: CentOS.out
           - os: ubuntu-latest
