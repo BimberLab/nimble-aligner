@@ -33,6 +33,7 @@ jobs:
     needs: release
     name: Build and upload release asset
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     strategy:
       matrix:
         include:
