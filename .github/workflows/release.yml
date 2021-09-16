@@ -39,23 +39,18 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: Ubuntu.out
-            asset_name: Ubuntu.out
-          - os: ubuntu-latest
-            container: 0xseb/centos7-rust
-            artifact_name: CentOS.out
-            asset_name: CentOS.out
-          - os: ubuntu-latest
-            container: sitkevij/rust-arch
-            artifact_name: Manjaro.out
-            asset_name: Manjaro.out
+            asset_name: Linux.out
           - os: macos-latest
             artifact_name: MacOS.out
             asset_name: MacOS.out
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - shell: bash
+        run: |
+          rustup target add x86_64-unknown-linux-musl
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --target x86_64-unknown-linux-musl
       - shell: bash
         run: |
           mv ./target/release/nimble ./target/release/${{ matrix.artifact_name }}

@@ -21,6 +21,7 @@ pub fn score<'a>(
     reference_index: &(align::PseudoAligner, align::PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     align_config: &align::AlignFilterConfig,
+    debug_info: Option<&mut align::AlignDebugInfo>
 ) -> Vec<(Vec<String>, i32)> {
     // Perform filtered pseudoalignment
     let reference_scores = align::score(
@@ -29,6 +30,7 @@ pub fn score<'a>(
         reference_index,
         reference_metadata,
         align_config,
+        debug_info
     );
 
     // Remove scores below the score threshold

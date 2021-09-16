@@ -21,3 +21,10 @@ args:
       help: The number of cores to use during alignment
       takes_value: true
       default_value: "1"
+  - log:
+      short: l
+      long: log
+      value_name: LOG_PATH
+      help: Path to a file which will log alignment information
+      takes_value: true
+      default_value: ""

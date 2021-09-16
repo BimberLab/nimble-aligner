@@ -1,4 +1,5 @@
 use crate::reference_library::ReferenceMetadata;
+use crate::align::AlignDebugInfo;
 use bio::alphabets::{dna, rna};
 use csv::Reader;
 use debruijn::dna_string::DnaString;
@@ -126,6 +127,36 @@ pub fn is_fastq(file: &str) -> bool {
     }
 
     is_fasta
+}
+
+pub fn write_debug_info(info: AlignDebugInfo) {
+    println!("Writing debug info");
+
+    let mut str_rep = String::new();
+
+    str_rep += "Read units aligned: "; str_rep += &info.read_units_aligned.to_string(); str_rep += "\n";
+    str_rep += "Units filtered due to being below score threshold: "; str_rep += &info.score_below_threshold.to_string(); str_rep += "\n";
+    str_rep += "Units filtered due to multiple match: "; str_rep += &info.discarded_multiple_match.to_string(); str_rep += "\n";
+    str_rep += "Units filtered due to non-zero mismatches: "; str_rep += &info.discarded_nonzero_mismatch.to_string(); str_rep += "\n";
+    str_rep += "Units filtered due to not matching the reference library: "; str_rep += &info.no_match.to_string(); str_rep += "\n";
+    str_rep += "Units filtered due to not matching the reference library and having a low score: "; str_rep += &info.no_match_and_score_below_threshold.to_string(); str_rep += "\n";
+    str_rep += "Units filtered for different reasons between the forward and reverse read: "; str_rep += &info.different_filter_reasons.to_string(); str_rep += "\n";
+    str_rep += "Units filtered due to non-matching pair alignments: "; str_rep += &info.not_matching_pair.to_string(); str_rep += "\n";
+    str_rep += "Units filtered due to a failed force intersect: "; str_rep += &info.force_intersect_failure.to_string(); str_rep += "\n";
+    str_rep += "Units filtered due to completely disjoint alignments: "; str_rep += &info.disjoint_pair_intersection.to_string(); str_rep += "\n";
+    str_rep += "Units filtered due to mangled empty scores: "; str_rep += &info.best_class_empty.to_string(); str_rep += "\n";
+    str_rep += "Forward-running alignments discarded: "; str_rep += &info.forward_runs_discarded.to_string(); str_rep += "\n";
+    str_rep += "Reverse-running alignments discarded: "; str_rep += &info.backward_runs_discarded.to_string(); str_rep += "\n";
+    str_rep += "Reverse-read sets discarded due to mangled paired-end data: "; str_rep += &info.reverse_read_sets_discarded_noneven.to_string(); str_rep += "\n";
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(info.debug_file)
+        .expect("Error -- could not create debug file");
+
+    file.write_all(str_rep.as_bytes())
+        .expect("Error -- could not write debug info to file");
 }
 
 #[cfg(test)]
