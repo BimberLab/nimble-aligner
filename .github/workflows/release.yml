@@ -49,6 +49,9 @@ jobs:
       - shell: bash
         run: |
           rustup target add x86_64-unknown-linux-musl
+      - shell: bash
+        run: |
+          apt install musl-gcc
       - name: Build
         run: cargo build --release --target x86_64-unknown-linux-musl
       - shell: bash
