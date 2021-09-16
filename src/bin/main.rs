@@ -22,6 +22,12 @@ fn main() {
         .unwrap_or("1")
         .parse::<usize>()
         .expect("Error -- please provide an integer value for the number of cores");
+    let debug_file = matches.value_of("log").unwrap_or("").to_owned();
+    let debug_file = if debug_file == "" {
+        None
+    } else {
+        Some(debug_file)
+    };
 
     println!("Loading and preprocessing reference data");
 
@@ -64,6 +70,7 @@ fn main() {
             &reference_metadata,
             &align_config,
             output_path,
+            debug_file
         );
     } else {
         bam::process(
@@ -72,6 +79,7 @@ fn main() {
             &reference_metadata,
             &align_config,
             output_path,
+            debug_file
         );
     };
 
