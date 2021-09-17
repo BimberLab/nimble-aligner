@@ -40,9 +40,11 @@ jobs:
           - os: ubuntu-latest
             artifact_name: Linux.out
             asset_name: Linux.out
+            asset_path: ./target/x86_64-unknown-linux-musl/release/
           - os: macos-latest
             artifact_name: MacOS.out
             asset_name: MacOS.out
+            asset_path: ./target/release/
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -62,7 +64,7 @@ jobs:
         run: cargo build --release
       - shell: bash
         run: |
-          mv ./target/release/nimble ./target/release/${{ matrix.artifact_name }}
+          mv ${{ matrix.asset_path }}nimble ${{ matrix.asset_path }}${{ matrix.artifact_name }}
       - name: Download release url
         uses: actions/download-artifact@v2
         with:
@@ -78,6 +80,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.url.outputs.text }}
-          asset_path: target/release/${{ matrix.artifact_name }}
+          asset_path: ${{ matrix.asset_path }}${{ matrix.artifact_name }}
           asset_name: ${{ matrix.asset_name }}
           asset_content_type: application/octet-stream
