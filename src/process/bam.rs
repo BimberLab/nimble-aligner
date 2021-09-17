@@ -1,6 +1,7 @@
 use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
 use std::io::Error;
+use std::collections::HashMap;
 
 use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::bam;
@@ -17,7 +18,8 @@ pub fn process(
     debug_file: Option<String>
 ) {
     let mut reader = bam::UMIReader::new(input_files[0]);
-    let mut has_written_headers = false;
+    let mut score_map: HashMap<Vec<String>, (i32, String)> = HashMap::new();
+    let mut cell_barcodes: Vec<String> = Vec::new();
     
     let owned_debug_file = if debug_file.is_some() {
         debug_file.unwrap()
@@ -38,6 +40,14 @@ pub fn process(
             if owned_debug_file != "".to_owned() {
                 write_debug_info(debug_info);
             }
+
+            let mut results = Vec::new();
+            for (key, value) in score_map.into_iter() {
+                results.push((key, value.0));
+                cell_barcodes.push(value.1);
+            }
+
+            write_to_tsv(results, Some(cell_barcodes), false, output_path);
 
             return;
         };
@@ -82,8 +92,8 @@ pub fn process(
         }
 
         if group.len() > 0 {
-            write_to_tsv(vec![(group, score)], Some(reader.current_cell_barcode.clone()), !has_written_headers, output_path);
-            has_written_headers = true;
+            let accessor = score_map.entry(group).or_insert((0, reader.current_cell_barcode.clone()));
+            *accessor = (accessor.0 + score, reader.current_cell_barcode.clone());
         }
     }
 }
