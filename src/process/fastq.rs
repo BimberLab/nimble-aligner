@@ -2,7 +2,7 @@ use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::fastq::get_error_checked_fastq_readers;
 use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
-use crate::utils::{write_to_tsv, write_debug_info};
+use crate::utils::{write_to_tsv, write_debug_info, filter_scores};
 
 pub fn process(
     input_files: Vec<&str>,
@@ -61,7 +61,7 @@ pub fn process(
 
     println!("Writing results to file");
 
-    write_to_tsv(results, None, true, output_path);
+    write_to_tsv(filter_scores(results, &align_config.score_filter), None, true, output_path);
 
     if owned_debug_file != "".to_owned() {
         write_debug_info(debug_info);
