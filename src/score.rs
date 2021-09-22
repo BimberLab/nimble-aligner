@@ -33,11 +33,5 @@ pub fn score<'a>(
         debug_info
     );
 
-    // Remove scores below the score threshold
-    let reference_scores: Vec<(Vec<String>, i32)> = reference_scores
-        .into_iter()
-        .filter(|(_, val)| val > &align_config.score_filter)
-        .collect();
-
     utils::sort_score_vector(reference_scores)
 }

@@ -7,7 +7,7 @@ use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::bam;
 use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
-use crate::utils::{write_to_tsv, write_debug_info};
+use crate::utils::{write_to_tsv, write_debug_info, filter_scores};
 
 pub fn process(
     input_files: Vec<&str>,
@@ -47,14 +47,21 @@ pub fn process(
                 cell_barcodes.push(value.1);
             }
 
-            write_to_tsv(results, Some(cell_barcodes), false, output_path);
+            write_to_tsv(filter_scores(results, &align_config.score_filter), Some(cell_barcodes), false, output_path);
 
             return;
         };
 
-        let current_umi_group = reader.current_umi_group.clone();
+        let mut current_umi_group = reader.current_umi_group.clone();
 
-        let s = if owned_debug_file.clone() != "" {
+        let extra_read = if current_umi_group.len() % 2 != 0 {
+            current_umi_group.pop()
+        } else {
+            None
+        };
+        
+
+        let mut s = if owned_debug_file.clone() != "" {
             get_score(
                 &current_umi_group,
                 reference_index,
@@ -69,6 +76,24 @@ pub fn process(
                 align_config,
                 None)
         };
+
+        let mut s_extra = match extra_read {
+            Some(read) => {
+                let read_f = vec![Ok(read.clone())];
+                let read_r = vec![Ok(read.clone())];
+                score(
+                    (Box::new(read_f.into_iter()), Box::new(read_r.into_iter())),
+                    None,
+                    reference_index,
+                    &reference_metadata,
+                    align_config,
+                    None
+                )
+            },
+            None => Vec::new()
+        };
+
+        s.append(&mut s_extra);
 
         if s.len() == 0 {
             continue;
@@ -135,19 +160,7 @@ fn get_score<'a>(
             .map(|rec| Ok(rec.to_owned())),
     );
 
-    // TODO: Check on this logic. Currently, if the data isn't all read-pair, we throw out ALL of
-    // the reverse pairs.
-    let (reverse_sequence_pair, debug_info) = if current_umi_group.len() % 2 == 0 {
-        (Some((reverse_sequences, reverse_sequences_clone)), debug_info)
-    } else {
-        if debug_info.is_some() {
-            let debug_info = debug_info.unwrap();
-            debug_info.reverse_read_sets_discarded_noneven += 1;
-            (None, Some(debug_info))
-        } else {
-            (None, None)
-        }
-    };
+    let reverse_sequence_pair = Some((reverse_sequences, reverse_sequences_clone));
 
     // Perform alignment and filtration using the score package
     score(

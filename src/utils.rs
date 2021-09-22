@@ -165,6 +165,16 @@ pub fn write_debug_info(info: AlignDebugInfo) {
         .expect("Error -- could not write debug info to file");
 }
 
+pub fn filter_scores(reference_scores: Vec<(Vec<String>, i32)>, score_filter: &i32) -> Vec<(Vec<String>, i32)> {
+    // Remove scores below the score threshold
+    let reference_scores: Vec<(Vec<String>, i32)> = reference_scores
+        .into_iter()
+        .filter(|(_, val)| val > score_filter)
+        .collect();
+
+    reference_scores
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
