@@ -1,4 +1,5 @@
- debruijn::dna_string::DnaString;
+use array_tool::vec::Intersect;
+use debruijn::dna_string::DnaString;
 use std::io::Error;
 use std::collections::HashMap;
 
