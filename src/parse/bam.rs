@@ -59,18 +59,70 @@ impl UMIReader {
                 self.current_umi = read_umi.clone();
             }
 
+            let seq = UMIReader::strip_nonbio_regions(&record.seq().as_bytes()[..]);
+
             if self.current_umi == read_umi {
                 self.current_umi_group
-                    .push(DnaString::from_acgt_bytes(&record.seq().as_bytes()[..]));
+                    .push(seq);
                 self.current_cell_barcode = current_cell_barcode.clone();
             } else {
                 self.next_umi_group
-                    .push(DnaString::from_acgt_bytes(&record.seq().as_bytes()[..]));
+                    .push(seq);
                 self.next_umi = read_umi.clone();
                 return Some(true);
             }
         }
 
         None
+    }
+
+    // based on
+    // https://assets.ctfassets.net/an68im79xiti/6yYLKUTpokvZvs4pVwnd0a/c40790cd90b7d57bc4e457e670ae3561/CG000207_ChromiumNextGEMSingleCellV_D_J_ReagentKits_v1.1_UG_RevF.pdf,
+    // page 76, figure 3.1
+    fn strip_nonbio_regions(seq: &[u8]) -> DnaString {
+        // Convert seq to string for easy search operations
+        let seq = String::from_utf8(seq.to_owned()).unwrap();
+
+        // Find TSO if it exists
+        let mut tso_idx = seq.find("TTTCTTATATGGG"); // forward case
+
+        if tso_idx.is_none() {
+            tso_idx = seq.find("AAAGAATATACCC"); // reverse case
+        };
+
+        // If the TSO exists, strip the front of the sequence, removing the forward primer and any
+        // UMI/Cell Barcode metadata, as well as the TSO itself, which has length 13.
+        // If it doesn't exist, then there can't be any metadata, so we don't process the pre-cDna
+        // portion of the sequence.
+        let seq = if tso_idx.is_some() {
+            String::from_utf8(seq.as_bytes()[tso_idx.unwrap()+13..].to_vec()).unwrap()
+        } else {
+            seq
+        };
+
+        // Remove the poly-T tail if it exists
+        let poly_t_tail_idx = seq.find("TTTTTTTTTTTTTTTTTTTTTTTTT");
+
+        let seq = if poly_t_tail_idx.is_some() {
+            String::from_utf8(seq.as_bytes()[..poly_t_tail_idx.unwrap()].to_vec()).unwrap()
+        } else {
+            seq
+        };
+
+        // Find the reverse primer if it exists
+        let mut reverse_primer_idx = seq.find("GTACTCTGCGTTGATACCACTGCTT"); // forward case
+
+        if reverse_primer_idx.is_none() {
+            reverse_primer_idx = seq.find("CATGAGACGCAACTATGGTGACGAA"); // reverse case
+        };
+
+        // If the reverse primer exists, remove it
+        let seq = if reverse_primer_idx.is_some() {
+            String::from_utf8(seq.as_bytes()[..reverse_primer_idx.unwrap()].to_vec()).unwrap()
+        } else {
+            seq
+        };
+
+        DnaString::from_dna_string(&seq)
     }
 }
