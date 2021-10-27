@@ -126,3 +126,102 @@ impl UMIReader {
         DnaString::from_dna_string(&seq)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn strip_tso_forward() {
+        let expected_results = String::from("CCCC");
+        let input = "TTTCTTATATGGGCCCC".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn strip_tso_forward_and_meta() {
+        let expected_results = String::from("CCCC");
+        let input = "GGGGGGGGGGGGAGAGGAGAGACCACACACATTTCTTATATGGGCCCC".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn strip_tso_reverse() {
+        let expected_results = String::from("CCCC");
+        let input = "AAAGAATATACCCCCCC".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn strip_tso_reverse_and_meta() {
+        let expected_results = String::from("CCCC");
+        let input = "TTTTTTTATATATAAGAGAGAGAGAGAGAGAGAAAGAATATACCCCCCC".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+    
+    #[test]
+    fn strip_tail() {
+        let expected_results = String::from("CCCC");
+        let input = "CCCCTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn strip_tail_and_meta() {
+        let expected_results = String::from("CCCC");
+        let input = "CCCCTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTAGAGAGAGAGAG".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn strip_forward_all() {
+        let expected_results = String::from("CCCC");
+        let input = "GGGGGGGGGGGGAGAGGAGAGACCACACACATTTCTTATATGGGCCCCTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTAGAGAGAGAGAG".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn strip_reverse_all() {
+        let expected_results = String::from("CCCC");
+        let input = "AGAGGAGAGAGTATATATATATTAAAAGAATATACCCCCCCTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTAGAGAGAGGA".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn strip_reverse_primer_forward() {
+        let expected_results = String::from("CCCC");
+        let input = "CCCCGTACTCTGCGTTGATACCACTGCTT".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn strip_reverse_primer_reverse() {
+        let expected_results = String::from("CCCC");
+        let input = "CCCCCATGAGACGCAACTATGGTGACGAA".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn strip_nothing_one() {
+        let expected_results = String::from("CCCC");
+        let input = "CCCC".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn strip_nothing_two() {
+        let expected_results = String::from("CAGACTAGCTAGCTAGCTACGCTACGACTAGCGCATCGAGAGGGCATAGCTCTAGCTACTAC");
+        let input = "CAGACTAGCTAGCTAGCTACGCTACGACTAGCGCATCGAGAGGGCATAGCTCTAGCTACTAC".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+}
