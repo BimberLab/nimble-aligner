@@ -1,5 +1,4 @@
-use array_tool::vec::Intersect;
-use debruijn::dna_string::DnaString;
+ debruijn::dna_string::DnaString;
 use std::io::Error;
 use std::collections::HashMap;
 
@@ -20,7 +19,7 @@ pub fn process(
     let mut reader = bam::UMIReader::new(input_files[0]);
     let mut score_map: HashMap<Vec<String>, (i32, String)> = HashMap::new();
     let mut cell_barcodes: Vec<String> = Vec::new();
-    
+
     let owned_debug_file = if debug_file.is_some() {
         debug_file.unwrap()
     } else {
