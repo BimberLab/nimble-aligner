@@ -61,6 +61,8 @@ impl UMIReader {
 
             let seq = UMIReader::strip_nonbio_regions(&record.seq().as_bytes()[..]);
 
+            println!("{}", seq.to_string());
+
             if self.current_umi == read_umi {
                 self.current_umi_group
                     .push(seq);
@@ -223,5 +225,10 @@ mod tests {
         let input = "CAGACTAGCTAGCTAGCTACGCTACGACTAGCGCATCGAGAGGGCATAGCTCTAGCTACTAC".as_bytes();
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn real_data_strip_one() {
+        let expected_results = "GCTGGTAACAGTGAATTCTCGGGTGCCTTGGACAGTCAAXATTTCTTATATGGGGGCGGATCAGCGGGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATTAATCTGCTTTTATAC"
     }
 }
