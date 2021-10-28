@@ -61,8 +61,6 @@ impl UMIReader {
 
             let seq = UMIReader::strip_nonbio_regions(&record.seq().as_bytes()[..]);
 
-            println!("{}", seq.to_string());
-
             if self.current_umi == read_umi {
                 self.current_umi_group
                     .push(seq);
@@ -102,11 +100,15 @@ impl UMIReader {
             seq
         };
 
-        // Remove the poly-T tail if it exists
-        let poly_t_tail_idx = seq.find("TTTTTTTTTTTTTTTTTTTTTTTTT");
+        // Remove the poly-T/poly-A tail if it exists
+        let mut poly_tail_idx = seq.find("TTTTTTTTTTTTTTTTTTT");
 
-        let seq = if poly_t_tail_idx.is_some() {
-            String::from_utf8(seq.as_bytes()[..poly_t_tail_idx.unwrap()].to_vec()).unwrap()
+        if poly_tail_idx.is_none() {
+            poly_tail_idx = seq.find("AAAAAAAAAAAAAAAAAAA");
+        };
+
+        let seq = if poly_tail_idx.is_some() {
+            String::from_utf8(seq.as_bytes()[..poly_tail_idx.unwrap()].to_vec()).unwrap()
         } else {
             seq
         };
@@ -164,17 +166,33 @@ mod tests {
     }
     
     #[test]
-    fn strip_tail() {
+    fn strip_tail_t() {
         let expected_results = String::from("CCCC");
         let input = "CCCCTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT".as_bytes();
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
     }
+    
+    #[test]
+    fn strip_tail_a() {
+        let expected_results = String::from("CCCC");
+        let input = "CCCCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
 
     #[test]
-    fn strip_tail_and_meta() {
+    fn strip_tail_t_and_meta() {
         let expected_results = String::from("CCCC");
         let input = "CCCCTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTAGAGAGAGAGAG".as_bytes();
+        let results = super::UMIReader::strip_nonbio_regions(input).to_string();
+        assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn strip_tail_a_and_meta() {
+        let expected_results = String::from("CCCC");
+        let input = "CCCCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGAGAGAGAG".as_bytes();
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
     }
@@ -225,10 +243,5 @@ mod tests {
         let input = "CAGACTAGCTAGCTAGCTACGCTACGACTAGCGCATCGAGAGGGCATAGCTCTAGCTACTAC".as_bytes();
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
-    }
-
-    #[test]
-    fn real_data_strip_one() {
-        let expected_results = "GCTGGTAACAGTGAATTCTCGGGTGCCTTGGACAGTCAAXATTTCTTATATGGGGGCGGATCAGCGGGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATTAATCTGCTTTTATAC"
     }
 }

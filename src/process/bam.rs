@@ -37,8 +37,6 @@ pub fn process(
         let final_umi = reader.next();
 
         if final_umi {
-            return;
-
             if owned_debug_file != "".to_owned() {
                 write_debug_info(debug_info);
             }
@@ -61,9 +59,6 @@ pub fn process(
         } else {
             None
         };
-
-        continue;
-        
 
         let mut s = if owned_debug_file.clone() != "" {
             get_score(
