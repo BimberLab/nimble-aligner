@@ -51,7 +51,7 @@ pub fn process(
                 cell_barcodes.push(cell_barcode);
             }
 
-            write_to_tsv(filter_scores(results, &align_config.score_filter), Some(cell_barcodes), false, output_path);
+            write_to_tsv(results, Some(cell_barcodes), false, output_path);
 
             return;
         };
