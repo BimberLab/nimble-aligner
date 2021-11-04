@@ -154,6 +154,7 @@ pub fn write_debug_info(info: AlignDebugInfo) {
     str_rep += "Forward-running alignments discarded: "; str_rep += &info.forward_runs_discarded.to_string(); str_rep += "\n";
     str_rep += "Reverse-running alignments discarded: "; str_rep += &info.backward_runs_discarded.to_string(); str_rep += "\n";
     str_rep += "Reverse-read sets discarded due to mangled paired-end data: "; str_rep += &info.reverse_read_sets_discarded_noneven.to_string(); str_rep += "\n";
+    str_rep += "Reads discarded due to being too short after processing: "; str_rep += &info.short_read.to_string(); str_rep += "\n";
 
     let mut file = OpenOptions::new()
         .write(true)

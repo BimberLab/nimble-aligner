@@ -8,6 +8,10 @@ use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
 use reference_library::ReferenceMetadata;
 
+
+const MIN_READ_LENGTH: usize = 12;
+
+
 pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<
     debruijn::kmer::VarIntKmer<u64, debruijn::kmer::K20>,
 >;
@@ -29,7 +33,8 @@ pub enum FilterReason {
     NotMatchingPair,
     ForceIntersectFailure,
     DisjointPairIntersection,
-    BestClassEmpty
+    BestClassEmpty,
+    ShortRead
 }
 
 pub struct AlignFilterConfig {
@@ -61,6 +66,7 @@ pub struct AlignDebugInfo {
     pub forward_runs_discarded: usize,
     pub backward_runs_discarded: usize,
     pub reverse_read_sets_discarded_noneven: usize,
+    pub short_read: usize
 }
 
 impl AlignDebugInfo {
@@ -76,6 +82,7 @@ impl AlignDebugInfo {
             Some(FilterReason::ForceIntersectFailure) => self.force_intersect_failure += 1,
             Some(FilterReason::DisjointPairIntersection) => self.disjoint_pair_intersection += 1,
             Some(FilterReason::BestClassEmpty) => self.best_class_empty += 1,
+            Some(FilterReason::ShortRead) => self.short_read += 1,
             None => (),
         }
     }
@@ -93,6 +100,7 @@ impl AlignDebugInfo {
         self.force_intersect_failure += info.force_intersect_failure;
         self.disjoint_pair_intersection += info.disjoint_pair_intersection;
         self.best_class_empty += info.best_class_empty;
+        self.short_read += info.short_read;
     }
 }
 
@@ -168,6 +176,7 @@ fn generate_score<'a>(
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
     for read in sequences {
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
+        
         /* Generate score and equivalence class for this read by aligning the sequence against
          * the current reference, if there is a match.*/
         let (seq_score, forward_filter_reason) = pseudoalign(&read, index, &config);
@@ -358,6 +367,11 @@ fn pseudoalign(
     reference_index: &PseudoAligner,
     config: &AlignFilterConfig,
 ) -> (Option<(Vec<u32>, usize)>, Option<FilterReason>){
+    // Filter short reads
+    if sequence.to_string().len() < MIN_READ_LENGTH {
+        return (None, Some(FilterReason::ShortRead))
+    };
+        
     // Perform alignment
     match reference_index.map_read_with_mismatch(sequence, config.num_mismatches) {
         Some((equiv_class, score, mismatches)) => {
