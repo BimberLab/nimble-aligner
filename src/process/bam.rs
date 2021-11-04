@@ -18,7 +18,7 @@ pub fn process(
     debug_file: Option<String>
 ) {
     let mut reader = bam::UMIReader::new(input_files[0]);
-    let mut score_map: HashMap<Vec<String>, (i32, String)> = HashMap::new();
+    let mut score_map: HashMap<(Vec<String>, String), i32> = HashMap::new();
     let mut cell_barcodes: Vec<String> = Vec::new();
 
     let owned_debug_file = if debug_file.is_some() {
@@ -43,8 +43,12 @@ pub fn process(
 
             let mut results = Vec::new();
             for (key, value) in score_map.into_iter() {
-                results.push((key, value.0));
-                cell_barcodes.push(value.1);
+                let group = key.0;
+                let cell_barcode = key.1;
+                let score = value;
+
+                results.push((group, score));
+                cell_barcodes.push(cell_barcode);
             }
 
             write_to_tsv(filter_scores(results, &align_config.score_filter), Some(cell_barcodes), false, output_path);
@@ -116,8 +120,8 @@ pub fn process(
         }
 
         if group.len() > 0 {
-            let accessor = score_map.entry(group).or_insert((0, reader.current_cell_barcode.clone()));
-            *accessor = (accessor.0 + score, reader.current_cell_barcode.clone());
+            let accessor = score_map.entry((group, reader.current_cell_barcode.clone())).or_insert(0);
+            *accessor = *accessor + score;
         }
     }
 }
