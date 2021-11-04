@@ -8,6 +8,10 @@ use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
 use reference_library::ReferenceMetadata;
 
+
+const MIN_READ_LENGTH: usize = 12;
+
+
 pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<
     debruijn::kmer::VarIntKmer<u64, debruijn::kmer::K20>,
 >;
@@ -364,9 +368,9 @@ fn pseudoalign(
     config: &AlignFilterConfig,
 ) -> (Option<(Vec<u32>, usize)>, Option<FilterReason>){
     // Filter short reads
-    /*if sequence.to_string().len() < 10 {
+    if sequence.to_string().len() < MIN_READ_LENGTH {
         return (None, Some(FilterReason::ShortRead))
-    };*/
+    };
         
     // Perform alignment
     match reference_index.map_read_with_mismatch(sequence, config.num_mismatches) {
