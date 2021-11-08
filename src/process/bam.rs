@@ -7,7 +7,7 @@ use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::bam;
 use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
-use crate::utils::{write_to_tsv, write_debug_info, filter_scores};
+use crate::utils::{write_to_tsv, write_debug_info};
 
 pub fn process(
     input_files: Vec<&str>,
