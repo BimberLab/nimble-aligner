@@ -69,23 +69,25 @@ fn main() {
     println!("Loading read sequences");
 
     if utils::is_fastq(input_files[0]) {
-        fastq::process(
+        let results = fastq::process(
             input_files,
             &reference_index,
             &reference_metadata,
             &aligner_config,
-            output_path,
             debug_file
         );
+
+        utils::write_to_tsv(utils::filter_scores(results, &aligner_config.score_filter), None, true, output_path);
     } else {
-        bam::process(
+        let (results, cell_barcodes) = bam::process(
             input_files,
             &reference_index,
             &reference_metadata,
             &aligner_config,
-            output_path,
             debug_file
         );
+
+        utils::write_to_tsv(results, Some(cell_barcodes), false, output_path);
     };
 
     // Ensure we've created the output_path file

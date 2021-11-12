@@ -7,16 +7,15 @@ use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::bam;
 use crate::reference_library::ReferenceData;
 use crate::score::score;
-use crate::utils::{write_to_tsv, write_debug_info};
+use crate::utils::write_debug_info;
 
 pub fn process(
     input_files: Vec<&str>,
     reference_index: &(PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceData,
     align_config: &AlignFilterConfig,
-    output_path: &str,
     debug_file: Option<String>
-) {
+) -> (Vec<(Vec<String>, i32)>, Vec<String>){
     let mut reader = bam::UMIReader::new(input_files[0]);
     let mut score_map: HashMap<(Vec<String>, String), i32> = HashMap::new();
     let mut cell_barcodes: Vec<String> = Vec::new();
@@ -51,9 +50,8 @@ pub fn process(
                 cell_barcodes.push(cell_barcode);
             }
 
-            write_to_tsv(results, Some(cell_barcodes), false, output_path);
 
-            return;
+            return (results, cell_barcodes)
         };
 
         let mut current_umi_group = reader.current_umi_group.clone();
