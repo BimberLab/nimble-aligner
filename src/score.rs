@@ -1,7 +1,7 @@
 use crate::align;
 use crate::reference_library;
 use crate::utils;
-use reference_library::ReferenceMetadata;
+use reference_library::ReferenceData;
 
 use debruijn::dna_string::DnaString;
 use std::io::Error;
@@ -19,7 +19,7 @@ pub fn score<'a>(
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     )>,
     reference_index: &(align::PseudoAligner, align::PseudoAligner),
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &ReferenceData,
     align_config: &align::AlignFilterConfig,
     debug_info: Option<&mut align::AlignDebugInfo>
 ) -> Vec<(Vec<String>, i32)> {

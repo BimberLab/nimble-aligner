@@ -22,7 +22,7 @@ fn get_group_by_data(
         Box<dyn Iterator<Item = Result<DnaString, Error>>>,
     ),
     (align::PseudoAligner, align::PseudoAligner),
-    reference_library::ReferenceMetadata,
+    reference_library::ReferenceData,
     align::AlignFilterConfig,
 ) {
     let (sequences, reference_index, mut reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename);

@@ -22,7 +22,7 @@ pub fn get_data(
         Box<dyn Iterator<Item = Result<DnaString, Error>>>,
     ),
     (align::PseudoAligner, align::PseudoAligner),
-    reference_library::ReferenceMetadata,
+    reference_library::ReferenceData,
     align::AlignFilterConfig,
 ) {
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -41,7 +41,7 @@ pub fn get_data(
         reference_library::get_reference_library(library.as_path());
 
     let (reference_seqs, reference_seqs_rev, reference_names) =
-        utils::validate_reference_pairs(&reference_metadata);
+        utils::get_valid_reference_sequence_lists(&reference_metadata);
 
     let reference_index_forward = debruijn_mapping::build_index::build_index::<
         debruijn_mapping::config::KmerType,

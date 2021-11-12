@@ -6,7 +6,7 @@ use std::io::Error;
 
 use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
-use reference_library::ReferenceMetadata;
+use reference_library::ReferenceData;
 
 
 const MIN_READ_LENGTH: usize = 12;
@@ -119,7 +119,7 @@ pub fn score<'a>(
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     )>,
     index_pair: &(PseudoAligner, PseudoAligner),
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &ReferenceData,
     config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>
 ) -> Vec<(Vec<String>, i32)> {
@@ -166,7 +166,7 @@ fn generate_score<'a>(
     sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     mut reverse_sequences: Option<Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>>,
     index: &PseudoAligner,
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &ReferenceData,
     config: &AlignFilterConfig,
 ) -> (Vec<(Vec<String>, i32)>, AlignDebugInfo) {
     // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
@@ -332,7 +332,7 @@ fn get_best_reads(
  * (e.g. lineage name) will be returned. */
 fn get_score_map_key(
     equiv_class: Vec<u32>,
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &ReferenceData,
     config: &AlignFilterConfig,
 ) -> Vec<String> {
     if reference_metadata.headers[reference_metadata.group_on] == "nt_sequence" {

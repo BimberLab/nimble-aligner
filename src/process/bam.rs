@@ -5,14 +5,14 @@ use std::collections::HashMap;
 
 use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::bam;
-use crate::reference_library::ReferenceMetadata;
+use crate::reference_library::ReferenceData;
 use crate::score::score;
 use crate::utils::{write_to_tsv, write_debug_info};
 
 pub fn process(
     input_files: Vec<&str>,
     reference_index: &(PseudoAligner, PseudoAligner),
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &ReferenceData,
     align_config: &AlignFilterConfig,
     output_path: &str,
     debug_file: Option<String>
@@ -119,6 +119,7 @@ pub fn process(
             score += next.unwrap().1;
         }
 
+
         if group.len() > 0 {
             let accessor = score_map.entry((group, reader.current_cell_barcode.clone())).or_insert(0);
             *accessor = *accessor + score;
@@ -129,7 +130,7 @@ pub fn process(
 fn get_score<'a>(
     current_umi_group: &'a Vec<DnaString>,
     reference_index: &(PseudoAligner, PseudoAligner),
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &ReferenceData,
     align_config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>,
 ) -> Vec<(Vec<String>, i32)> {

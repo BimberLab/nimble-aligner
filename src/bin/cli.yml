@@ -1,7 +1,7 @@
 name: nimble
-version: "0.1.0"
+version: "1.0.0"
 author: Sebastian B. <benjamse@ohsu.edu>
-about: Configurable RNA-seq aligner against arbitrary reference genomes
+about: Configurable RNA-seq aligner for arbitrary reference genomes
 args:
   - reference:
       help: File defining the reference library that will be used for alignment, in nimble .json format
@@ -10,7 +10,7 @@ args:
       help: Output TSV file name
       required: true
   - input:
-      help: Single fastq.gz/fastq file, or two if you need to do paired-end alignment
+      help: Single fastq.gz/fastq file, or two if you need to do paired-end alignment, or one 10x-formatted .bam file
       required: true
       multiple: true
       max_values: 2
@@ -25,6 +25,6 @@ args:
       short: l
       long: log
       value_name: LOG_PATH
-      help: Path to a file which will log alignment information
+      help: Path to a file which will log ancillary alignment information
       takes_value: true
       default_value: ""

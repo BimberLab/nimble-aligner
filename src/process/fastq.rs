@@ -1,13 +1,13 @@
 use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::fastq::get_error_checked_fastq_readers;
-use crate::reference_library::ReferenceMetadata;
+use crate::reference_library::ReferenceData;
 use crate::score::score;
 use crate::utils::{write_to_tsv, write_debug_info, filter_scores};
 
 pub fn process(
     input_files: Vec<&str>,
     reference_index: &(PseudoAligner, PseudoAligner),
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &ReferenceData,
     align_config: &AlignFilterConfig,
     output_path: &str,
     debug_file: Option<String>

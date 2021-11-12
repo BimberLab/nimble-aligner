@@ -1,4 +1,4 @@
-use crate::reference_library::ReferenceMetadata;
+use crate::reference_library::ReferenceData;
 use crate::align::AlignDebugInfo;
 use bio::alphabets::{dna, rna};
 use csv::Reader;
@@ -14,11 +14,11 @@ pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
         .from_reader(reader)
 }
 
-/* Takes a reference to the ReferenceMetadata structure.
+/* Takes a reference to the ReferenceData structure.
  * Produces 3 vectors of sequence-name pairs. Panics if there is a reference sequence that cannot be read.
  * If they can be read, converts the given sequence to a DnaString and get the associated name. */
-pub fn validate_reference_pairs(
-    reference: &ReferenceMetadata,
+pub fn get_valid_reference_sequence_lists(
+    reference: &ReferenceData,
 ) -> (Vec<DnaString>, Vec<DnaString>, Vec<String>) {
     let reference_genome = reference.columns[reference.sequence_idx].iter();
     let mut reference_library = reference.columns[reference.sequence_name_idx].iter();
