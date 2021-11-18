@@ -50,7 +50,6 @@ pub fn process(
                 cell_barcodes.push(cell_barcode);
             }
 
-
             return (results, cell_barcodes)
         };
 
@@ -116,7 +115,6 @@ pub fn process(
             group = group.intersect(next.unwrap().0.clone());
             score += next.unwrap().1;
         }
-
 
         if group.len() > 0 {
             let accessor = score_map.entry((group, reader.current_cell_barcode.clone())).or_insert(0);

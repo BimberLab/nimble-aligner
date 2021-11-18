@@ -57,19 +57,12 @@ fn bam_pipeline() {
     let results = utils::sort_score_vector(results);
     let mut lengths = HashSet::new();
 
-    for (result, _) in results {
+    for (result, _) in &results {
         lengths.insert(result.len());
     };
 
     let mut expected_lengths = HashSet::new(); 
     expected_lengths.insert(1usize);
-    expected_lengths.insert(2usize);
-    expected_lengths.insert(3usize);
-    expected_lengths.insert(4usize);
-    expected_lengths.insert(5usize);
-    expected_lengths.insert(6usize);
-    expected_lengths.insert(7usize);
-    expected_lengths.insert(8usize);
     expected_lengths.insert(9usize);
 
     assert_eq!(lengths, expected_lengths);
