@@ -8,7 +8,7 @@ use crate::align;
 
 // This struct contains all the reference library data, some indices for quick access to
 // important columns, and any other library metadata required by the aligner
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ReferenceData {
     pub group_on: usize,
     pub headers: Vec<String>,
@@ -179,5 +179,21 @@ mod tests {
     #[should_panic]
     fn to_string_vec_string_parse_error() {
         super::to_string_vec(&json!([0, 1, 2]), "test array");
+    }
+
+    // Test successful usage of get_column_index
+    #[test]
+    fn get_column_index() {
+        let expected_results = Some(1usize);
+        let results = super::get_column_index(&[String::from("Test1"), String::from("Test2")], "Test2");
+        assert_eq!(results, expected_results);
+    }
+
+    // Test usage of get_column_index with a None return
+    #[test]
+    fn get_column_index_empty() {
+        let expected_results = None;
+        let results = super::get_column_index(&[String::from("Test1"), String::from("Test2")], "Test3");
+        assert_eq!(results, expected_results);
     }
 }

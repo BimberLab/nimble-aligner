@@ -16,6 +16,7 @@ pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<
     debruijn::kmer::VarIntKmer<u64, debruijn::kmer::K20>,
 >;
 
+#[derive(Debug, PartialEq)]
 pub enum IntersectLevel {
     NoIntersect,
     IntersectWithFallback,
@@ -37,6 +38,7 @@ pub enum FilterReason {
     ShortRead
 }
 
+#[derive(Debug, PartialEq)]
 pub struct AlignFilterConfig {
     pub reference_genome_size: usize,
     pub score_threshold: usize,
