@@ -53,6 +53,7 @@ fn basic_single_strand_no_mismatch_forward() {
         &reference_index,
         &reference_metadata,
         &align_config,
+        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -90,6 +91,7 @@ fn basic_single_strand_one_mismatch_forward() {
         &reference_index,
         &reference_metadata,
         &align_config,
+        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -127,6 +129,7 @@ fn basic_single_strand_two_mismatch_forward() {
         &reference_index,
         &reference_metadata,
         &align_config,
+        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -162,6 +165,7 @@ fn basic_single_strand_no_mismatch_reverse() {
         &reference_index,
         &reference_metadata,
         &align_config,
+        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -199,6 +203,7 @@ fn basic_single_strand_one_mismatch_reverse() {
         &reference_index,
         &reference_metadata,
         &align_config,
+        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -236,6 +241,7 @@ fn basic_single_strand_two_mismatch_reverse() {
         &reference_index,
         &reference_metadata,
         &align_config,
+        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -271,6 +277,7 @@ fn group_by_forward() {
         &reference_index,
         &reference_metadata,
         &align_config,
+        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -298,6 +305,7 @@ fn group_by_rev() {
         &reference_index,
         &reference_metadata,
         &align_config,
+        None,
         None
     );
     let results = utils::sort_score_vector(results);

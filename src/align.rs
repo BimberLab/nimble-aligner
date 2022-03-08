@@ -122,7 +122,7 @@ pub fn score<'a>(
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>
-) -> Vec<(Vec<String>, i32)> {
+) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String)>) {
     let (index_forward, index_backward) = index_pair;
     let (sequences, sequences_2) = sequence_iter_pair;
     let (reverse_sequences, reverse_sequences_2) = match reverse_sequence_iter_pair {
@@ -130,14 +130,14 @@ pub fn score<'a>(
         None => (None, None),
     };
 
-    let (forward_score, forward_align_debug_info) = generate_score(
+    let (forward_score, forward_matched_sequences, forward_align_debug_info) = generate_score(
         sequences,
         reverse_sequences,
         index_forward,
         reference_metadata,
         config,
     );
-    let (backward_score, backward_align_debug_info) = generate_score(
+    let (backward_score, backward_matched_sequences, backward_align_debug_info) = generate_score(
         sequences_2,
         reverse_sequences_2,
         index_backward,
@@ -151,14 +151,14 @@ pub fn score<'a>(
             debug_info.backward_runs_discarded += 1;
         }
 
-        forward_score
+        (forward_score, forward_matched_sequences)
     } else {
         if let Some(debug_info) = debug_info {
             debug_info.merge(backward_align_debug_info);
             debug_info.forward_runs_discarded += 1;
         }
 
-        backward_score
+        (backward_score, backward_matched_sequences)
     }
 }
 
@@ -168,10 +168,11 @@ fn generate_score<'a>(
     index: &PseudoAligner,
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
-) -> (Vec<(Vec<String>, i32)>, AlignDebugInfo) {
+) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String)>, AlignDebugInfo) {
     // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
     let mut score_map: HashMap<Vec<String>, i32> = HashMap::new();
     let mut debug_info: AlignDebugInfo = Default::default();
+    let mut read_matches: Vec<(Vec<String>, String)> = Vec::new();
 
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
     for read in sequences {
@@ -237,6 +238,7 @@ fn generate_score<'a>(
 
         if !match_eqv_class.is_empty() {
             let key = get_score_map_key(match_eqv_class, reference_metadata, &config); // Process the equivalence class into a score key
+            read_matches.push((key.clone(), read.to_string()));
 
             // Add the key to the score map and increment the score
             let accessor = score_map.entry(key).or_insert(0);
@@ -251,7 +253,7 @@ fn generate_score<'a>(
         results.push((key, value));
     }
 
-    (results, debug_info)
+    (results, read_matches, debug_info)
 }
 
 // Determine whether a given pair of equivalence classes constitute a valid pair

@@ -28,3 +28,10 @@ args:
       help: Path to a file which will log alignment information
       takes_value: true
       default_value: ""
+  - alignment:
+      short: a
+      long: alignment
+      value_name: ALIGNMENT_PATH
+      help: Path to a gzipped file that will log reference name and sequence for every alignment (note -- can be very large)
+      takes_value: true
+      default_value: ""

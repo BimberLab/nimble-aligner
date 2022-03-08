@@ -20,6 +20,7 @@ fn mismatch() {
         &reference_index,
         &reference_metadata,
         &align_config,
+        None,
         None
     );
     let results = utils::sort_score_vector(results);
