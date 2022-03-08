@@ -7,7 +7,7 @@ use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::bam;
 use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
-use crate::utils::{write_to_tsv, write_debug_info, filter_scores};
+use crate::utils::{write_to_tsv, write_debug_info, write_read_list};
 
 pub fn process(
     input_files: Vec<&str>,
@@ -15,14 +15,22 @@ pub fn process(
     reference_metadata: &ReferenceMetadata,
     align_config: &AlignFilterConfig,
     output_path: &str,
-    debug_file: Option<String>
+    debug_file: Option<String>,
+    alignment_file: Option<String>
 ) {
     let mut reader = bam::UMIReader::new(input_files[0]);
     let mut score_map: HashMap<(Vec<String>, String), i32> = HashMap::new();
+    let mut alignment_metadata: Vec<(Vec<String>, String)> = Vec::new();
     let mut cell_barcodes: Vec<String> = Vec::new();
 
     let owned_debug_file = if debug_file.is_some() {
         debug_file.unwrap()
+    } else {
+        "".to_owned()
+    };
+
+    let owned_alignment_file = if alignment_file.is_some() {
+        alignment_file.unwrap()
     } else {
         "".to_owned()
     };
@@ -39,6 +47,10 @@ pub fn process(
         if final_umi {
             if owned_debug_file != "".to_owned() {
                 write_debug_info(debug_info);
+            }
+            
+            if owned_alignment_file != "".to_owned() {
+                write_read_list(alignment_metadata, &owned_alignment_file);
             }
 
             let mut results = Vec::new();
@@ -64,7 +76,7 @@ pub fn process(
             None
         };
 
-        let mut s = if owned_debug_file.clone() != "" {
+        let (mut s, mut res) = if owned_debug_file.clone() != "" {
             get_score(
                 &current_umi_group,
                 reference_index,
@@ -80,7 +92,7 @@ pub fn process(
                 None)
         };
 
-        let mut s_extra = match extra_read {
+        let (mut s_extra, mut res_extra) = match extra_read {
             Some(read) => {
                 let read_f = vec![Ok(read.clone())];
                 let read_r = vec![Ok(read.clone())];
@@ -93,10 +105,12 @@ pub fn process(
                     None
                 )
             },
-            None => Vec::new()
+            None => (Vec::new(), Vec::new())
         };
 
         s.append(&mut s_extra);
+        alignment_metadata.append(&mut res);
+        alignment_metadata.append(&mut res_extra);
 
         if s.len() == 0 {
             continue;
@@ -131,8 +145,8 @@ fn get_score<'a>(
     reference_index: &(PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     align_config: &AlignFilterConfig,
-    debug_info: Option<&mut AlignDebugInfo>,
-) -> Vec<(Vec<String>, i32)> {
+    debug_info: Option<&mut AlignDebugInfo>
+) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String)>) {
     let sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
         current_umi_group
             .iter()

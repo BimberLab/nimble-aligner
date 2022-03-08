@@ -28,6 +28,12 @@ fn main() {
     } else {
         Some(debug_file)
     };
+    let alignment_file = matches.value_of("alignment").unwrap_or("").to_owned();
+    let alignment_file = if alignment_file == "" {
+        None
+    } else {
+        Some(alignment_file)
+    };
 
     println!("Loading and preprocessing reference data");
 
@@ -70,7 +76,8 @@ fn main() {
             &reference_metadata,
             &align_config,
             output_path,
-            debug_file
+            debug_file,
+            alignment_file
         );
     } else {
         bam::process(
@@ -79,7 +86,8 @@ fn main() {
             &reference_metadata,
             &align_config,
             output_path,
-            debug_file
+            debug_file,
+            alignment_file
         );
     };
 

@@ -3,9 +3,10 @@ use crate::align::AlignDebugInfo;
 use bio::alphabets::{dna, rna};
 use csv::Reader;
 use debruijn::dna_string::DnaString;
-use std::fs::OpenOptions;
+use std::fs::{OpenOptions, File};
 use std::io::{Read, Write};
 use unwrap::unwrap;
+use flate2::{Compression, GzBuilder};
 
 // Takes a reader and returns a csv reader that wraps it, configures to use tab delimiters
 pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
@@ -175,6 +176,27 @@ pub fn filter_scores(reference_scores: Vec<(Vec<String>, i32)>, score_filter: &i
 
     reference_scores
 }
+
+
+pub fn write_read_list(results: Vec<(Vec<String>, String)>, output_path: &str) {
+    let mut str_rep = String::new();
+
+    // Append the results to the tsv string
+    for (group, score) in results {
+        str_rep += &group.join(",");
+        str_rep += "\t";
+        str_rep += &score;
+        str_rep += "\n";
+    }
+
+    let f = File::create(output_path).expect("Could not create output file path for alignment metadata");
+    let mut gz = GzBuilder::new()
+                            .filename(output_path)
+                            .write(f, Compression::default());
+    gz.write(str_rep.as_bytes()).expect("Could not write to alignment metadata file.");
+    gz.finish().expect("Could not flush to alignment metadata file buffer.");
+}
+
 
 #[cfg(test)]
 mod tests {

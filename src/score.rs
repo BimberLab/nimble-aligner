@@ -22,9 +22,9 @@ pub fn score<'a>(
     reference_metadata: &ReferenceMetadata,
     align_config: &align::AlignFilterConfig,
     debug_info: Option<&mut align::AlignDebugInfo>
-) -> Vec<(Vec<String>, i32)> {
+) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String)>) {
     // Perform filtered pseudoalignment
-    let reference_scores = align::score(
+    let (reference_scores, alignment_metadata) = align::score(
         sequences,
         reverse_sequences,
         reference_index,
@@ -33,5 +33,5 @@ pub fn score<'a>(
         debug_info
     );
 
-    utils::sort_score_vector(reference_scores)
+    (utils::sort_score_vector(reference_scores), alignment_metadata)
 }
