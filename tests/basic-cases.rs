@@ -47,13 +47,12 @@ fn basic_single_strand_no_mismatch_forward() {
     let lib_filename = "basic.json";
     let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename);
 
-    let results = nimble::align::score(
+    let (results, _) = nimble::align::score(
         sequences,
         None,
         &reference_index,
         &reference_metadata,
         &align_config,
-        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -85,13 +84,12 @@ fn basic_single_strand_one_mismatch_forward() {
 
     align_config.num_mismatches = 1;
 
-    let results = nimble::align::score(
+    let (results, _) = nimble::align::score(
         sequences,
         None,
         &reference_index,
         &reference_metadata,
         &align_config,
-        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -123,13 +121,12 @@ fn basic_single_strand_two_mismatch_forward() {
 
     align_config.num_mismatches = 2;
 
-    let results = nimble::align::score(
+    let (results, _) = nimble::align::score(
         sequences,
         None,
         &reference_index,
         &reference_metadata,
         &align_config,
-        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -159,13 +156,12 @@ fn basic_single_strand_no_mismatch_reverse() {
     let lib_filename = "basic-rev.json";
     let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename);
 
-    let results = nimble::align::score(
+    let (results, _) = nimble::align::score(
         sequences,
         None,
         &reference_index,
         &reference_metadata,
         &align_config,
-        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -197,13 +193,12 @@ fn basic_single_strand_one_mismatch_reverse() {
 
     align_config.num_mismatches = 1;
 
-    let results = nimble::align::score(
+    let (results, _) = nimble::align::score(
         sequences,
         None,
         &reference_index,
         &reference_metadata,
         &align_config,
-        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -235,13 +230,12 @@ fn basic_single_strand_two_mismatch_reverse() {
 
     align_config.num_mismatches = 2;
 
-    let results = nimble::align::score(
+    let (results, _) = nimble::align::score(
         sequences,
         None,
         &reference_index,
         &reference_metadata,
         &align_config,
-        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -271,13 +265,12 @@ fn group_by_forward() {
     let lib_filename = "basic.json";
     let (sequences, reference_index, reference_metadata, align_config) = get_group_by_data(seq_filename, lib_filename);
 
-    let results = nimble::align::score(
+    let (results, _) = nimble::align::score(
         sequences,
         None,
         &reference_index,
         &reference_metadata,
         &align_config,
-        None,
         None
     );
     let results = utils::sort_score_vector(results);
@@ -299,13 +292,12 @@ fn group_by_rev() {
     let lib_filename = "basic.json";
     let (sequences, reference_index, reference_metadata, align_config) = get_group_by_data(seq_filename, lib_filename);
 
-    let results = nimble::align::score(
+    let (results, _) = nimble::align::score(
         sequences,
         None,
         &reference_index,
         &reference_metadata,
         &align_config,
-        None,
         None
     );
     let results = utils::sort_score_vector(results);
