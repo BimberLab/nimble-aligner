@@ -178,14 +178,22 @@ pub fn filter_scores(reference_scores: Vec<(Vec<String>, i32)>, score_filter: &i
 }
 
 
-pub fn write_read_list(results: Vec<(Vec<String>, String)>, output_path: &str) {
+pub fn write_read_list(results: Vec<(Vec<String>, String)>, mapqs: Option<Vec<u8>>, output_path: &str) {
     let mut str_rep = String::new();
 
     // Append the results to the tsv string
-    for (group, score) in results {
+    for (i, (group, score)) in results.iter().enumerate() {
         str_rep += &group.join(",");
         str_rep += "\t";
         str_rep += &score;
+
+        if let Some(ref mapq) = mapqs {
+            if mapq.len() > 0 {
+                str_rep += "\t";
+                str_rep += &mapq[i].to_string();
+            }
+        }
+
         str_rep += "\n";
     }
 
