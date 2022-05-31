@@ -48,3 +48,39 @@ fn reference_library_test() {
     assert_eq!(result_config, expected_config);
     assert_eq!(result_data, expected_data);
 }
+
+#[test]
+#[should_panic(expected = "Error -- could not parse discard_multiple_mismatches as boolean")]
+fn get_reference_library_fail_discard_multiple_matches() {
+    let lib_filename = "discard_multiple_matches_error.json";
+
+    let mut library = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    library.push("tests/test-sequences/libraries/parse-error-libs");
+    library.push(lib_filename);
+
+    nimble::reference_library::get_reference_library(library.as_path());
+}
+
+#[test]
+#[should_panic(expected = "Error -- could not parse group_on as string")]
+fn get_reference_library_fail_group_on() {
+    let lib_filename = "group_on_error.json";
+
+    let mut library = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    library.push("tests/test-sequences/libraries/parse-error-libs");
+    library.push(lib_filename);
+
+    nimble::reference_library::get_reference_library(library.as_path());
+}
+
+#[test]
+#[should_panic(expected = "Error -- could not parse score_threshold as int64")]
+fn get_reference_library_fail_score_threshold() {
+    let lib_filename = "score_threshold_error.json";
+
+    let mut library = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    library.push("tests/test-sequences/libraries/parse-error-libs");
+    library.push(lib_filename);
+
+    nimble::reference_library::get_reference_library(library.as_path());
+}

@@ -31,7 +31,7 @@ fn bam_pipeline() {
         reference_library::get_reference_library(library.as_path());
 
     let (reference_seqs, reference_seqs_rev, reference_names) =
-        utils::get_valid_reference_sequence_lists(&reference_metadata);
+        utils::get_reference_sequence_lists(&reference_metadata);
 
     let reference_index_forward = debruijn_mapping::build_index::build_index::<
         debruijn_mapping::config::KmerType,
@@ -52,8 +52,10 @@ fn bam_pipeline() {
         &reference_index,
         &reference_metadata,
         &align_config,
+        None,
         None
     );
+
     let results = utils::sort_score_vector(results);
     let mut lengths = HashSet::new();
 

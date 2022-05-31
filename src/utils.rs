@@ -3,11 +3,12 @@ use crate::align::AlignDebugInfo;
 use bio::alphabets::{dna, rna};
 use csv::Reader;
 use debruijn::dna_string::DnaString;
-use std::fs::OpenOptions;
+use std::fs::{OpenOptions, File};
 use std::io::{Read, Write};
 use unwrap::unwrap;
+use flate2::{Compression, GzBuilder};
 
-// Takes a reader and returns a csv reader that wraps it, configures to use tab delimiters
+// Takes a reader and returns a csv reader that wraps it, configured to use tab delimiters
 pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
     csv::ReaderBuilder::new()
         .delimiter(b'\t')
@@ -15,9 +16,10 @@ pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
 }
 
 /* Takes a reference to the ReferenceData structure.
- * Produces 3 vectors of sequence-name pairs. Panics if there is a reference sequence that cannot be read.
- * If they can be read, converts the given sequence to a DnaString and get the associated name. */
-pub fn get_valid_reference_sequence_lists(
+ * Produces 3 vectors: the sequences, the reverse complement of the sequences, and a list of sequence names.
+ * Panics if there is a reference sequence that cannot be read. Converts the given sequence to a DnaString and get the associated name.
+ * Used to convert sequence data in a ReferenceData structure to a form that can be used to construct a Debrujin graph.*/
+pub fn get_reference_sequence_lists(
     reference: &ReferenceData,
 ) -> (Vec<DnaString>, Vec<DnaString>, Vec<String>) {
     let reference_genome = reference.columns[reference.sequence_idx].iter();
@@ -31,7 +33,7 @@ pub fn get_valid_reference_sequence_lists(
         "DNA" => dna::revcomp,
         "RNA" => rna::revcomp,
         _ => panic!(
-            "Error -- cannot determine revcomp method to use -- ensure data_type is a valid type"
+            "Error -- cannot determine revcomp method to use - ensure reference library data_type is a valid type"
         ),
     };
 
@@ -176,8 +178,39 @@ pub fn filter_scores(reference_scores: Vec<(Vec<String>, i32)>, score_filter: &i
     reference_scores
 }
 
+
+pub fn write_read_list(results: Vec<(Vec<String>, String)>, mapqs: Option<Vec<u8>>, output_path: &str) {
+    let mut str_rep = String::new();
+
+    // Append the results to the tsv string
+    for (i, (group, score)) in results.iter().enumerate() {
+        str_rep += &group.join(",");
+        str_rep += "\t";
+        str_rep += &score;
+
+        if let Some(ref mapq) = mapqs {
+            if mapq.len() > 0 {
+                str_rep += "\t";
+                str_rep += &mapq[i].to_string();
+            }
+        }
+
+        str_rep += "\n";
+    }
+
+    let f = File::create(output_path).expect("Could not create output file path for alignment metadata");
+    let mut gz = GzBuilder::new()
+                            .filename(output_path)
+                            .write(f, Compression::default());
+    gz.write(str_rep.as_bytes()).expect("Could not write to alignment metadata file.");
+    gz.finish().expect("Could not flush to alignment metadata file buffer.");
+}
+
+
 #[cfg(test)]
 mod tests {
+    use crate::reference_library::ReferenceData;
+
     #[test]
     fn is_fasta_short() {
         let expected_results = true;
@@ -204,5 +237,43 @@ mod tests {
         let expected_results = false;
         let results = super::is_fastq("reference.bin.bam.zip");
         assert_eq!(results, expected_results);
+    }
+
+    #[test]
+    fn reference_data_to_reference_sequence_list() {
+        use debruijn::dna_string::DnaString;
+
+        let reference = ReferenceData {
+            group_on: 0,
+            headers: vec![String::from("names"), String::from("sequences")],
+            columns: vec![vec![String::from("A"), String::from("B")], vec![String::from("TACCTC"), String::from("CCGGAT")]],
+            sequence_name_idx: 0,
+            sequence_idx: 1,
+            data_type: String::from("DNA"),
+        };
+
+        let expected_seq_forward = vec![DnaString::from_acgt_bytes(b"TACCTC"), DnaString::from_acgt_bytes(b"CCGGAT")];
+        let expected_seq_reverse = vec![DnaString::from_acgt_bytes(b"GAGGTA"), DnaString::from_acgt_bytes(b"ATCCGG")];
+        let expected_seq_names = vec![String::from("A"), String::from("B")];
+        let (actual_seq_forward, actual_seq_reverse, actual_seq_names) = super::get_reference_sequence_lists(&reference);
+        assert_eq!(expected_seq_forward, actual_seq_forward);
+        assert_eq!(expected_seq_reverse, actual_seq_reverse);
+        assert_eq!(expected_seq_names, actual_seq_names);
+    }
+
+    #[test]
+    fn filter_scores_success() {
+        let input = vec![(vec![String::from("A")], 33), (vec![String::from("B")], 32), (vec![String::from("C")], 31), (vec![String::from("D")], 30)];
+        let expected = vec![(vec![String::from("A")], 33), (vec![String::from("B")], 32)];
+        let actual = super::filter_scores(input, &31);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn filter_scores_nochange() {
+        let input = vec![(vec![String::from("A")], 33), (vec![String::from("B")], 32), (vec![String::from("C")], 31), (vec![String::from("D")], 30)];
+        let expected = vec![(vec![String::from("A")], 33), (vec![String::from("B")], 32), (vec![String::from("C")], 31), (vec![String::from("D")], 30)];
+        let actual = super::filter_scores(input, &25);
+        assert_eq!(expected, actual);
     }
 }

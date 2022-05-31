@@ -2,14 +2,15 @@ use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::fastq::get_error_checked_fastq_readers;
 use crate::reference_library::ReferenceData;
 use crate::score::score;
-use crate::utils::write_debug_info;
+use crate::utils::{write_debug_info, write_read_list};
 
 pub fn process(
     input_files: Vec<&str>,
     reference_index: &(PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceData,
     align_config: &AlignFilterConfig,
-    debug_file: Option<String>
+    debug_file: Option<String>,
+    alignment_file: Option<String>
 ) -> Vec<(Vec<String>, i32)> {
     /* Get error-checked iterators to the sequences that will be aligned to the reference from the
      * sequence genome file(s) */
@@ -31,6 +32,12 @@ pub fn process(
         "".to_owned()
     };
 
+    let owned_alignment_file = if alignment_file.is_some() {
+        alignment_file.unwrap()
+    } else {
+        "".to_owned()
+    };
+
     let mut debug_info: AlignDebugInfo = Default::default();
 
     if owned_debug_file != "".to_owned() {
@@ -38,7 +45,7 @@ pub fn process(
     };
 
     // Perform alignment and filtration using the score package
-    let results = if owned_debug_file.clone() != "" {
+    let (results, alignment_metadata) = if owned_debug_file.clone() != "" {
         score(
             sequences,
             reverse_sequences,
@@ -61,6 +68,12 @@ pub fn process(
     if owned_debug_file != "".to_owned() {
         write_debug_info(debug_info);
     }
+
+    if owned_alignment_file != "".to_owned() {
+        write_read_list(alignment_metadata, None, &owned_alignment_file);
+    }
+
+    print!("Output results written to output path");
 
     results
 }

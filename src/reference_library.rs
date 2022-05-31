@@ -65,7 +65,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
         _ => panic!("Error -- invalid intersect level in config file. Please choose intersect level 0, 1, or 2.")
     };
 
-    // Get reference library metadata from the second JSON object in the file
+    // Get reference library data/metadata from the second JSON object in the file
     let reference = &v[1];
     let headers = to_string_vec(&reference["headers"], "headers");
     let columns = &reference["columns"];

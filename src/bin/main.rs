@@ -29,6 +29,12 @@ fn main() {
     } else {
         Some(debug_file)
     };
+    let alignment_file = matches.value_of("alignment").unwrap_or("").to_owned();
+    let alignment_file = if alignment_file == "" {
+        None
+    } else {
+        Some(alignment_file)
+    };
 
     println!("Loading and preprocessing reference data");
 
@@ -40,7 +46,7 @@ fn main() {
     // Since we create a debruijn index for both forward and reverse versions of the library, we
     // get two reference vectors
     let (reference_seqs, reference_seqs_rev, reference_names) =
-        utils::get_valid_reference_sequence_lists(&reference_metadata);
+        utils::get_reference_sequence_lists(&reference_metadata);
 
     // Create debruijn index of the reference library
     let reference_index_forward =
@@ -52,7 +58,7 @@ fn main() {
         )
         .expect("Error -- could not create pseudoaligner index of the reference library");
 
-    // Create debruijn index of the reverse-comp of the reference library
+    // Create debruijn index of the reverse-comp of the reference library, to handle reversed reads
     let reference_index_reverse =
         debruijn_mapping::build_index::build_index::<debruijn_mapping::config::KmerType>(
             &reference_seqs_rev,
@@ -74,7 +80,8 @@ fn main() {
             &reference_index,
             &reference_metadata,
             &aligner_config,
-            debug_file
+            debug_file,
+            alignment_file
         );
 
         utils::write_to_tsv(utils::filter_scores(results, &aligner_config.score_filter), None, true, output_path);
@@ -84,7 +91,8 @@ fn main() {
             &reference_index,
             &reference_metadata,
             &aligner_config,
-            debug_file
+            debug_file,
+            alignment_file
         );
 
         utils::write_to_tsv(results, Some(cell_barcodes), false, output_path);

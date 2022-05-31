@@ -7,21 +7,30 @@ use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::bam;
 use crate::reference_library::ReferenceData;
 use crate::score::score;
-use crate::utils::write_debug_info;
+use crate::utils::{write_debug_info, write_read_list};
 
 pub fn process(
     input_files: Vec<&str>,
     reference_index: &(PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceData,
     align_config: &AlignFilterConfig,
-    debug_file: Option<String>
-) -> (Vec<(Vec<String>, i32)>, Vec<String>){
+    debug_file: Option<String>,
+    alignment_file: Option<String>
+) -> (Vec<(Vec<String>, i32)>, Vec<String>) {
     let mut reader = bam::UMIReader::new(input_files[0]);
     let mut score_map: HashMap<(Vec<String>, String), i32> = HashMap::new();
+    let mut alignment_metadata: Vec<(Vec<String>, String)> = Vec::new();
+    let mut mapqs: Vec<u8> = Vec::new();
     let mut cell_barcodes: Vec<String> = Vec::new();
 
     let owned_debug_file = if debug_file.is_some() {
         debug_file.unwrap()
+    } else {
+        "".to_owned()
+    };
+
+    let owned_alignment_file = if alignment_file.is_some() {
+        alignment_file.unwrap()
     } else {
         "".to_owned()
     };
@@ -39,6 +48,10 @@ pub fn process(
             if owned_debug_file != "".to_owned() {
                 write_debug_info(debug_info);
             }
+            
+            if owned_alignment_file != "".to_owned() {
+                write_read_list(alignment_metadata, Some(mapqs), &owned_alignment_file);
+            }
 
             let mut results = Vec::new();
             for (key, value) in score_map.into_iter() {
@@ -54,6 +67,7 @@ pub fn process(
         };
 
         let mut current_umi_group = reader.current_umi_group.clone();
+        let current_mapq_table = mapq_vec_to_sequence_hashmap(reader.current_mapq_group.clone(), current_umi_group.clone());
 
         let extra_read = if current_umi_group.len() % 2 != 0 {
             current_umi_group.pop()
@@ -61,7 +75,7 @@ pub fn process(
             None
         };
 
-        let mut s = if owned_debug_file.clone() != "" {
+        let (mut s, mut res) = if owned_debug_file.clone() != "" {
             get_score(
                 &current_umi_group,
                 reference_index,
@@ -77,7 +91,7 @@ pub fn process(
                 None)
         };
 
-        let mut s_extra = match extra_read {
+        let (mut s_extra, mut res_extra) = match extra_read {
             Some(read) => {
                 let read_f = vec![Ok(read.clone())];
                 let read_r = vec![Ok(read.clone())];
@@ -90,10 +104,14 @@ pub fn process(
                     None
                 )
             },
-            None => Vec::new()
+            None => (Vec::new(), Vec::new())
         };
 
         s.append(&mut s_extra);
+        mapqs.append(&mut get_mapq_scores(get_sequence_list_from_metadata(&res), &current_mapq_table));
+        mapqs.append(&mut get_mapq_scores(get_sequence_list_from_metadata(&res_extra), &current_mapq_table));
+        alignment_metadata.append(&mut res);
+        alignment_metadata.append(&mut res_extra);
 
         if s.len() == 0 {
             continue;
@@ -123,13 +141,43 @@ pub fn process(
     }
 }
 
+fn mapq_vec_to_sequence_hashmap(mapqs: Vec<u8>, sequences: Vec<DnaString>) -> HashMap<String, u8> {
+    let mut ret: HashMap<String, u8> = HashMap::new();
+    
+    for (i, seq) in sequences.iter().enumerate() {
+        ret.insert(seq.to_string(), mapqs[i]);
+    }
+
+    ret
+}
+
+fn get_mapq_scores(sequences: Vec<String>, mapq_table: &HashMap<String, u8>) -> Vec<u8> {
+    let mut ret: Vec<u8> = Vec::new();
+
+    for seq in sequences {
+        ret.push(mapq_table[&seq]);
+    }
+
+    ret
+}
+
+fn get_sequence_list_from_metadata(metadata: &Vec<(Vec<String>, String)>) -> Vec<String> {
+    let mut ret: Vec<String> = Vec::new();
+
+    for (_, seq) in metadata.iter() {
+        ret.push(seq.to_string());
+    }
+
+    ret
+}
+
 fn get_score<'a>(
     current_umi_group: &'a Vec<DnaString>,
     reference_index: &(PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceData,
     align_config: &AlignFilterConfig,
-    debug_info: Option<&mut AlignDebugInfo>,
-) -> Vec<(Vec<String>, i32)> {
+    debug_info: Option<&mut AlignDebugInfo>
+) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String)>) {
     let sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
         current_umi_group
             .iter()
