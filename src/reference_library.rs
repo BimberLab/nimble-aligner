@@ -48,6 +48,10 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
     let intersect_level = config_obj["intersect_level"]
         .as_i64()
         .expect("Error -- could not parse intersect_level as int64");
+    let max_hits_to_report = config_obj["max_hits_to_report"]
+        .as_i64()
+        .expect("Error -- could not parse max_hits_to_report as int64")
+        as usize;
     let intersect_level = match intersect_level {
     0 => align::IntersectLevel::NoIntersect,
     1 => align::IntersectLevel::IntersectWithFallback,
@@ -101,6 +105,7 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
         require_valid_pair,
         discard_multi_hits,
         intersect_level,
+        max_hits_to_report
     };
 
     let reference_metadata = ReferenceMetadata {

@@ -49,6 +49,7 @@ pub struct AlignFilterConfig {
     pub intersect_level: IntersectLevel,
     pub require_valid_pair: bool,
     pub discard_multi_hits: usize,
+    pub max_hits_to_report: usize
 }
 
 #[derive(Default)]
@@ -241,6 +242,11 @@ fn generate_score<'a>(
         if !match_eqv_class.is_empty() {
             let mut key = get_score_map_key(match_eqv_class, reference_metadata, &config); // Process the equivalence class into a score key
             key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names 
+
+            if key.len() > config.max_hits_to_report {
+                continue;
+            }
+
             read_matches.push((key.clone(), read.to_string()));
 
             // Add the key to the score map and increment the score
