@@ -108,7 +108,7 @@ pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>, group_row: Option<Vec<Stri
 
     let mut file = OpenOptions::new()
         .create(true)
-        .append(true)
+        .append(false)
         .open(output_path)
         .expect("Error -- could not create results file");
 
@@ -160,6 +160,7 @@ pub fn write_debug_info(info: AlignDebugInfo) {
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
+        .append(false)
         .open(info.debug_file)
         .expect("Error -- could not create debug file");
 

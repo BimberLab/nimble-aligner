@@ -377,6 +377,7 @@ fn pseudoalign(
     // Perform alignment
     match reference_index.map_read_with_mismatch(sequence, config.num_mismatches) {
         Some((equiv_class, score, mismatches)) => {
+            let score = score - 20;
             // Filter nonzero mismatch
             if config.discard_nonzero_mismatch && mismatches != 0 {
                 return (None, Some(FilterReason::DiscardedNonzeroMismatch));
