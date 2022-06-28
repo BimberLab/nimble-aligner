@@ -7,9 +7,11 @@ use std::io::Error;
 use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
 use reference_library::ReferenceMetadata;
+use lexical_sort::{StringSort, natural_lexical_cmp};
 
 
 const MIN_READ_LENGTH: usize = 12;
+const SCORE_BASELINE: usize = 20;
 
 
 pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<
@@ -237,7 +239,8 @@ fn generate_score<'a>(
         };
 
         if !match_eqv_class.is_empty() {
-            let key = get_score_map_key(match_eqv_class, reference_metadata, &config); // Process the equivalence class into a score key
+            let mut key = get_score_map_key(match_eqv_class, reference_metadata, &config); // Process the equivalence class into a score key
+            key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names 
             read_matches.push((key.clone(), read.to_string()));
 
             // Add the key to the score map and increment the score
@@ -377,7 +380,7 @@ fn pseudoalign(
     // Perform alignment
     match reference_index.map_read_with_mismatch(sequence, config.num_mismatches) {
         Some((equiv_class, score, mismatches)) => {
-            let score = score - 20;
+            let score = score - SCORE_BASELINE;
             // Filter nonzero mismatch
             if config.discard_nonzero_mismatch && mismatches != 0 {
                 return (None, Some(FilterReason::DiscardedNonzeroMismatch));
