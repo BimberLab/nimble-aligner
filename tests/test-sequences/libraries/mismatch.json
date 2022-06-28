@@ -9,7 +9,8 @@
     "discard_multi_hits": 0,
     "require_valid_pair": false,
     "data_type": "DNA",
-    "filters": []
+    "filters": [],
+    "max_hits_to_report": 10
   },
   {
     "headers": [

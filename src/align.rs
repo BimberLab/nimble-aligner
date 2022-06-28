@@ -243,7 +243,13 @@ fn generate_score<'a>(
             let mut key = get_score_map_key(match_eqv_class, reference_metadata, &config); // Process the equivalence class into a score key
             key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names 
 
+            // Max hits filter
             if key.len() > config.max_hits_to_report {
+                continue;
+            }
+
+            // Ensure we don't add empty keys, if any got to this point
+            if key.len() == 0 {
                 continue;
             }
 
@@ -357,7 +363,13 @@ fn get_score_map_key(
         let mut results = Vec::new();
 
         for ref_idx in equiv_class {
-            let group = &reference_metadata.columns[reference_metadata.group_on][ref_idx as usize];
+            let mut group = &reference_metadata.columns[reference_metadata.group_on][ref_idx as usize];
+
+            // If the group is an empty string, get the sequence name instead so we don't just return nothing
+            if group.is_empty() {
+                group = &reference_metadata.columns[reference_metadata.sequence_name_idx][ref_idx as usize];
+            }
+
             if !results.contains(group) {
                 results.push(group.to_string());
             }
