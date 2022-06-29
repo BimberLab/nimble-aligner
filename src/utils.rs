@@ -179,16 +179,16 @@ pub fn filter_scores(reference_scores: Vec<(Vec<String>, i32)>, score_filter: &i
 }
 
 
-pub fn write_read_list(results: Vec<(Vec<String>, String)>, mapqs: Option<Vec<u8>>, output_path: &str) {
+pub fn write_read_list(pseudoaligner_data: Vec<(Vec<String>, String)>, bam_data: Option<Vec<u8>>, output_path: &str) {
     let mut str_rep = String::new();
 
     // Append the results to the tsv string
-    for (i, (group, score)) in results.iter().enumerate() {
+    for (i, (group, seq)) in pseudoaligner_data.iter().enumerate() {
         str_rep += &group.join(",");
         str_rep += "\t";
-        str_rep += &score;
+        str_rep += &seq;
 
-        if let Some(ref mapq) = mapqs {
+        if let Some(ref mapq) = bam_data {
             if mapq.len() > 0 {
                 str_rep += "\t";
                 str_rep += &mapq[i].to_string();
