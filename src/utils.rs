@@ -107,6 +107,7 @@ pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>, group_row: Option<Vec<Stri
     }
 
     let mut file = OpenOptions::new()
+        .write(true)
         .create(true)
         .append(false)
         .open(output_path)
@@ -179,19 +180,48 @@ pub fn filter_scores(reference_scores: Vec<(Vec<String>, i32)>, score_filter: &i
 }
 
 
-pub fn write_read_list(pseudoaligner_data: Vec<(Vec<String>, String)>, bam_data: Option<Vec<u8>>, output_path: &str) {
+pub struct PseudoalignerData {
+    pub reference_names: Vec<Vec<String>>,
+    pub read_umi_name: Vec<String>,
+    pub barcode_sample_name: Vec<String>,
+    pub score: Vec<usize>,
+    pub pair: Vec<String>,
+    pub sequence: Vec<String>
+}
+
+pub struct BamSpecificAlignMetadata {
+    pub mapq: Vec<u8>,
+    pub orientation: Vec<String>
+}
+
+pub fn write_read_list(pseudoaligner_data: PseudoalignerData, bam_data: Option<BamSpecificAlignMetadata>, output_path: &str) {
     let mut str_rep = String::new();
 
-    // Append the results to the tsv string
-    for (i, (group, seq)) in pseudoaligner_data.iter().enumerate() {
-        str_rep += &group.join(",");
-        str_rep += "\t";
-        str_rep += &seq;
+    println!("{:?}", pseudoaligner_data.score);
 
-        if let Some(ref mapq) = bam_data {
-            if mapq.len() > 0 {
+    // Append the results to the tsv string
+    for (i, _) in pseudoaligner_data.reference_names.iter().enumerate() {
+        str_rep += &pseudoaligner_data.reference_names[i].join(",");
+        str_rep += "\t";
+        str_rep += &pseudoaligner_data.read_umi_name[i];
+        str_rep += "\t";
+        str_rep += &pseudoaligner_data.barcode_sample_name[i];
+        str_rep += "\t";
+        str_rep += &pseudoaligner_data.score[i].to_string();
+        str_rep += "\t";
+        str_rep += &pseudoaligner_data.pair[i];
+        str_rep += "\t";
+        str_rep += &pseudoaligner_data.sequence[i];
+
+        if let Some(ref metadata) = bam_data {
+            if metadata.mapq.len() > 0 {
                 str_rep += "\t";
-                str_rep += &mapq[i].to_string();
+                str_rep += &metadata.mapq[i].to_string();
+            }
+
+            if metadata.orientation.len() > 0 {
+                str_rep += "\t";
+                str_rep += &metadata.orientation[i].to_string();
             }
         }
 

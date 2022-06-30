@@ -90,11 +90,4 @@ fn main() {
             alignment_file
         );
     };
-
-    // Ensure we've created the output_path file
-    OpenOptions::new()
-        .create(true)
-        .append(false)
-        .open(output_path)
-        .expect("Error -- could not create results file");
 }

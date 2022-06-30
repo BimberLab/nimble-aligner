@@ -7,7 +7,7 @@ use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::bam;
 use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
-use crate::utils::{write_to_tsv, write_debug_info, write_read_list};
+use crate::utils::{write_to_tsv, write_debug_info, write_read_list, PseudoalignerData, BamSpecificAlignMetadata};
 
 pub fn process(
     input_files: Vec<&str>,
@@ -20,8 +20,20 @@ pub fn process(
 ) {
     let mut reader = bam::UMIReader::new(input_files[0]);
     let mut score_map: HashMap<(Vec<String>, String), i32> = HashMap::new();
-    let mut alignment_metadata: Vec<(Vec<String>, String)> = Vec::new();
-    let mut mapqs: Vec<u8> = Vec::new();
+    let mut alignment_metadata: PseudoalignerData = PseudoalignerData {
+        reference_names: Vec::new(),
+        read_umi_name: Vec::new(),
+        barcode_sample_name: Vec::new(),
+        score: Vec::new(),
+        pair: Vec::new(),
+        sequence: Vec::new()
+    };
+
+    let mut bam_specific_alignment_metadata: BamSpecificAlignMetadata = BamSpecificAlignMetadata {
+        mapq: Vec::new(),
+        orientation: Vec::new()
+    };
+
     let mut cell_barcodes: Vec<String> = Vec::new();
 
     let owned_debug_file = if debug_file.is_some() {
@@ -51,7 +63,7 @@ pub fn process(
             }
             
             if owned_alignment_file != "".to_owned() {
-                write_read_list(alignment_metadata, Some(mapqs), &owned_alignment_file);
+                write_read_list(alignment_metadata, Some(bam_specific_alignment_metadata), &owned_alignment_file);
             }
 
             let mut results = Vec::new();
@@ -70,7 +82,7 @@ pub fn process(
         };
 
         let mut current_umi_group = reader.current_umi_group.clone();
-        let current_mapq_table = mapq_vec_to_sequence_hashmap(reader.current_mapq_group.clone(), current_umi_group.clone());
+        let current_mapq_table = mapq_vec_to_sequence_hashmap(reader.current_metadata_group.clone().iter().map(|(mapq, _, _)| mapq.clone()).collect::<Vec<u8>>().clone(), current_umi_group.clone());
 
         let extra_read = if current_umi_group.len() % 2 != 0 {
             current_umi_group.pop()
@@ -111,10 +123,17 @@ pub fn process(
         };
 
         s.append(&mut s_extra);
-        mapqs.append(&mut get_mapq_scores(get_sequence_list_from_metadata(&res), &current_mapq_table));
-        mapqs.append(&mut get_mapq_scores(get_sequence_list_from_metadata(&res_extra), &current_mapq_table));
-        alignment_metadata.append(&mut res);
-        alignment_metadata.append(&mut res_extra);
+        res.append(&mut res_extra);
+        
+        bam_specific_alignment_metadata.mapq.append(&mut get_mapq_scores(get_sequence_list_from_metadata(&res), &current_mapq_table));
+        bam_specific_alignment_metadata.orientation.append(&mut reader.current_metadata_group.clone().into_iter().map(|(_, orientation, _)| orientation).collect::<Vec<String>>());
+        alignment_metadata.reference_names.append(&mut res.clone().into_iter().map(|(group, _, _)| group).collect::<Vec<Vec<String>>>());
+        alignment_metadata.sequence.append(&mut res.clone().into_iter().map(|(_, seq, _)| seq).collect::<Vec<String>>());
+        alignment_metadata.score.append(&mut res.clone().into_iter().map(|(_, _, score)| score).collect::<Vec<usize>>());
+        alignment_metadata.barcode_sample_name.append(&mut s.clone().into_iter().map(|_| (&reader).current_cell_barcode.clone()).collect::<Vec<String>>());
+        alignment_metadata.read_umi_name.append(&mut s.clone().into_iter().map(|_| (&reader).current_umi.clone()).collect::<Vec<String>>());
+        alignment_metadata.pair.append(&mut reader.current_metadata_group.clone().into_iter().map(|(_, _, pair)| pair).collect::<Vec<String>>());
+        
 
         if s.len() == 0 {
             continue;
@@ -164,10 +183,10 @@ fn get_mapq_scores(sequences: Vec<String>, mapq_table: &HashMap<String, u8>) -> 
     ret
 }
 
-fn get_sequence_list_from_metadata(metadata: &Vec<(Vec<String>, String)>) -> Vec<String> {
+fn get_sequence_list_from_metadata(metadata: &Vec<(Vec<String>, String, usize)>) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
-    for (_, seq) in metadata.iter() {
+    for (_, seq, _) in metadata.iter() {
         ret.push(seq.to_string());
     }
 
@@ -180,7 +199,7 @@ fn get_score<'a>(
     reference_metadata: &ReferenceMetadata,
     align_config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>
-) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String)>) {
+) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, usize)>) {
     let sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
         current_umi_group
             .iter()
