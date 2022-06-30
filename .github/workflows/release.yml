@@ -13,13 +13,11 @@ jobs:
         uses: actions/checkout@v2
       - name: Create release
         id: create_release
-        uses: actions/create-release@v1
+        uses: elgohr/Github-Release-Action@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: tags/release
-          release_name: Release
-          prerelease: true
+          title: Release
       - shell: bash
         run: |
           cut -d " " -f1 <<<'${{ steps.create_release.outputs.upload_url }}' > url.txt
