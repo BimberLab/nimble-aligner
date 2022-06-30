@@ -197,8 +197,6 @@ pub struct BamSpecificAlignMetadata {
 pub fn write_read_list(pseudoaligner_data: PseudoalignerData, bam_data: Option<BamSpecificAlignMetadata>, output_path: &str) {
     let mut str_rep = String::new();
 
-    println!("{:?}", pseudoaligner_data.score);
-
     // Append the results to the tsv string
     for (i, _) in pseudoaligner_data.reference_names.iter().enumerate() {
         str_rep += &pseudoaligner_data.reference_names[i].join(",");
