@@ -75,7 +75,7 @@ pub fn process(
     }
 
     if owned_alignment_file != "".to_owned() {
-        write_read_list(alignment_metadata, None, &owned_alignment_file);
+        //write_read_list(alignment_metadata, None, &owned_alignment_file);
     }
 
     print!("Output results written to output path");

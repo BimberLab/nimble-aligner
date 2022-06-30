@@ -1,4 +1,3 @@
-#![feature(allocator_api)]
 extern crate csv;
 extern crate debruijn;
 extern crate debruijn_mapping;
