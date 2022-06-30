@@ -7,9 +7,11 @@ use std::io::Error;
 use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
 use reference_library::ReferenceMetadata;
+use lexical_sort::{StringSort, natural_lexical_cmp};
 
 
 const MIN_READ_LENGTH: usize = 12;
+const SCORE_BASELINE: usize = 20;
 
 
 pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<
@@ -47,6 +49,7 @@ pub struct AlignFilterConfig {
     pub intersect_level: IntersectLevel,
     pub require_valid_pair: bool,
     pub discard_multi_hits: usize,
+    pub max_hits_to_report: usize
 }
 
 #[derive(Default)]
@@ -122,7 +125,7 @@ pub fn score<'a>(
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>
-) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String)>) {
+) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, usize)>) {
     let (index_forward, index_backward) = index_pair;
     let (sequences, sequences_2) = sequence_iter_pair;
     let (reverse_sequences, reverse_sequences_2) = match reverse_sequence_iter_pair {
@@ -168,11 +171,11 @@ fn generate_score<'a>(
     index: &PseudoAligner,
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
-) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String)>, AlignDebugInfo) {
+) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, usize)>, AlignDebugInfo) {
     // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
     let mut score_map: HashMap<Vec<String>, i32> = HashMap::new();
     let mut debug_info: AlignDebugInfo = Default::default();
-    let mut read_matches: Vec<(Vec<String>, String)> = Vec::new();
+    let mut read_matches: Vec<(Vec<String>, String, usize)> = Vec::new();
 
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
     for read in sequences {
@@ -226,7 +229,7 @@ fn generate_score<'a>(
         }
 
         // Take the "best" alignment. The specific behavior is determined by the intersect level set in the aligner config
-        let match_eqv_class = match config.intersect_level {
+        let (match_eqv_class, pseudoaligner_score) = match config.intersect_level {
             IntersectLevel::NoIntersect => get_best_reads(&seq_score, &rev_seq_score),
             IntersectLevel::IntersectWithFallback => {
                 get_intersecting_reads(&seq_score, &rev_seq_score, true, &mut debug_info)
@@ -237,8 +240,20 @@ fn generate_score<'a>(
         };
 
         if !match_eqv_class.is_empty() {
-            let key = get_score_map_key(match_eqv_class, reference_metadata, &config); // Process the equivalence class into a score key
-            read_matches.push((key.clone(), read.to_string()));
+            let mut key = get_score_map_key(match_eqv_class, reference_metadata, &config); // Process the equivalence class into a score key
+            key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names 
+
+            // Max hits filter
+            if key.len() > config.max_hits_to_report {
+                continue;
+            }
+
+            // Ensure we don't add empty keys, if any got to this point
+            if key.len() == 0 {
+                continue;
+            }
+
+            read_matches.push((key.clone(), read.to_string(), pseudoaligner_score));
 
             // Add the key to the score map and increment the score
             let accessor = score_map.entry(key).or_insert(0);
@@ -290,8 +305,8 @@ fn get_intersecting_reads(
     rev_seq_score: &Option<Option<(Vec<u32>, usize)>>,
     fallback_on_intersect_fail: bool,
     debug_info: &mut AlignDebugInfo
-) -> Vec<u32> {
-    if let (Some((eqv_class_seq, _)), Some(Some((eqv_class_rev_seq, _)))) =
+) -> (Vec<u32>, usize) {
+    if let (Some((eqv_class_seq, score)), Some(Some((eqv_class_rev_seq, _rev_score)))) =
         (&seq_score, &rev_seq_score)
     {
         let class = eqv_class_seq.intersect(eqv_class_rev_seq.to_vec());
@@ -300,17 +315,17 @@ fn get_intersecting_reads(
             debug_info.update(Some(FilterReason::DisjointPairIntersection))
         }
 
-        class
+        (class, *score)
     } else if fallback_on_intersect_fail {
-        let class = get_best_reads(seq_score, rev_seq_score);
+        let (class, score) = get_best_reads(seq_score, rev_seq_score);
         
         if class.len() == 0 {
             debug_info.update(Some(FilterReason::BestClassEmpty));
         }
-        class
+        (class, score)
     } else {
         debug_info.update(Some(FilterReason::ForceIntersectFailure));
-        Vec::new()
+        (Vec::new(), 0)
     }
 }
 
@@ -318,13 +333,13 @@ fn get_intersecting_reads(
 fn get_best_reads(
     seq_score: &Option<(Vec<u32>, usize)>,
     rev_seq_score: &Option<Option<(Vec<u32>, usize)>>,
-) -> Vec<u32> {
-    if let Some((eqv_class, _)) = &seq_score {
-        (*eqv_class).clone()
-    } else if let Some(Some((eqv_class, _))) = &rev_seq_score {
-        (*eqv_class).clone()
+) -> (Vec<u32>, usize) {
+    if let Some((eqv_class, s)) = &seq_score {
+        ((*eqv_class).clone(), *s)
+    } else if let Some(Some((eqv_class, s))) = &rev_seq_score {
+        ((*eqv_class).clone(), *s)
     } else {
-        Vec::new()
+        (Vec::new(), 0)
     }
 }
 
@@ -348,7 +363,13 @@ fn get_score_map_key(
         let mut results = Vec::new();
 
         for ref_idx in equiv_class {
-            let group = &reference_metadata.columns[reference_metadata.group_on][ref_idx as usize];
+            let mut group = &reference_metadata.columns[reference_metadata.group_on][ref_idx as usize];
+
+            // If the group is an empty string, get the sequence name instead so we don't just return nothing
+            if group.is_empty() {
+                group = &reference_metadata.columns[reference_metadata.sequence_name_idx][ref_idx as usize];
+            }
+
             if !results.contains(group) {
                 results.push(group.to_string());
             }
@@ -377,6 +398,7 @@ fn pseudoalign(
     // Perform alignment
     match reference_index.map_read_with_mismatch(sequence, config.num_mismatches) {
         Some((equiv_class, score, mismatches)) => {
+            let score = score - SCORE_BASELINE;
             // Filter nonzero mismatch
             if config.discard_nonzero_mismatch && mismatches != 0 {
                 return (None, Some(FilterReason::DiscardedNonzeroMismatch));
