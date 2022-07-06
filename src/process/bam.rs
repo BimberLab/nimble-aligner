@@ -82,7 +82,7 @@ pub fn process(
         };
 
         let mut current_umi_group = reader.current_umi_group.clone();
-        let current_mapq_table = mapq_vec_to_sequence_hashmap(reader.current_metadata_group.clone().iter().map(|(mapq, _, _)| mapq.clone()).collect::<Vec<u8>>().clone(), current_umi_group.clone());
+        let current_metadata_table = metadata_to_sequence_hashmap(reader.current_metadata_group.clone(), current_umi_group.clone());
 
         let extra_read = if current_umi_group.len() % 2 != 0 {
             current_umi_group.pop()
@@ -125,15 +125,14 @@ pub fn process(
         s.append(&mut s_extra);
         res.append(&mut res_extra);
         
-        bam_specific_alignment_metadata.mapq.append(&mut get_mapq_scores(get_sequence_list_from_metadata(&res), &current_mapq_table));
-        bam_specific_alignment_metadata.orientation.append(&mut reader.current_metadata_group.clone().into_iter().map(|(_, orientation, _)| orientation).collect::<Vec<String>>());
+        bam_specific_alignment_metadata.mapq.append(&mut get_mapq_scores(get_sequence_list_from_metadata(&res), &current_metadata_table));
+        bam_specific_alignment_metadata.orientation.append(&mut get_orientation(get_sequence_list_from_metadata(&res), &current_metadata_table));
         alignment_metadata.reference_names.append(&mut res.clone().into_iter().map(|(group, _, _)| group).collect::<Vec<Vec<String>>>());
         alignment_metadata.sequence.append(&mut res.clone().into_iter().map(|(_, seq, _)| seq).collect::<Vec<String>>());
         alignment_metadata.score.append(&mut res.clone().into_iter().map(|(_, _, score)| score).collect::<Vec<usize>>());
-        alignment_metadata.barcode_sample_name.append(&mut s.clone().into_iter().map(|_| (&reader).current_cell_barcode.clone()).collect::<Vec<String>>());
-        alignment_metadata.read_umi_name.append(&mut s.clone().into_iter().map(|_| (&reader).current_umi.clone()).collect::<Vec<String>>());
-        alignment_metadata.pair.append(&mut reader.current_metadata_group.clone().into_iter().map(|(_, _, pair)| pair).collect::<Vec<String>>());
-        
+        alignment_metadata.barcode_sample_name.append(&mut res.clone().into_iter().map(|_| (&reader).current_cell_barcode.clone()).collect::<Vec<String>>());
+        alignment_metadata.read_umi_name.append(&mut res.clone().into_iter().map(|_| (&reader).current_umi.clone()).collect::<Vec<String>>());
+        alignment_metadata.pair.append(&mut get_pair(get_sequence_list_from_metadata(&res), &current_metadata_table));
 
         if s.len() == 0 {
             continue;
@@ -163,21 +162,41 @@ pub fn process(
     }
 }
 
-fn mapq_vec_to_sequence_hashmap(mapqs: Vec<u8>, sequences: Vec<DnaString>) -> HashMap<String, u8> {
-    let mut ret: HashMap<String, u8> = HashMap::new();
+fn metadata_to_sequence_hashmap(metadata: Vec<(u8, String, String)>, sequences: Vec<DnaString>) -> HashMap<String, (u8, String, String)> {
+    let mut ret: HashMap<String, (u8, String, String)> = HashMap::new();
     
     for (i, seq) in sequences.iter().enumerate() {
-        ret.insert(seq.to_string(), mapqs[i]);
+        ret.insert(seq.to_string(), metadata[i].clone());
     }
 
     ret
 }
 
-fn get_mapq_scores(sequences: Vec<String>, mapq_table: &HashMap<String, u8>) -> Vec<u8> {
+fn get_mapq_scores(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String, String)>) -> Vec<u8> {
     let mut ret: Vec<u8> = Vec::new();
 
     for seq in sequences {
-        ret.push(mapq_table[&seq]);
+        ret.push(metadata_table[&seq].0);
+    }
+
+    ret
+}
+
+fn get_orientation(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String, String)>) -> Vec<String> {
+    let mut ret: Vec<String> = Vec::new();
+
+    for seq in sequences {
+        ret.push(metadata_table[&seq].1.clone());
+    }
+
+    ret
+}
+
+fn get_pair(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String, String)>) -> Vec<String> {
+    let mut ret: Vec<String> = Vec::new();
+
+    for seq in sequences {
+        ret.push(metadata_table[&seq].2.clone());
     }
 
     ret
