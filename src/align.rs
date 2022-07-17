@@ -72,6 +72,103 @@ pub struct AlignDebugInfo {
     pub short_read: usize
 }
 
+pub enum AlignmentDirection {
+    FF,
+    RR,
+    UU,
+    FR,
+    FU,
+    RF,
+    RU,
+    UF,
+    UR,
+    I
+}
+
+pub enum LibraryType {
+   Unstranded,
+   FivePrime,
+   ThreePrime 
+}
+
+impl AlignmentDirection {
+    fn get_alignment_dir(forward_pair_state: PairState, reverse_pair_state: PairState) -> AlignmentDirection {
+        match (forward_pair_state, reverse_pair_state) {
+            (PairState::First, PairState::First) => AlignmentDirection::FU,
+            (PairState::First, PairState::Second) => AlignmentDirection::FR,
+            (PairState::Second, PairState::First) => AlignmentDirection::RF,
+            (PairState::Second, PairState::Second) => AlignmentDirection::RU,
+            (PairState::First, PairState::None) => AlignmentDirection::FU,
+            (PairState::Second, PairState::None) => AlignmentDirection::RU,
+            (PairState::None, PairState::First) => AlignmentDirection::FU,
+            (PairState::None, PairState::Second) => AlignmentDirection::RU,
+            (PairState::Intersect, _) => AlignmentDirection::I,
+            (_, PairState::Intersect) => AlignmentDirection::I,
+            (PairState::None, PairState::None) => AlignmentDirection::UU
+        }
+    }
+
+    fn filter_read(dir: AlignmentDirection, lib_type: LibraryType) -> bool {
+        match lib_type {
+            LibraryType::Unstranded => AlignmentDirection::filter_unstranded(dir),
+            LibraryType::FivePrime => AlignmentDirection::filter_fiveprime(dir),
+            LibraryType::ThreePrime => AlignmentDirection::filter_threeprime(dir)
+        }
+    }
+
+    fn filter_unstranded(dir: AlignmentDirection) -> bool {
+        match dir {
+            FF => false,
+            RR => true,
+            UU => true,
+            FR => false,
+            FU => false,
+            RF => false,
+            RU => false,
+            UF => false,
+            UR => false,
+            I => false,
+        }
+    }
+
+    fn filter_fiveprime(dir: AlignmentDirection) -> bool {
+        match dir {
+            FF => false,
+            RR => true,
+            UU => true,
+            FR => false,
+            FU => false,
+            RF => false,
+            RU => false,
+            UF => false,
+            UR => false,
+            I => false,
+        }
+    }
+
+    fn filter_threeprime(dir: AlignmentDirection) -> bool {
+        match dir {
+            FF => false,
+            RR => true,
+            UU => true,
+            FR => false,
+            FU => false,
+            RF => false,
+            RU => false,
+            UF => false,
+            UR => false,
+            I => false,
+        }
+    }
+}
+
+pub enum PairState {
+    First,
+    Second,
+    Intersect,
+    None
+}
+
 impl AlignDebugInfo {
     fn update(&mut self, reason: Option<FilterReason>) {
         match reason {
@@ -133,20 +230,39 @@ pub fn score<'a>(
         None => (None, None),
     };
 
-    let (forward_score, forward_matched_sequences, forward_align_debug_info) = generate_score(
+    let (forward_score, forward_matched_sequences, forward_align_debug_info, forward_pair_states) = generate_score(
         sequences,
         reverse_sequences,
         index_forward,
         reference_metadata,
         config,
     );
-    let (backward_score, backward_matched_sequences, backward_align_debug_info) = generate_score(
+    let (backward_score, backward_matched_sequences, backward_align_debug_info, reverse_pair_states) = generate_score(
         sequences_2,
         reverse_sequences_2,
         index_backward,
         reference_metadata,
         config,
     );
+
+    let filter_list = Vec::new();
+    for (match_names, sequence, _) in forward_matched_sequences.iter() {
+        let forward_pair_state = match forward_pair_states.get(sequence) {
+            Some(state) => state,
+            None => &PairState::None 
+        };
+        
+       filter_list.append(AlignmentDirection::get_filter_list((match_names, forward_pair_state));
+    };
+
+    for (match_names, sequence, _) in backward_matched_sequences.iter() {
+        let reverse_pair_state = match reverse_pair_states.get(sequence) {
+            Some(state) => state,
+            None => &PairState::None
+        };
+
+       filter_list.append(AlignmentDirection::get_filter_list((match_names, forward_pair_state));
+    }
 
     if forward_score.len() > backward_score.len() {
         if let Some(debug_info) = debug_info {
@@ -171,11 +287,12 @@ fn generate_score<'a>(
     index: &PseudoAligner,
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
-) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, usize)>, AlignDebugInfo) {
+) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, usize)>, AlignDebugInfo, HashMap<String, PairState>) {
     // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
     let mut score_map: HashMap<Vec<String>, i32> = HashMap::new();
     let mut debug_info: AlignDebugInfo = Default::default();
     let mut read_matches: Vec<(Vec<String>, String, usize)> = Vec::new();
+    let mut pair_states: HashMap<String, PairState> = HashMap::new();
 
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
     for read in sequences {
@@ -229,7 +346,7 @@ fn generate_score<'a>(
         }
 
         // Take the "best" alignment. The specific behavior is determined by the intersect level set in the aligner config
-        let (match_eqv_class, pseudoaligner_score) = match config.intersect_level {
+        let (match_eqv_class, pseudoaligner_score, pair_state) = match config.intersect_level {
             IntersectLevel::NoIntersect => get_best_reads(&seq_score, &rev_seq_score),
             IntersectLevel::IntersectWithFallback => {
                 get_intersecting_reads(&seq_score, &rev_seq_score, true, &mut debug_info)
@@ -254,6 +371,7 @@ fn generate_score<'a>(
             }
 
             read_matches.push((key.clone(), read.to_string(), pseudoaligner_score));
+            pair_states.insert(read.to_string(), pair_state);
 
             // Add the key to the score map and increment the score
             let accessor = score_map.entry(key).or_insert(0);
@@ -268,7 +386,7 @@ fn generate_score<'a>(
         results.push((key, value));
     }
 
-    (results, read_matches, debug_info)
+    (results, read_matches, debug_info, pair_states)
 }
 
 // Determine whether a given pair of equivalence classes constitute a valid pair
@@ -305,7 +423,7 @@ fn get_intersecting_reads(
     rev_seq_score: &Option<Option<(Vec<u32>, usize)>>,
     fallback_on_intersect_fail: bool,
     debug_info: &mut AlignDebugInfo
-) -> (Vec<u32>, usize) {
+) -> (Vec<u32>, usize, PairState) {
     if let (Some((eqv_class_seq, score)), Some(Some((eqv_class_rev_seq, _rev_score)))) =
         (&seq_score, &rev_seq_score)
     {
@@ -315,17 +433,17 @@ fn get_intersecting_reads(
             debug_info.update(Some(FilterReason::DisjointPairIntersection))
         }
 
-        (class, *score)
+        (class, *score, PairState::Intersect)
     } else if fallback_on_intersect_fail {
-        let (class, score) = get_best_reads(seq_score, rev_seq_score);
+        let (class, score, pair_state) = get_best_reads(seq_score, rev_seq_score);
         
         if class.len() == 0 {
             debug_info.update(Some(FilterReason::BestClassEmpty));
         }
-        (class, score)
+        (class, score, pair_state)
     } else {
         debug_info.update(Some(FilterReason::ForceIntersectFailure));
-        (Vec::new(), 0)
+        (Vec::new(), 0, PairState::None)
     }
 }
 
@@ -333,14 +451,16 @@ fn get_intersecting_reads(
 fn get_best_reads(
     seq_score: &Option<(Vec<u32>, usize)>,
     rev_seq_score: &Option<Option<(Vec<u32>, usize)>>,
-) -> (Vec<u32>, usize) {
+) -> (Vec<u32>, usize, PairState) {
     if let Some((eqv_class, s)) = &seq_score {
-        ((*eqv_class).clone(), *s)
-    } else if let Some(Some((eqv_class, s))) = &rev_seq_score {
-        ((*eqv_class).clone(), *s)
-    } else {
-        (Vec::new(), 0)
+        if let Some(Some((r_eqv_class, r_s))) = &rev_seq_score {
+           if s > r_s { return ((*eqv_class).clone(), *s, PairState::First) } else { return ((*r_eqv_class).clone(), *r_s, PairState::Second) }
+        }
+        return ((*eqv_class).clone(), *s, PairState::First)
+    } else if let Some(Some((r_eqv_class, r_s))) = &rev_seq_score {
+        return ((*r_eqv_class).clone(), *r_s, PairState::Second)
     }
+    (Vec::new(), 0, PairState::None)
 }
 
 /* Takes a equivalence class and returns a list of strings. If we're processing allele-level data, the strings will be
