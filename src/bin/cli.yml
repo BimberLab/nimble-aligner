@@ -35,3 +35,10 @@ args:
       help: Path to a gzipped file that will log reference name and sequence for every alignment (note -- can be very large)
       takes_value: true
       default_value: ""
+  - strand_filter:
+      short: f
+      long: strand_filter
+      value_name: STRAND_FILTER
+      help: How to filter paired-read data based on strandedness. Possible values are "unstranded" (default), "fiveprime", "threeprime", and "none"
+      takes_value: true
+      default_value: "unstranded"

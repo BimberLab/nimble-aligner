@@ -49,7 +49,15 @@ pub struct AlignFilterConfig {
     pub intersect_level: IntersectLevel,
     pub require_valid_pair: bool,
     pub discard_multi_hits: usize,
-    pub max_hits_to_report: usize
+    pub max_hits_to_report: usize,
+    pub strand_filter: StrandFilter
+}
+
+pub enum StrandFilter {
+   Unstranded,
+   FivePrime,
+   ThreePrime,
+   None
 }
 
 #[derive(Default)]
@@ -85,14 +93,6 @@ pub enum AlignmentDirection {
     I
 }
 
-// TODO input data is fiveprime or threeprime, not library data, so this should just be a toggle for the filtering and the type of filtering is a console param
-pub enum LibraryType {
-   Unstranded,
-   FivePrime,
-   ThreePrime,
-   None
-}
-
 impl AlignmentDirection {
     fn get_alignment_dir(forward_pair_state: PairState, reverse_pair_state: PairState) -> AlignmentDirection {
         match (forward_pair_state, reverse_pair_state) {
@@ -116,8 +116,7 @@ impl AlignmentDirection {
         let (f_pair_state, f_equiv_class) = forward_hits;
 
         if let Some((r_pair_state, r_equiv_class)) = reverse_hits {
-           // TODO Read library type
-           if AlignmentDirection::filter_read(AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state), LibraryType::Unstranded) {
+           if AlignmentDirection::filter_read(AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state), &config.strand_filter) {
                 return
            }
            
@@ -137,12 +136,12 @@ impl AlignmentDirection {
 
     }
 
-    fn filter_read(dir: AlignmentDirection, lib_type: LibraryType) -> bool {
+    fn filter_read(dir: AlignmentDirection, lib_type: &StrandFilter) -> bool {
         match lib_type {
-            LibraryType::Unstranded => AlignmentDirection::filter_unstranded(dir),
-            LibraryType::FivePrime => AlignmentDirection::filter_fiveprime(dir),
-            LibraryType::ThreePrime => AlignmentDirection::filter_threeprime(dir),
-            LibraryType::None => false
+            StrandFilter::Unstranded => AlignmentDirection::filter_unstranded(dir),
+            StrandFilter::FivePrime => AlignmentDirection::filter_fiveprime(dir),
+            StrandFilter::ThreePrime => AlignmentDirection::filter_threeprime(dir),
+            StrandFilter::None => false
         }
     }
 
@@ -261,7 +260,6 @@ pub fn score<'a>(
         None => (None, None),
     };
 
-    // TODO reverse comp the .bam if the relevant flag is true
     let (forward_score, forward_matched_sequences, forward_align_debug_info) = generate_score(
         sequences,
         reverse_sequences,

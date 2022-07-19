@@ -1,12 +1,12 @@
 extern crate nimble;
 
+use nimble::align::StrandFilter;
 use nimble::process::{bam, fastq};
 use nimble::reference_library;
 use nimble::utils;
 
 use clap::{load_yaml, App};
 use std::collections::HashMap;
-use std::fs::OpenOptions;
 use std::path::Path;
 
 fn main() {
@@ -35,11 +35,20 @@ fn main() {
         Some(alignment_file)
     };
 
+    let strand_filter = matches.value_of("strand_filter").unwrap_or("unstranded");
+    let strand_filter = match strand_filter {
+        "unstranded" => StrandFilter::Unstranded,
+        "fiveprime" => StrandFilter::FivePrime,
+        "threeprime" => StrandFilter::ThreePrime,
+        "none" => StrandFilter::None,
+        _ => panic!("Could not parse strand_filter option.")
+    };
+
     println!("Loading and preprocessing reference data");
 
     // Read library alignment config info, reference library metadata, and sequences from library json
     let (align_config, reference_metadata) =
-        reference_library::get_reference_library(Path::new(reference_json_path));
+        reference_library::get_reference_library(Path::new(reference_json_path), strand_filter);
 
     // Generate error-checked vectors of seqs and names for the debrujin index
     let (reference_seqs, reference_seqs_rev, reference_names) =

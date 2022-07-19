@@ -1,4 +1,4 @@
-use crate::align;
+use crate::align::{self, StrandFilter};
 use serde_json::Value;
 use std::fs::read_to_string;
 use std::path::Path;
@@ -15,7 +15,7 @@ pub struct ReferenceMetadata {
 }
 
 // Parses a .json that contains a reference library. Returns a tuple of the library's config information and the library data
-pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, ReferenceMetadata) {
+pub fn get_reference_library(path: &Path, strand_filter: StrandFilter) -> (align::AlignFilterConfig, ReferenceMetadata) {
     // Parse raw JSON to serde_json value
     let raw_json_string = read_to_string(path).expect("Error -- could not read reference library");
 
@@ -105,7 +105,8 @@ pub fn get_reference_library(path: &Path) -> (align::AlignFilterConfig, Referenc
         require_valid_pair,
         discard_multi_hits,
         intersect_level,
-        max_hits_to_report
+        max_hits_to_report,
+        strand_filter
     };
 
     let reference_metadata = ReferenceMetadata {
