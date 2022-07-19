@@ -38,7 +38,7 @@ pub fn get_data(
     sequences.push(seq_filename);
 
     let (align_config, reference_metadata) =
-        reference_library::get_reference_library(library.as_path());
+        reference_library::get_reference_library(library.as_path(), align::StrandFilter::None);
 
     let (reference_seqs, reference_seqs_rev, reference_names) =
         utils::validate_reference_pairs(&reference_metadata);
