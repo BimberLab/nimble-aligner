@@ -4,11 +4,11 @@ use rust_htslib::{bam, bam::record::Aux, bam::Read, bam::Reader};
 pub struct UMIReader {
     reader: bam::Reader,
     pub current_umi_group: Vec<DnaString>,
-    pub current_metadata_group: Vec<(u8, String, String)>,
+    pub current_metadata_group: Vec<(u8, String, String, bool)>,
     pub current_umi: String,
     pub current_cell_barcode: String,
     pub next_umi_group: Vec<DnaString>,
-    pub next_metadata_group: Vec<(u8, String, String)>,
+    pub next_metadata_group: Vec<(u8, String, String, bool)>,
     next_umi: String,
     next_cell_barcode: String
 }
@@ -74,18 +74,19 @@ impl UMIReader {
                 true => String::from("T"),
                 false => String::from("F")
             };
+            let rev_comp = record.is_reverse();
 
             if self.current_umi == read_umi {
                 self.current_umi_group
                     .push(seq);
                 self.current_metadata_group
-                    .push((mapq, orientation, pair));
+                    .push((mapq, orientation, pair, rev_comp));
                 self.current_cell_barcode = current_cell_barcode.clone();
             } else {
                 self.next_umi_group
                     .push(seq);
                 self.next_metadata_group
-                    .push((mapq, orientation, pair));
+                    .push((mapq, orientation, pair, rev_comp));
                 self.next_umi = read_umi.clone();
                 self.next_cell_barcode = current_cell_barcode;
                 return Some(true);

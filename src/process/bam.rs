@@ -3,6 +3,7 @@ use debruijn::dna_string::DnaString;
 use std::io::Error;
 use std::collections::HashMap;
 
+use bio::alphabets::dna;
 use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::bam;
 use crate::reference_library::ReferenceMetadata;
@@ -82,12 +83,12 @@ pub fn process(
         };
 
         let mut current_umi_group = reader.current_umi_group.clone();
-        let current_mapq_table = mapq_vec_to_sequence_hashmap(reader.current_metadata_group.clone().iter().map(|(mapq, _, _)| mapq.clone()).collect::<Vec<u8>>().clone(), current_umi_group.clone());
+        let current_mapq_table = mapq_vec_to_sequence_hashmap(reader.current_metadata_group.clone().iter().map(|(mapq, _, _, _)| mapq.clone()).collect::<Vec<u8>>().clone(), current_umi_group.clone());
 
-        let extra_read = if current_umi_group.len() % 2 != 0 {
-            current_umi_group.pop()
+        let (extra_read, extra_metadata) = if current_umi_group.len() % 2 != 0 {
+            (current_umi_group.pop(), reader.current_metadata_group.pop())
         } else {
-            None
+            (None, None)
         };
 
         let (mut s, mut res) = if owned_debug_file.clone() != "" {
@@ -96,20 +97,27 @@ pub fn process(
                 reference_index,
                 reference_metadata,
                 align_config,
-                Some(&mut debug_info))
+                Some(&mut debug_info),
+                &reader.current_metadata_group.clone().into_iter().map(|(_, _, _, r)| r).collect::<Vec<bool>>())
         } else {
             get_score(
                 &current_umi_group,
                 reference_index,
                 reference_metadata,
                 align_config,
-                None)
+                None,
+                &reader.current_metadata_group.clone().into_iter().map(|(_, _, _, r)| r).collect::<Vec<bool>>())
         };
 
         let (mut s_extra, mut res_extra) = match extra_read {
             Some(read) => {
-                let read_f = vec![Ok(read.clone())];
-                let read_r = vec![Ok(read.clone())];
+
+                let (read_f, read_r) = if extra_metadata.unwrap().3 {
+                    (vec![Ok(check_reverse_comp((&read.clone(), &true)))], vec![Ok(check_reverse_comp((&read.clone(), &true)))])
+                } else {
+                    (vec![Ok(read.clone())], vec![Ok(read.clone())])
+                };
+
                 score(
                     (Box::new(read_f.into_iter()), Box::new(read_r.into_iter())),
                     None,
@@ -126,13 +134,13 @@ pub fn process(
         res.append(&mut res_extra);
         
         bam_specific_alignment_metadata.mapq.append(&mut get_mapq_scores(get_sequence_list_from_metadata(&res), &current_mapq_table));
-        bam_specific_alignment_metadata.orientation.append(&mut reader.current_metadata_group.clone().into_iter().map(|(_, orientation, _)| orientation).collect::<Vec<String>>());
+        bam_specific_alignment_metadata.orientation.append(&mut reader.current_metadata_group.clone().into_iter().map(|(_, orientation, _, _)| orientation).collect::<Vec<String>>());
         alignment_metadata.reference_names.append(&mut res.clone().into_iter().map(|(group, _, _)| group).collect::<Vec<Vec<String>>>());
         alignment_metadata.sequence.append(&mut res.clone().into_iter().map(|(_, seq, _)| seq).collect::<Vec<String>>());
         alignment_metadata.score.append(&mut res.clone().into_iter().map(|(_, _, score)| score).collect::<Vec<usize>>());
         alignment_metadata.barcode_sample_name.append(&mut s.clone().into_iter().map(|_| (&reader).current_cell_barcode.clone()).collect::<Vec<String>>());
         alignment_metadata.read_umi_name.append(&mut s.clone().into_iter().map(|_| (&reader).current_umi.clone()).collect::<Vec<String>>());
-        alignment_metadata.pair.append(&mut reader.current_metadata_group.clone().into_iter().map(|(_, _, pair)| pair).collect::<Vec<String>>());
+        alignment_metadata.pair.append(&mut reader.current_metadata_group.clone().into_iter().map(|(_, _, pair, _)| pair).collect::<Vec<String>>());
         
 
         if s.len() == 0 {
@@ -198,36 +206,33 @@ fn get_score<'a>(
     reference_index: &(PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     align_config: &AlignFilterConfig,
-    debug_info: Option<&mut AlignDebugInfo>
+    debug_info: Option<&mut AlignDebugInfo>,
+    reverse_comp_read: &'a Vec<bool>
 ) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, usize)>) {
     let sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
-        current_umi_group
-            .iter()
+        current_umi_group.iter().zip(reverse_comp_read.iter())
             .step_by(2)
-            .map(|rec| Ok(rec.to_owned())),
+            .map(|rec| Ok(check_reverse_comp(rec))),
     );
 
     let sequences_clone: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
-        current_umi_group
-            .iter()
+        current_umi_group.iter().zip(reverse_comp_read.iter())
             .step_by(2)
-            .map(|rec| Ok(rec.to_owned())),
+            .map(|rec| Ok(check_reverse_comp(rec))),
     );
 
     let reverse_sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
-        current_umi_group
-            .iter()
+        current_umi_group.iter().zip(reverse_comp_read.iter())
             .skip(1)
             .step_by(2)
-            .map(|rec| Ok(rec.to_owned())),
+            .map(|rec| Ok(check_reverse_comp(rec))),
     );
 
     let reverse_sequences_clone: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
-        current_umi_group
-            .iter()
+        current_umi_group.iter().zip(reverse_comp_read.iter())
             .skip(1)
             .step_by(2)
-            .map(|rec| Ok(rec.to_owned())),
+            .map(|rec| Ok(check_reverse_comp(rec))),
     );
 
     let reverse_sequence_pair = Some((reverse_sequences, reverse_sequences_clone));
@@ -241,4 +246,14 @@ fn get_score<'a>(
         align_config,
         debug_info
     )
+}
+
+fn check_reverse_comp(rec: (&DnaString, &bool)) -> DnaString {
+    let (seq, reverse_comp) = rec;
+
+    if *reverse_comp {
+        DnaString::from_acgt_bytes(dna::revcomp(seq.to_bytes()).as_slice()).to_owned()
+    } else {
+        seq.to_owned()
+    }
 }
