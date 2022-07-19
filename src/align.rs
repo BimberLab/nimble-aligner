@@ -85,83 +85,114 @@ pub enum AlignmentDirection {
     I
 }
 
+// TODO input data is fiveprime or threeprime, not library data, so this should just be a toggle for the filtering and the type of filtering is a console param
 pub enum LibraryType {
    Unstranded,
    FivePrime,
-   ThreePrime 
+   ThreePrime,
+   None
 }
 
 impl AlignmentDirection {
     fn get_alignment_dir(forward_pair_state: PairState, reverse_pair_state: PairState) -> AlignmentDirection {
         match (forward_pair_state, reverse_pair_state) {
-            (PairState::First, PairState::First) => AlignmentDirection::FU,
+            (PairState::First, PairState::First) => AlignmentDirection::FF,
             (PairState::First, PairState::Second) => AlignmentDirection::FR,
             (PairState::Second, PairState::First) => AlignmentDirection::RF,
-            (PairState::Second, PairState::Second) => AlignmentDirection::RU,
+            (PairState::Second, PairState::Second) => AlignmentDirection::RR,
             (PairState::First, PairState::None) => AlignmentDirection::FU,
             (PairState::Second, PairState::None) => AlignmentDirection::RU,
-            (PairState::None, PairState::First) => AlignmentDirection::FU,
-            (PairState::None, PairState::Second) => AlignmentDirection::RU,
+            (PairState::None, PairState::First) => AlignmentDirection::UF,
+            (PairState::None, PairState::Second) => AlignmentDirection::UR,
             (PairState::Intersect, _) => AlignmentDirection::I,
             (_, PairState::Intersect) => AlignmentDirection::I,
             (PairState::None, PairState::None) => AlignmentDirection::UU
         }
+    }
+    
+    // TODO check if we should intersect here or if we should add both as separate scores. Currrently, we're doing the latter.
+    fn filter_hits(forward_hits: (PairState, Vec<u32>), reverse_hits: Option<(PairState, Vec<u32>)>, results: &mut HashMap<Vec<String>, i32>, reference_metadata: &ReferenceMetadata, config: &AlignFilterConfig) {
+                        
+        let (f_pair_state, f_equiv_class) = forward_hits;
+
+        if let Some((r_pair_state, r_equiv_class)) = reverse_hits {
+           // TODO Read library type
+           if AlignmentDirection::filter_read(AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state), LibraryType::Unstranded) {
+                return
+           }
+           
+           let mut r_key = get_score_map_key(&r_equiv_class, reference_metadata, &config); // Process the equivalence class into a score key
+           r_key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names
+           
+           let accessor = results.entry(r_key).or_insert(0);
+           *accessor += 1;
+        }
+
+        let mut f_key = get_score_map_key(&f_equiv_class, reference_metadata, &config); // Process the equivalence class into a score key
+        f_key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names
+
+        // Add the key to the score map and increment the score
+        let accessor = results.entry(f_key).or_insert(0);
+        *accessor += 1;
+
     }
 
     fn filter_read(dir: AlignmentDirection, lib_type: LibraryType) -> bool {
         match lib_type {
             LibraryType::Unstranded => AlignmentDirection::filter_unstranded(dir),
             LibraryType::FivePrime => AlignmentDirection::filter_fiveprime(dir),
-            LibraryType::ThreePrime => AlignmentDirection::filter_threeprime(dir)
+            LibraryType::ThreePrime => AlignmentDirection::filter_threeprime(dir),
+            LibraryType::None => false
         }
     }
 
     fn filter_unstranded(dir: AlignmentDirection) -> bool {
         match dir {
-            FF => false,
-            RR => true,
-            UU => true,
-            FR => false,
-            FU => false,
-            RF => false,
-            RU => false,
-            UF => false,
-            UR => false,
-            I => false,
+            AlignmentDirection::FF => true,
+            AlignmentDirection::RR => true,
+            AlignmentDirection::UU => true,
+            AlignmentDirection::FR => false,
+            AlignmentDirection::FU => false,
+            AlignmentDirection::RF => false,
+            AlignmentDirection::RU => false,
+            AlignmentDirection::UF => false,
+            AlignmentDirection::UR => false,
+            AlignmentDirection::I => false,
         }
     }
 
     fn filter_fiveprime(dir: AlignmentDirection) -> bool {
         match dir {
-            FF => false,
-            RR => true,
-            UU => true,
-            FR => false,
-            FU => false,
-            RF => false,
-            RU => false,
-            UF => false,
-            UR => false,
-            I => false,
+            AlignmentDirection::FF => true,
+            AlignmentDirection::RR => true,
+            AlignmentDirection::UU => true,
+            AlignmentDirection::FR => false,
+            AlignmentDirection::FU => false,
+            AlignmentDirection::RF => true,
+            AlignmentDirection::RU => true,
+            AlignmentDirection::UF => true,
+            AlignmentDirection::UR => false,
+            AlignmentDirection::I => false,
         }
     }
 
     fn filter_threeprime(dir: AlignmentDirection) -> bool {
         match dir {
-            FF => false,
-            RR => true,
-            UU => true,
-            FR => false,
-            FU => false,
-            RF => false,
-            RU => false,
-            UF => false,
-            UR => false,
-            I => false,
+            AlignmentDirection::FF => true,
+            AlignmentDirection::RR => true,
+            AlignmentDirection::UU => true,
+            AlignmentDirection::FR => true,
+            AlignmentDirection::FU => true,
+            AlignmentDirection::RF => false,
+            AlignmentDirection::RU => false,
+            AlignmentDirection::UF => false,
+            AlignmentDirection::UR => true,
+            AlignmentDirection::I => false,
         }
     }
 }
 
+#[derive(PartialEq)]
 pub enum PairState {
     First,
     Second,
@@ -230,14 +261,15 @@ pub fn score<'a>(
         None => (None, None),
     };
 
-    let (forward_score, forward_matched_sequences, forward_align_debug_info, forward_pair_states) = generate_score(
+    // TODO reverse comp the .bam if the relevant flag is true
+    let (forward_score, forward_matched_sequences, forward_align_debug_info) = generate_score(
         sequences,
         reverse_sequences,
         index_forward,
         reference_metadata,
         config,
     );
-    let (backward_score, backward_matched_sequences, backward_align_debug_info, reverse_pair_states) = generate_score(
+    let (mut backward_score, backward_matched_sequences, backward_align_debug_info) = generate_score(
         sequences_2,
         reverse_sequences_2,
         index_backward,
@@ -245,40 +277,31 @@ pub fn score<'a>(
         config,
     );
 
-    let filter_list = Vec::new();
-    for (match_names, sequence, _) in forward_matched_sequences.iter() {
-        let forward_pair_state = match forward_pair_states.get(sequence) {
-            Some(state) => state,
-            None => &PairState::None 
+    let mut results: HashMap<Vec<String>, i32> = HashMap::new();
+
+    for (key, f) in forward_score.into_iter() {
+        let r = match backward_score.get(&key) {
+            Some(_) => backward_score.remove(&key),
+            None => None
         };
-        
-       filter_list.append(AlignmentDirection::get_filter_list((match_names, forward_pair_state));
+
+        AlignmentDirection::filter_hits(f, r, &mut results, reference_metadata, config);
     };
 
-    for (match_names, sequence, _) in backward_matched_sequences.iter() {
-        let reverse_pair_state = match reverse_pair_states.get(sequence) {
-            Some(state) => state,
-            None => &PairState::None
-        };
-
-       filter_list.append(AlignmentDirection::get_filter_list((match_names, forward_pair_state));
+    for (_, r) in backward_score.into_iter() {
+        AlignmentDirection::filter_hits(r, None, &mut results, reference_metadata, config);
     }
 
-    if forward_score.len() > backward_score.len() {
-        if let Some(debug_info) = debug_info {
-            debug_info.merge(forward_align_debug_info);
-            debug_info.backward_runs_discarded += 1;
-        }
-
-        (forward_score, forward_matched_sequences)
-    } else {
-        if let Some(debug_info) = debug_info {
-            debug_info.merge(backward_align_debug_info);
-            debug_info.forward_runs_discarded += 1;
-        }
-
-        (backward_score, backward_matched_sequences)
+    // Update the results map
+    let mut ret = Vec::new();
+    for (key, value) in results.into_iter() {
+        ret.push((key, value));
     }
+
+    // TODO figure out how to combine forward_matched_sequences vs reverse_matched_sequences 
+    // TODO debug_info has had a lot of data excised in the orientation patch, add it back in
+    // TODO tests
+    (ret, forward_matched_sequences)
 }
 
 fn generate_score<'a>(
@@ -287,16 +310,16 @@ fn generate_score<'a>(
     index: &PseudoAligner,
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
-) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, usize)>, AlignDebugInfo, HashMap<String, PairState>) {
+) -> (HashMap<String, (PairState, Vec<u32>)>, Vec<(Vec<String>, String, usize)>, AlignDebugInfo) {
     // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
-    let mut score_map: HashMap<Vec<String>, i32> = HashMap::new();
+    let mut score_map: HashMap<String, (PairState, Vec<u32>)> = HashMap::new();
     let mut debug_info: AlignDebugInfo = Default::default();
     let mut read_matches: Vec<(Vec<String>, String, usize)> = Vec::new();
-    let mut pair_states: HashMap<String, PairState> = HashMap::new();
 
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
     for read in sequences {
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
+        let mut read_rev = None;
         
         /* Generate score and equivalence class for this read by aligning the sequence against
          * the current reference, if there is a match.*/
@@ -312,6 +335,7 @@ fn generate_score<'a>(
                 .expect("Error -- could not parse reverse read. Input R2 data malformed.");
             let (score, reason) = pseudoalign(&reverse_read, index, &config);
             rev_seq_score = Some(score);
+            read_rev = Some(reverse_read);
             rev_filter_reason = reason;
         }
 
@@ -357,8 +381,8 @@ fn generate_score<'a>(
         };
 
         if !match_eqv_class.is_empty() {
-            let mut key = get_score_map_key(match_eqv_class, reference_metadata, &config); // Process the equivalence class into a score key
-            key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names 
+            let mut key = get_score_map_key(&match_eqv_class, reference_metadata, &config); // Process the equivalence class into a score key
+            key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names
 
             // Max hits filter
             if key.len() > config.max_hits_to_report {
@@ -370,23 +394,27 @@ fn generate_score<'a>(
                 continue;
             }
 
-            read_matches.push((key.clone(), read.to_string(), pseudoaligner_score));
-            pair_states.insert(read.to_string(), pair_state);
+            match pair_state {
+                PairState::First => read_matches.push((key.clone(), read.to_string(), pseudoaligner_score)),
+                PairState::Second => match &read_rev {
+                    Some(r) => read_matches.push((key.clone(), r.to_string(), pseudoaligner_score)),
+                    None => ()
+                },
+                PairState::Intersect => read_matches.push((key.clone(), String::from("intersect"), pseudoaligner_score)),
+                PairState::None => ()
+            };
 
-            // Add the key to the score map and increment the score
-            let accessor = score_map.entry(key).or_insert(0);
-            *accessor += 1;
+            let read_key = match &read_rev {
+                Some(rev) => read.to_string() + &rev.to_string(),
+                None => read.to_string()
+            };
+
+            score_map.insert(read_key, (pair_state, match_eqv_class));
             debug_info.read_units_aligned += 1;
         }
     }
 
-    // Update the results map
-    let mut results = Vec::new();
-    for (key, value) in score_map.into_iter() {
-        results.push((key, value));
-    }
-
-    (results, read_matches, debug_info, pair_states)
+    (score_map, read_matches, debug_info)
 }
 
 // Determine whether a given pair of equivalence classes constitute a valid pair
@@ -468,7 +496,7 @@ fn get_best_reads(
  * filtered such that there is only one hit per group_by string (e.g. one hit per lineage) and the corresponding strings
  * (e.g. lineage name) will be returned. */
 fn get_score_map_key(
-    equiv_class: Vec<u32>,
+    equiv_class: &Vec<u32>,
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
 ) -> Vec<String> {
@@ -476,18 +504,18 @@ fn get_score_map_key(
         equiv_class
             .into_iter()
             .map(|ref_idx| {
-                reference_metadata.columns[reference_metadata.group_on][ref_idx as usize].clone()
+                reference_metadata.columns[reference_metadata.group_on][*ref_idx as usize].clone()
             })
             .collect()
     } else {
         let mut results = Vec::new();
 
         for ref_idx in equiv_class {
-            let mut group = &reference_metadata.columns[reference_metadata.group_on][ref_idx as usize];
+            let mut group = &reference_metadata.columns[reference_metadata.group_on][*ref_idx as usize];
 
             // If the group is an empty string, get the sequence name instead so we don't just return nothing
             if group.is_empty() {
-                group = &reference_metadata.columns[reference_metadata.sequence_name_idx][ref_idx as usize];
+                group = &reference_metadata.columns[reference_metadata.sequence_name_idx][*ref_idx as usize];
             }
 
             if !results.contains(group) {
