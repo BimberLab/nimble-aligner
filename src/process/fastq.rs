@@ -68,7 +68,7 @@ pub fn process(
 
     println!("Writing results to file");
 
-    write_to_tsv(filter_scores(results, &align_config.score_filter), None, true, output_path);
+    write_to_tsv(&filter_scores(results, &align_config.score_filter), None, true, output_path);
 
     if owned_debug_file != "".to_owned() {
         write_debug_info(debug_info);

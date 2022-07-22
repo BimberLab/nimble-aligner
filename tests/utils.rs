@@ -4,6 +4,7 @@ extern crate debruijn_mapping;
 extern crate nimble;
 
 use nimble::align;
+use nimble::align::StrandFilter;
 use nimble::parse;
 use nimble::reference_library;
 use nimble::utils;
@@ -16,6 +17,7 @@ use std::io::Error;
 pub fn get_data(
     seq_filename: &str,
     lib_filename: &str,
+    strand_filter: StrandFilter
 ) -> (
     (
         Box<dyn Iterator<Item = Result<DnaString, Error>>>,
@@ -38,7 +40,7 @@ pub fn get_data(
     sequences.push(seq_filename);
 
     let (align_config, reference_metadata) =
-        reference_library::get_reference_library(library.as_path(), align::StrandFilter::None);
+        reference_library::get_reference_library(library.as_path(), strand_filter);
 
     let (reference_seqs, reference_seqs_rev, reference_names) =
         utils::validate_reference_pairs(&reference_metadata);

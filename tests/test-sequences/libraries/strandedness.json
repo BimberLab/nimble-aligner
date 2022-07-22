@@ -1,0 +1,37 @@
+[
+  {
+    "score_threshold": 60,
+    "score_filter": 25,
+    "num_mismatches": 0,
+    "discard_multiple_matches": false,
+    "intersect_level": 0,
+    "group_on": "",
+    "discard_multi_hits": 0,
+    "require_valid_pair": false,
+    "data_type": "DNA",
+    "filters": [],
+    "max_hits_to_report": 10
+  },
+  {
+    "headers": [
+      "reference_genome",
+      "sequence_name",
+      "nt_length",
+      "sequence"
+    ],
+    "columns": [
+      [
+        "mismatch_test"
+      ],
+      [
+        "mismatch_test"
+      ],
+      [
+        "124"
+      ],
+      [
+        "AAAAAAAAAAAAAAAAAAAATTAAAATTATTTTATAAAAATGAAATAGAAAAAAAACAAAAATAAAAAAAATAAACCGAAGGGAAAAGCGGTTTGAGGTGTAAAAATTTTAATTTGAGGGGGGG"
+      ]
+    ]
+  }
+]

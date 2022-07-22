@@ -2,6 +2,7 @@ use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
 use std::io::Error;
 use std::collections::HashMap;
+use std::thread::current;
 
 use bio::alphabets::dna;
 use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
@@ -18,8 +19,9 @@ pub fn process(
     output_path: &str,
     debug_file: Option<String>,
     alignment_file: Option<String>
-) {
+) -> Vec<(Vec<String>, i32)> {
     let mut reader = bam::UMIReader::new(input_files[0]);
+    let mut has_aligned = false;
     let mut score_map: HashMap<(Vec<String>, String), i32> = HashMap::new();
     let mut alignment_metadata: PseudoalignerData = PseudoalignerData {
         reference_names: Vec::new(),
@@ -58,7 +60,7 @@ pub fn process(
     loop {
         let final_umi = reader.next();
 
-        if final_umi {
+        if final_umi && has_aligned {
             if owned_debug_file != "".to_owned() {
                 write_debug_info(debug_info);
             }
@@ -77,10 +79,11 @@ pub fn process(
                 cell_barcodes.push(cell_barcode);
             }
 
-            write_to_tsv(results, Some(cell_barcodes), false, output_path);
+            write_to_tsv(&results, Some(cell_barcodes), false, output_path);
 
-            return;
+            return results;
         };
+        has_aligned = true;
 
         let mut current_umi_group = reader.current_umi_group.clone();
         let current_mapq_table = mapq_vec_to_sequence_hashmap(reader.current_metadata_group.clone().iter().map(|(mapq, _, _, _)| mapq.clone()).collect::<Vec<u8>>().clone(), current_umi_group.clone());

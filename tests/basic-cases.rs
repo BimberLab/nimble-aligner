@@ -24,7 +24,7 @@ fn get_group_by_data(
     reference_library::ReferenceMetadata,
     align::AlignFilterConfig,
 ) {
-    let (sequences, reference_index, mut reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename);
+    let (sequences, reference_index, mut reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
 
     reference_metadata.group_on = 4;
     reference_metadata.headers.push("test_group_on".to_string());
@@ -44,7 +44,7 @@ fn get_group_by_data(
 fn basic_single_strand_no_mismatch_forward() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic.json";
-    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename);
+    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
 
     let (results, _) = nimble::align::score(
         sequences,
@@ -79,7 +79,7 @@ fn basic_single_strand_no_mismatch_forward() {
 fn basic_single_strand_one_mismatch_forward() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic.json";
-    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename);
+    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
 
     align_config.num_mismatches = 1;
 
@@ -116,7 +116,7 @@ fn basic_single_strand_one_mismatch_forward() {
 fn basic_single_strand_two_mismatch_forward() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic.json";
-    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename);
+    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
 
     align_config.num_mismatches = 2;
 
@@ -153,7 +153,7 @@ fn basic_single_strand_two_mismatch_forward() {
 fn basic_single_strand_no_mismatch_reverse() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic-rev.json";
-    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename);
+    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
 
     let (results, _) = nimble::align::score(
         sequences,
@@ -188,7 +188,7 @@ fn basic_single_strand_no_mismatch_reverse() {
 fn basic_single_strand_one_mismatch_reverse() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic-rev.json";
-    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename);
+    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
 
     align_config.num_mismatches = 1;
 
@@ -225,7 +225,7 @@ fn basic_single_strand_one_mismatch_reverse() {
 fn basic_single_strand_two_mismatch_reverse() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic-rev.json";
-    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename);
+    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
 
     align_config.num_mismatches = 2;
 

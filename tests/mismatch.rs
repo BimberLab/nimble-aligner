@@ -1,3 +1,5 @@
+use nimble::align::StrandFilter;
+
 extern crate csv;
 extern crate debruijn;
 extern crate debruijn_mapping;
@@ -11,7 +13,7 @@ mod utils;
 fn mismatch() {
     let seq_filename = "mismatch.fastq";
     let lib_filename = "mismatch.json";
-    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename);
+    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
 
     let (results, _) = nimble::align::score(
         sequences,

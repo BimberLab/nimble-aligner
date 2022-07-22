@@ -65,7 +65,7 @@ pub fn append_match_percent(
 }
 
 // Write the given vector of scores to a TSV file
-pub fn write_to_tsv(results: Vec<(Vec<String>, i32)>, group_row: Option<Vec<String>>, write_header: bool, output_path: &str) {
+pub fn write_to_tsv(results: &Vec<(Vec<String>, i32)>, group_row: Option<Vec<String>>, write_header: bool, output_path: &str) {
     let mut str_rep = String::new();
 
     // Add the headers to the top of the string representation of the tsv file
