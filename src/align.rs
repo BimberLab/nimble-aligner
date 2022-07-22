@@ -80,6 +80,7 @@ pub struct AlignDebugInfo {
     pub short_read: usize
 }
 
+#[derive(Debug)]
 pub enum AlignmentDirection {
     FF,
     RR,
@@ -111,29 +112,39 @@ impl AlignmentDirection {
     }
     
     // TODO check if we should intersect here or if we should add both as separate scores. Currrently, we're doing the latter.
-    fn filter_hits(forward_hits: (PairState, Vec<u32>), reverse_hits: Option<(PairState, Vec<u32>)>, results: &mut HashMap<Vec<String>, i32>, reference_metadata: &ReferenceMetadata, config: &AlignFilterConfig) {
-                        
-        let (f_pair_state, f_equiv_class) = forward_hits;
+    fn filter_hits(forward_hits: Option<(PairState, Vec<u32>)>, reverse_hits: Option<(PairState, Vec<u32>)>, results: &mut HashMap<Vec<String>, i32>, reference_metadata: &ReferenceMetadata, config: &AlignFilterConfig) {
+        if let Some((f_pair_state, _)) = forward_hits {
+            if let Some((r_pair_state, _)) = reverse_hits {
+                if AlignmentDirection::filter_read(AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state), &config.strand_filter) {
+                    return
+                }
+            }
 
-        if let Some((r_pair_state, r_equiv_class)) = reverse_hits {
-           if AlignmentDirection::filter_read(AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state), &config.strand_filter) {
+           if AlignmentDirection::filter_read(AlignmentDirection::get_alignment_dir(f_pair_state, PairState::None), &config.strand_filter) {
                 return
            }
-           
+        } else if let Some((r_pair_state, _)) = reverse_hits {
+           if AlignmentDirection::filter_read(AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state), &config.strand_filter) {
+                return
+           }
+        }
+
+        if let Some((f_pair_state, f_equiv_class)) = forward_hits {
+            let mut f_key = get_score_map_key(&f_equiv_class, reference_metadata, &config); // Process the equivalence class into a score key
+            f_key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names
+
+            // Add the key to the score map and increment the score
+            let accessor = results.entry(f_key).or_insert(0);
+            *accessor += 1;
+        }
+
+        if let Some((r_pair_state, r_equiv_class)) = reverse_hits {
            let mut r_key = get_score_map_key(&r_equiv_class, reference_metadata, &config); // Process the equivalence class into a score key
            r_key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names
            
            let accessor = results.entry(r_key).or_insert(0);
            *accessor += 1;
         }
-
-        let mut f_key = get_score_map_key(&f_equiv_class, reference_metadata, &config); // Process the equivalence class into a score key
-        f_key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names
-
-        // Add the key to the score map and increment the score
-        let accessor = results.entry(f_key).or_insert(0);
-        *accessor += 1;
-
     }
 
     fn filter_read(dir: AlignmentDirection, lib_type: &StrandFilter) -> bool {
@@ -191,7 +202,7 @@ impl AlignmentDirection {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum PairState {
     First,
     Second,
@@ -283,11 +294,11 @@ pub fn score<'a>(
             None => None
         };
 
-        AlignmentDirection::filter_hits(f, r, &mut results, reference_metadata, config);
+        AlignmentDirection::filter_hits(Some(f), r, &mut results, reference_metadata, config);
     };
 
     for (_, r) in backward_score.into_iter() {
-        AlignmentDirection::filter_hits(r, None, &mut results, reference_metadata, config);
+        AlignmentDirection::filter_hits(None, Some(r), &mut results, reference_metadata, config);
     }
 
     // Update the results map

@@ -9,7 +9,7 @@ use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::bam;
 use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
-use crate::utils::{write_to_tsv, write_debug_info, write_read_list, PseudoalignerData, BamSpecificAlignMetadata};
+use crate::utils::{write_to_tsv, write_debug_info, write_read_list, PseudoalignerData, BamSpecificAlignMetadata, revcomp};
 
 pub fn process(
     input_files: Vec<&str>,
@@ -254,9 +254,11 @@ fn get_score<'a>(
 fn check_reverse_comp(rec: (&DnaString, &bool)) -> DnaString {
     let (seq, reverse_comp) = rec;
 
-    if *reverse_comp {
-        DnaString::from_acgt_bytes(dna::revcomp(seq.to_bytes()).as_slice()).to_owned()
+    let test = if *reverse_comp {
+        DnaString::from_dna_string(&revcomp(&seq.to_string())).to_owned()
     } else {
         seq.to_owned()
-    }
+    };
+
+    return test;
 }

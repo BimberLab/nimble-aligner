@@ -49,7 +49,6 @@ impl UMIReader {
         self.next_cell_barcode.clear();
 
         for r in self.reader.records() {
-            println!("{:?}", r);
             let mut record = r.unwrap();
 
             let read_umi = if let Ok(Aux::String(s)) = record.aux(b"UR") {
@@ -69,7 +68,6 @@ impl UMIReader {
             }
 
             let seq = UMIReader::strip_nonbio_regions(&record.seq().as_bytes()[..]);
-            println!("{:?}", seq);
             let mapq = record.mapq();
             let orientation = String::from(record.strand().strand_symbol());
             let pair = match record.is_secondary() {
@@ -148,6 +146,7 @@ impl UMIReader {
         } else {
             seq
         };
+
 
         DnaString::from_dna_string(&seq)
     }

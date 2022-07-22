@@ -21,16 +21,16 @@
     ],
     "columns": [
       [
-        "mismatch_test"
+        "strandedness_test_first"
       ],
       [
-        "mismatch_test"
+        "strandedness_test_first"
       ],
       [
-        "124"
+        "104"
       ],
       [
-        "AAAAAAAAAAAAAAAAAAAATTAAAATTATTTTATAAAAATGAAATAGAAAAAAAACAAAAATAAAAAAAATAAACCGAAGGGAAAAGCGGTTTGAGGTGTAAAAATTTTAATTTGAGGGGGGG"
+        "TTAAAATTATTTTATAAAAATGAAATAGAAAAAAAACAAAAATAAAAAAAATAAACCGAAGGGAAAAGCGGTTTGAGGTGTAAAAATTTTAATTTGAGGGGGGG"
       ]
     ]
   }

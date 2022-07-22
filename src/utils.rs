@@ -1,8 +1,8 @@
-use crate::reference_library::ReferenceMetadata;
+
 use crate::align::AlignDebugInfo;
-use bio::alphabets::{dna, rna};
 use csv::Reader;
 use debruijn::dna_string::DnaString;
+use crate::reference_library::ReferenceMetadata;
 use std::fs::{OpenOptions, File};
 use std::io::{Read, Write};
 use unwrap::unwrap;
@@ -29,8 +29,8 @@ pub fn validate_reference_pairs(
     let mut reference_names: Vec<String> = Vec::new();
 
     let revcomp = match reference.data_type.as_str() {
-        "DNA" => dna::revcomp,
-        "RNA" => rna::revcomp,
+        "DNA" => revcomp,
+        "RNA" => revcomp,
         _ => panic!(
             "Error -- cannot determine revcomp method to use -- ensure data_type is a valid type"
         ),
@@ -38,8 +38,8 @@ pub fn validate_reference_pairs(
 
     for (i, reference) in reference_genome.enumerate() {
         reference_seqs.push(DnaString::from_acgt_bytes(reference.as_bytes()));
-        reference_seqs_rev.push(DnaString::from_acgt_bytes(&revcomp(
-            reference.clone().into_bytes(),
+        reference_seqs_rev.push(DnaString::from_dna_string(&revcomp(
+            reference,
         )));
         reference_names.push(unwrap!(reference_library.next(), "Error -- could not read library name #{} after JSON parse, corrupted internal state.", i).clone());
     }
@@ -234,6 +234,43 @@ pub fn write_read_list(pseudoaligner_data: PseudoalignerData, bam_data: Option<B
     gz.finish().expect("Could not flush to alignment metadata file buffer.");
 }
 
+pub fn revcomp(dna: &str) -> String {
+    // result vector
+    let mut rdna: String = String::with_capacity(dna.len()); 
+
+    // iterate through the input &str
+    for c in dna.chars().rev() {
+        // test the input
+        match is_dna(c) {
+            false => panic!("Input sequence base is not DNA: {}", dna),
+            true => rdna.push(switch_base(c))
+        }
+    }
+    rdna
+}
+
+fn switch_base(c:char) -> char {
+    match c {
+        'a' => 't' ,
+        'c' => 'g' ,
+        't' => 'a' ,
+        'g' => 'c' ,
+        'u' => 'a',
+        'A' => 'T' ,
+        'C' => 'G' ,
+        'T' => 'A' ,
+        'G' => 'C',
+        'U' => 'A',
+        _ => 'N'
+    }
+}
+
+fn is_dna(dna: char) -> bool {
+    match dna {
+        'A' | 'a' | 'C' | 'c' | 'G' | 'g' | 'T' | 't' | 'U'| 'u'  => true,
+        _ => false
+    }
+}
 
 #[cfg(test)]
 mod tests {
