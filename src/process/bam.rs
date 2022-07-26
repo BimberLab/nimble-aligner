@@ -188,7 +188,13 @@ fn get_mapq_scores(sequences: Vec<String>, mapq_table: &HashMap<String, u8>) -> 
     let mut ret: Vec<u8> = Vec::new();
 
     for seq in sequences {
-        ret.push(mapq_table[&seq]);
+        let rc = check_reverse_comp((&DnaString::from_dna_string(&seq), &true));
+        let entry = mapq_table.get(&seq);
+
+        match entry {
+            Some(v) => ret.push(*v),
+            None => ret.push(mapq_table[&rc.to_string()])
+        }
     }
 
     ret

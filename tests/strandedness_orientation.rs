@@ -613,3 +613,49 @@ fn fiveprime_filter_rf_success() {
 
     assert_eq!(results, expected_results);
 }
+
+#[test]
+fn unstranded_revcomp_ur_to_uf() {
+    // SETUP
+    let seq_filename = "UR_reversecomp.sam";
+    let lib_filename = "strandedness.json";
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::Unstranded);
+
+    let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    data_path.push("tests/test-sequences");
+
+    let mut sequences = data_path.clone();
+    sequences.push("reads/");
+    sequences.push(seq_filename);
+
+    let sequences = &sequences
+            .into_os_string()
+            .into_string()
+            .expect("Could not convert unit test sequence to OsStr slice.");
+
+
+    // TEST
+    let results = nimble::process::bam::process(
+        vec![sequences],
+        &reference_index,
+        &reference_metadata,
+        &align_config,
+        "/dev/null",
+        None,
+        None
+    );
+
+    let results = utils::sort_score_vector(results);
+
+    let expected_results = vec![
+        (
+            vec![
+                String::from("strandedness_test_first"),
+            ],
+            1,
+        ),
+    ];
+    let expected_results = utils::sort_score_vector(expected_results);
+
+    assert_eq!(results, expected_results);
+}
