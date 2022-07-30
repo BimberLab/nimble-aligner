@@ -260,11 +260,9 @@ fn get_score<'a>(
 fn check_reverse_comp(rec: (&DnaString, &bool)) -> DnaString {
     let (seq, reverse_comp) = rec;
 
-    let test = if *reverse_comp {
+    if *reverse_comp {
         DnaString::from_dna_string(&revcomp(&seq.to_string())).to_owned()
     } else {
         seq.to_owned()
-    };
-
-    return test;
+    }
 }

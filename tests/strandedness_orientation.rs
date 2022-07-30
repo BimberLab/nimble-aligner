@@ -46,7 +46,7 @@ fn unstranded_filter_fr() {
             vec![
                 String::from("strandedness_test_first"),
             ],
-            2,
+            1,
         ),
     ];
     let expected_results = utils::sort_score_vector(expected_results);
@@ -92,7 +92,7 @@ fn unstranded_filter_rf() {
             vec![
                 String::from("strandedness_test_first"),
             ],
-            2,
+            1,
         ),
     ];
     let expected_results = utils::sort_score_vector(expected_results);
@@ -480,7 +480,7 @@ fn fiveprime_filter_fr_success() {
             vec![
                 String::from("strandedness_test_first"),
             ],
-            2,
+            1,
         ),
     ];
     let expected_results = utils::sort_score_vector(expected_results);
@@ -645,7 +645,7 @@ fn fiveprime_filter_rf_success() {
             vec![
                 String::from("strandedness_test_first"),
             ],
-            2,
+            1,
         ),
     ];
     let expected_results = utils::sort_score_vector(expected_results);
