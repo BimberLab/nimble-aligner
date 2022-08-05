@@ -267,7 +267,7 @@ fn switch_base(c:char) -> char {
 
 fn is_dna(dna: char) -> bool {
     match dna {
-        'A' | 'a' | 'C' | 'c' | 'G' | 'g' | 'T' | 't' | 'U'| 'u'  => true,
+        'A' | 'a' | 'C' | 'c' | 'G' | 'g' | 'T' | 't' | 'U'| 'u' | 'N' | 'n' => true,
         _ => false
     }
 }
