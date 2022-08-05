@@ -426,7 +426,7 @@ fn generate_score<'a>(
                     Some(r) => read_matches.push((key.clone(), r.to_string(), r_s)),
                     None => ()
                 },
-                PairState::Both => read_matches.push((key.clone(), String::from("both"), s)),
+                PairState::Both => read_matches.push((key.clone(), read.to_string(), s)),
                 PairState::None => ()
             };
 

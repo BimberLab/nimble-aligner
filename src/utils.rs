@@ -199,6 +199,12 @@ pub fn write_read_list(pseudoaligner_data: PseudoalignerData, bam_data: Option<B
 
     // Append the results to the tsv string
     for (i, _) in pseudoaligner_data.reference_names.iter().enumerate() {
+        if !(i < pseudoaligner_data.reference_names.len() && i < pseudoaligner_data.read_umi_name.len() && i < pseudoaligner_data.barcode_sample_name.len() && 
+             i < pseudoaligner_data.score.len() && i < pseudoaligner_data.pair.len() && i < pseudoaligner_data.sequence.len()) {
+                println!("Debug data truncated due to indexing error");
+                return
+        }
+
         str_rep += &pseudoaligner_data.reference_names[i].join(",");
         str_rep += "\t";
         str_rep += &pseudoaligner_data.read_umi_name[i];
@@ -212,12 +218,12 @@ pub fn write_read_list(pseudoaligner_data: PseudoalignerData, bam_data: Option<B
         str_rep += &pseudoaligner_data.sequence[i];
 
         if let Some(ref metadata) = bam_data {
-            if metadata.mapq.len() > 0 {
+            if metadata.mapq.len() > 0 && i < metadata.mapq.len() {
                 str_rep += "\t";
                 str_rep += &metadata.mapq[i].to_string();
             }
 
-            if metadata.orientation.len() > 0 {
+            if metadata.orientation.len() > 0 && i < metadata.orientation.len() {
                 str_rep += "\t";
                 str_rep += &metadata.orientation[i].to_string();
             }
