@@ -194,7 +194,7 @@ impl AlignmentDirection {
             AlignmentDirection::FU => false,
             AlignmentDirection::RF => true,
             AlignmentDirection::RU => true,
-            AlignmentDirection::UF => true,
+            AlignmentDirection::UF => false,
             AlignmentDirection::UR => false
         }
     }
@@ -205,7 +205,7 @@ impl AlignmentDirection {
             AlignmentDirection::RR => true,
             AlignmentDirection::UU => true,
             AlignmentDirection::FR => true,
-            AlignmentDirection::FU => true,
+            AlignmentDirection::FU => false,
             AlignmentDirection::RF => false,
             AlignmentDirection::RU => false,
             AlignmentDirection::UF => false,
