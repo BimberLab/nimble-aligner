@@ -151,12 +151,8 @@ pub fn write_debug_info(info: AlignDebugInfo) {
     str_rep += "Units filtered for different reasons between the forward and reverse read: "; str_rep += &info.different_filter_reasons.to_string(); str_rep += "\n";
     str_rep += "Units filtered due to non-matching pair alignments: "; str_rep += &info.not_matching_pair.to_string(); str_rep += "\n";
     str_rep += "Units filtered due to a failed force intersect: "; str_rep += &info.force_intersect_failure.to_string(); str_rep += "\n";
-    str_rep += "Units filtered due to completely disjoint alignments: "; str_rep += &info.disjoint_pair_intersection.to_string(); str_rep += "\n";
-    str_rep += "Units filtered due to mangled empty scores: "; str_rep += &info.best_class_empty.to_string(); str_rep += "\n";
-    str_rep += "Forward-running alignments discarded: "; str_rep += &info.forward_runs_discarded.to_string(); str_rep += "\n";
-    str_rep += "Reverse-running alignments discarded: "; str_rep += &info.backward_runs_discarded.to_string(); str_rep += "\n";
-    str_rep += "Reverse-read sets discarded due to mangled paired-end data: "; str_rep += &info.reverse_read_sets_discarded_noneven.to_string(); str_rep += "\n";
     str_rep += "Reads discarded due to being too short after processing: "; str_rep += &info.short_read.to_string(); str_rep += "\n";
+    str_rep += "Reads discarded due to equivalence class exceeding the max hits to report: "; str_rep += &info.max_hits_exceeded.to_string(); str_rep += "\n";
 
     let mut file = OpenOptions::new()
         .write(true)

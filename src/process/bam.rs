@@ -2,9 +2,7 @@ use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
 use std::io::Error;
 use std::collections::HashMap;
-use std::thread::current;
 
-use bio::alphabets::dna;
 use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
 use crate::parse::bam;
 use crate::reference_library::ReferenceMetadata;
