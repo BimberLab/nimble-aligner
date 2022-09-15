@@ -529,7 +529,7 @@ fn threeprime_filter_fr_failure() {
 
 
 #[test]
-fn threeprime_filter_fu_failure() {
+fn threeprime_filter_fu_success() {
     // SETUP
     let seq_filename = "strandedness_FU.sam";
     let lib_filename = "strandedness.json";
@@ -561,12 +561,18 @@ fn threeprime_filter_fu_failure() {
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![];
+    let expected_results = vec![
+        (
+            vec![
+                String::from("strandedness_test_first"),
+            ],
+            1,
+        ),
+    ];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
 }
-
 
 #[test]
 fn threeprime_filter_ur_failure() {
