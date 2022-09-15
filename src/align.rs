@@ -102,7 +102,7 @@ impl AlignmentDirection {
             (PairState::First, PairState::Both) => AlignmentDirection::FF,
             (PairState::Both, PairState::Second) => AlignmentDirection::RR,
             (PairState::Second, PairState::Both) => AlignmentDirection::RR,
-            (PairState::Both, PairState::Both) => AlignmentDirection::FR, // TODO: how to deal with these remaining cases across library types
+            (PairState::Both, PairState::Both) => AlignmentDirection::FR,
             (PairState::Both, PairState::None) => AlignmentDirection::FU,
             (PairState::None, PairState::Both) => AlignmentDirection::UF,
             (PairState::None, PairState::None) => AlignmentDirection::UU
@@ -435,6 +435,9 @@ fn generate_score<'a>(
 
             score_map.insert(read_key, v);
             debug_info.read_units_aligned += 1;
+        } else {
+            // If both equivalence classes are empty, the attempted alignment has failed, but we still report the failed alignment
+            read_matches.push((Vec::new(), read.to_string(), s));
         }
     }
 
