@@ -1,8 +1,11 @@
 use debruijn::dna_string::DnaString;
 use rust_htslib::{bam, bam::record::Aux, bam::Read, bam::Reader};
 
+const READ_BLOCK_REPORT_SIZE: usize = 100000;
+
 pub struct UMIReader {
     reader: bam::Reader,
+    read_counter: usize,
     pub current_umi_group: Vec<DnaString>,
     pub current_metadata_group: Vec<(u8, String, String, bool)>,
     pub current_umi: String,
@@ -17,6 +20,7 @@ impl UMIReader {
     pub fn new(file_path: &str) -> UMIReader {
         UMIReader {
             reader: Reader::from_path(file_path).unwrap(),
+            read_counter: 0,
             current_umi_group: Vec::new(),
             current_metadata_group: Vec::new(),
             current_umi: String::new(),
@@ -29,6 +33,12 @@ impl UMIReader {
     }
 
     pub fn next(&mut self) -> bool {
+        self.read_counter = self.read_counter + 1;
+
+        if self.read_counter % READ_BLOCK_REPORT_SIZE == 0 && self.read_counter != 0 {
+            println!("Aligned read block {}-{}", self.read_counter-READ_BLOCK_REPORT_SIZE, self.read_counter);
+        }
+
         let mut final_umi = false;
 
         if self.get_umi_from_bam().is_none() {

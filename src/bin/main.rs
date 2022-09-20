@@ -76,7 +76,7 @@ fn main() {
 
     let reference_index = (reference_index_forward, reference_index_reverse);
 
-    println!("Loading read sequences");
+    println!("Loading read sequences and aligning");
 
     if utils::is_fastq(input_files[0]) {
         fastq::process(
@@ -99,4 +99,6 @@ fn main() {
             alignment_file
         );
     };
+
+    println!("Alignment successful, terminating.")
 }

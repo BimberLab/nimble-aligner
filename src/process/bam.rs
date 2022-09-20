@@ -59,11 +59,15 @@ pub fn process(
         let final_umi = reader.next();
 
         if final_umi && has_aligned {
+            println!("Finished aligning. Writing output files.");
+
             if owned_debug_file != "".to_owned() {
+                println!("Writing debug table.");
                 write_debug_info(debug_info);
             }
             
             if owned_alignment_file != "".to_owned() {
+                println!("Writing alignment list.");
                 write_read_list(alignment_metadata, Some(bam_specific_alignment_metadata), &owned_alignment_file);
             }
 
@@ -77,6 +81,7 @@ pub fn process(
                 cell_barcodes.push(cell_barcode);
             }
 
+            println!("Writing results.");
             write_to_tsv(&results, Some(cell_barcodes), false, output_path);
 
             return results;
