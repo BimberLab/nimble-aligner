@@ -190,7 +190,7 @@ pub struct BamSpecificAlignMetadata {
     pub orientation: Vec<String>
 }
 
-pub fn write_read_list(pseudoaligner_data: PseudoalignerData, bam_data: Option<BamSpecificAlignMetadata>, output_path: &str) {
+pub fn write_read_list(pseudoaligner_data: &PseudoalignerData, bam_data: Option<&BamSpecificAlignMetadata>, output_path: &str) {
     let mut str_rep = String::new();
 
     // Append the results to the tsv string
@@ -228,7 +228,12 @@ pub fn write_read_list(pseudoaligner_data: PseudoalignerData, bam_data: Option<B
         str_rep += "\n";
     }
 
-    let f = File::create(output_path).expect("Could not create output file path for alignment metadata");
+    let f = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(output_path)
+        .expect("Could not create output file path for alignment metadata");
+
     let mut gz = GzBuilder::new()
                             .filename(output_path)
                             .write(f, Compression::default());
