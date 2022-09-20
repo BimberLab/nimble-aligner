@@ -33,12 +33,6 @@ impl UMIReader {
     }
 
     pub fn next(&mut self) -> bool {
-        self.read_counter = self.read_counter + 1;
-
-        if self.read_counter % READ_BLOCK_REPORT_SIZE == 0 && self.read_counter != 0 {
-            println!("Aligned read block {}-{}", self.read_counter-READ_BLOCK_REPORT_SIZE, self.read_counter);
-        }
-
         let mut final_umi = false;
 
         if self.get_umi_from_bam().is_none() {
@@ -59,6 +53,13 @@ impl UMIReader {
         self.next_cell_barcode.clear();
 
         for r in self.reader.records() {
+
+            self.read_counter = self.read_counter + 1;
+
+            if self.read_counter % READ_BLOCK_REPORT_SIZE == 0 && self.read_counter != 0 {
+                println!("Aligned reads {}-{}", self.read_counter-READ_BLOCK_REPORT_SIZE, self.read_counter);
+            }
+
             let mut record = r.unwrap();
 
             let read_umi = if let Ok(Aux::String(s)) = record.aux(b"UR") {
