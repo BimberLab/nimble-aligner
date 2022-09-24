@@ -1,7 +1,7 @@
 use debruijn::dna_string::DnaString;
 use rust_htslib::{bam, bam::record::Aux, bam::Read, bam::Reader};
 
-const READ_BLOCK_REPORT_SIZE: usize = 100000;
+const READ_BLOCK_REPORT_SIZE: usize = 1000000;
 
 pub struct UMIReader {
     reader: bam::Reader,
