@@ -144,6 +144,19 @@ pub fn process(
         alignment_metadata.read_umi_name.append(&mut res.clone().into_iter().map(|_| (&reader).current_umi.clone()).collect::<Vec<String>>());
         alignment_metadata.pair.append(&mut get_pair(get_sequence_list_from_metadata(&res), &current_metadata_table));
 
+        if owned_alignment_file != "".to_owned() {
+            write_read_list(&alignment_metadata, Some(&bam_specific_alignment_metadata), &owned_alignment_file);
+
+            bam_specific_alignment_metadata.mapq.clear();
+            bam_specific_alignment_metadata.orientation.clear();
+            alignment_metadata.reference_names.clear();
+            alignment_metadata.sequence.clear();
+            alignment_metadata.score.clear();
+            alignment_metadata.barcode_sample_name.clear();
+            alignment_metadata.read_umi_name.clear();
+            alignment_metadata.pair.clear();
+        }
+
         if s.len() == 0 {
             continue;
         }
@@ -168,19 +181,6 @@ pub fn process(
         if group.len() > 0 {
             let accessor = score_map.entry((group, reader.current_cell_barcode.clone())).or_insert(0);
             *accessor = *accessor + score;
-        }
-
-        if owned_alignment_file != "".to_owned() {
-            write_read_list(&alignment_metadata, Some(&bam_specific_alignment_metadata), &owned_alignment_file);
-
-            bam_specific_alignment_metadata.mapq.clear();
-            bam_specific_alignment_metadata.orientation.clear();
-            alignment_metadata.reference_names.clear();
-            alignment_metadata.sequence.clear();
-            alignment_metadata.score.clear();
-            alignment_metadata.barcode_sample_name.clear();
-            alignment_metadata.read_umi_name.clear();
-            alignment_metadata.pair.clear();
         }
     }
 }
