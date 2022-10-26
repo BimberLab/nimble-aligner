@@ -1,6 +1,6 @@
 [
   {
-    "score_threshold": 60,
+    "score_percent": 0.08,
     "score_filter": 25,
     "num_mismatches": 0,
     "discard_multiple_matches": false,

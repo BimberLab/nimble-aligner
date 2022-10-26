@@ -24,10 +24,10 @@ pub fn get_reference_library(path: &Path, strand_filter: StrandFilter) -> (align
 
     // Get aligner configuration from the first JSON object in the file
     let config_obj = &v[0];
-    let score_threshold = config_obj["score_threshold"]
-        .as_i64()
-        .expect("Error -- could not parse score_threshold as int64")
-        as usize;
+    let score_percent = config_obj["score_percent"]
+        .as_f64()
+        .expect("Error -- could not parse score_percent as f64")
+        as f64;
     let score_filter = config_obj["score_filter"]
         .as_i64()
         .expect("Error -- could not parse percent_threshold as int64");
@@ -97,7 +97,7 @@ pub fn get_reference_library(path: &Path, strand_filter: StrandFilter) -> (align
 
     let align_config = align::AlignFilterConfig {
         reference_genome_size: columns[sequence_name_idx].len(),
-        score_threshold,
+        score_percent,
         num_mismatches,
         discard_nonzero_mismatch: false,
         discard_multiple_matches,

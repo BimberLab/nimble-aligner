@@ -11,7 +11,6 @@ use reference_library::ReferenceMetadata;
 use lexical_sort::{StringSort, natural_lexical_cmp};
 
 const MIN_READ_LENGTH: usize = 12;
-const SCORE_THRESHOLD: usize = 20;
 
 pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<
     debruijn::kmer::VarIntKmer<u64, debruijn::kmer::K20>,
@@ -39,7 +38,7 @@ pub enum FilterReason {
 
 pub struct AlignFilterConfig {
     pub reference_genome_size: usize,
-    pub score_threshold: usize,
+    pub score_percent: f64,
     pub num_mismatches: usize,
     pub discard_nonzero_mismatch: bool,
     pub discard_multiple_matches: bool,
@@ -109,7 +108,7 @@ impl AlignmentDirection {
         }
     }
     
-    fn filter_hits(mut forward_hits: Option<(PairState, Option<(Vec<u32>, usize)>, Option<(Vec<u32>, usize)>)>, mut reverse_hits: Option<(PairState, Option<(Vec<u32>, usize)>, Option<(Vec<u32>, usize)>)>,
+    fn filter_hits(mut forward_hits: Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>, mut reverse_hits: Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
                     results: &mut HashMap<Vec<String>, i32>, reference_metadata: &ReferenceMetadata, config: &AlignFilterConfig, debug_info: &mut AlignDebugInfo) {
         if let Some((f_pair_state, _, _)) = forward_hits {
             if let Some((r_pair_state, _, _)) = reverse_hits {
@@ -267,7 +266,7 @@ pub fn score<'a>(
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>
-) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, usize)>) {
+) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, f64)>) {
     let (index_forward, index_backward) = index_pair;
     let (sequences, sequences_2) = sequence_iter_pair;
     let (reverse_sequences, reverse_sequences_2) = match reverse_sequence_iter_pair {
@@ -326,11 +325,11 @@ fn generate_score<'a>(
     index: &PseudoAligner,
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
-) -> (HashMap<String, (PairState, Option<(Vec<u32>, usize)>, Option<(Vec<u32>, usize)>)>, Vec<(Vec<String>, String, usize)>, AlignDebugInfo) {
+) -> (HashMap<String, (PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>, Vec<(Vec<String>, String, f64)>, AlignDebugInfo) {
     // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
-    let mut score_map: HashMap<String, (PairState, Option<(Vec<u32>, usize)>, Option<(Vec<u32>, usize)>)> = HashMap::new();
+    let mut score_map: HashMap<String, (PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)> = HashMap::new();
     let mut debug_info: AlignDebugInfo = Default::default();
-    let mut read_matches: Vec<(Vec<String>, String, usize)> = Vec::new();
+    let mut read_matches: Vec<(Vec<String>, String, f64)> = Vec::new();
 
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
     for read in sequences {
@@ -388,13 +387,13 @@ fn generate_score<'a>(
         let (eqv_class, s) = if let Some((eqv_class, s)) = &seq_score {
             ((*eqv_class).clone(), *s)
         } else {
-            (Vec::new(), 0)
+            (Vec::new(), 0.0)
         };
 
         let (r_eqv_class, r_s) = if let Some(Some((r_eqv_class, r_s))) = &rev_seq_score {
             ((*r_eqv_class).clone(), *r_s)
         } else {
-            (Vec::new(), 0)
+            (Vec::new(), 0.0)
         };
 
         if !eqv_class.is_empty() || !r_eqv_class.is_empty() {
@@ -411,9 +410,9 @@ fn generate_score<'a>(
             let (v, s, r_s) = if !eqv_class.is_empty() && !r_eqv_class.is_empty() {
                 ((PairState::Both, Some((eqv_class, s)), Some((r_eqv_class, r_s))), s, r_s)
             } else if !eqv_class.is_empty() {
-                ((PairState::First, Some((eqv_class, s)), None), s, 0)
+                ((PairState::First, Some((eqv_class, s)), None), s, 0.0)
             } else if !r_eqv_class.is_empty() {
-                ((PairState::Second, None, Some((r_eqv_class, r_s))), 0, r_s)
+                ((PairState::Second, None, Some((r_eqv_class, r_s))), 0.0, r_s)
             } else {
                 continue
             };
@@ -446,8 +445,8 @@ fn generate_score<'a>(
 
 // Determine whether a given pair of equivalence classes constitute a valid pair
 fn filter_pair(
-    seq_score: &Option<(Vec<u32>, usize)>,
-    rev_seq_score: &Option<Option<(Vec<u32>, usize)>>,
+    seq_score: &Option<(Vec<u32>, f64)>,
+    rev_seq_score: &Option<Option<(Vec<u32>, f64)>>,
 ) -> bool {
     // Unpack the data to check if the pairs have the same eq_class. If they both contain data, do the comparison
     if let (Some(Some((mut rev_eq_class, _))), Some((mut eq_class, _))) =
@@ -474,8 +473,8 @@ fn filter_pair(
 
 // Return matches that match in all of the given classes; if soft intersection is enabled, fall back to best read if one of the reads is empty
 fn get_intersecting_reads(
-    seq_score: &mut Option<(PairState, Option<(Vec<u32>, usize)>, Option<(Vec<u32>, usize)>)>,
-    rev_seq_score: &mut Option<(PairState, Option<(Vec<u32>, usize)>, Option<(Vec<u32>, usize)>)>,
+    seq_score: &mut Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
+    rev_seq_score: &mut Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
     fallback_on_intersect_fail: bool,
     debug_info: &mut AlignDebugInfo
 ) -> Vec<u32> {
@@ -484,14 +483,14 @@ fn get_intersecting_reads(
         Some((_, Some((ref mut f, fs)), Some((ref mut r, rs)))) => { f.append(r); (f.to_owned(), if fs > rs { fs.to_owned() } else { rs.to_owned() })},
         Some((_, None, Some((r, rs)))) => (r.to_owned(), rs.to_owned()),
         Some((_, Some((f, fs)), None)) => (f.to_owned(), fs.to_owned()),
-        _ => (Vec::new(), 0),
+        _ => (Vec::new(), 0.0),
     };
 
     let (r_seq_class, _) = match rev_seq_score {
         Some((_, Some((ref mut f, fs)), Some((ref mut r, rs)))) => { f.append(r); (f.to_owned(), if fs > rs { fs.to_owned() } else { rs.to_owned() })},
         Some((_, None, Some((r, rs)))) => (r.to_owned(), rs.to_owned()),
         Some((_, Some((f, fs)), None)) => (f.to_owned(), fs.to_owned()),
-        _ => (Vec::new(), 0),
+        _ => (Vec::new(), 0.0),
     };
 
     let class = seq_class.intersect(r_seq_class);
@@ -508,21 +507,21 @@ fn get_intersecting_reads(
 
 // Return best equivalence class out of the given classes
 fn get_all_reads(
-    seq_score: &mut Option<(PairState, Option<(Vec<u32>, usize)>, Option<(Vec<u32>, usize)>)>,
-    rev_seq_score: &mut Option<(PairState, Option<(Vec<u32>, usize)>, Option<(Vec<u32>, usize)>)>,
+    seq_score: &mut Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
+    rev_seq_score: &mut Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
 ) -> Vec<u32> {
     let (mut seq_class, _) = match seq_score {
         Some((_, Some((ref mut f, fs)), Some((ref mut r, rs)))) => { f.append(r); (f.to_owned(), if fs > rs { fs.to_owned() } else { rs.to_owned() })},
         Some((_, None, Some((r, rs)))) => (r.to_owned(), rs.to_owned()),
         Some((_, Some((f, fs)), None)) => (f.to_owned(), fs.to_owned()),
-        _ => (Vec::new(), 0),
+        _ => (Vec::new(), 0.0),
     };
 
     let (mut r_seq_class, _) = match rev_seq_score {
         Some((_, Some((ref mut f, fs)), Some((ref mut r, rs)))) => { f.append(r); (f.to_owned(), if fs > rs { fs.to_owned() } else { rs.to_owned() })},
         Some((_, None, Some((r, rs)))) => (r.to_owned(), rs.to_owned()),
         Some((_, Some((f, fs)), None)) => (f.to_owned(), fs.to_owned()),
-        _ => (Vec::new(), 0),
+        _ => (Vec::new(), 0.0),
     };
 
     seq_class.append(&mut r_seq_class);
@@ -575,7 +574,7 @@ fn pseudoalign(
     sequence: &DnaString,
     reference_index: &PseudoAligner,
     config: &AlignFilterConfig
-) -> (Option<(Vec<u32>, usize)>, Option<FilterReason>){
+) -> (Option<(Vec<u32>, f64)>, Option<FilterReason>){
     // Filter short reads
     if sequence.to_string().len() < MIN_READ_LENGTH {
         return (None, Some(FilterReason::ShortRead))
@@ -584,7 +583,8 @@ fn pseudoalign(
     // Perform alignment
     match reference_index.map_read_with_mismatch(&sequence, config.num_mismatches) {
         Some((equiv_class, score, mismatches)) => {
-            let score = score - SCORE_THRESHOLD;
+            // Normalize score by read length
+            let score = score as f64 / sequence.len() as f64;
 
             // Filter nonzero mismatch
             if config.discard_nonzero_mismatch && mismatches != 0 {
@@ -595,7 +595,7 @@ fn pseudoalign(
             filter::align::filter_alignment_by_metrics(
                 score,
                 equiv_class,
-                config.score_threshold,
+                config.score_percent,
                 config.discard_multiple_matches,
             )
         }

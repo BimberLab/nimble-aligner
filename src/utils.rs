@@ -180,7 +180,7 @@ pub struct PseudoalignerData {
     pub reference_names: Vec<Vec<String>>,
     pub read_umi_name: Vec<String>,
     pub barcode_sample_name: Vec<String>,
-    pub score: Vec<usize>,
+    pub score: Vec<f64>,
     pub pair: Vec<String>,
     pub sequence: Vec<String>
 }

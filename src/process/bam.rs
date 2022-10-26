@@ -139,7 +139,7 @@ pub fn process(
         bam_specific_alignment_metadata.orientation.append(&mut get_orientation(get_sequence_list_from_metadata(&res), &current_metadata_table));
         alignment_metadata.reference_names.append(&mut res.clone().into_iter().map(|(group, _, _)| group).collect::<Vec<Vec<String>>>());
         alignment_metadata.sequence.append(&mut res.clone().into_iter().map(|(_, seq, _)| seq).collect::<Vec<String>>());
-        alignment_metadata.score.append(&mut res.clone().into_iter().map(|(_, _, score)| score).collect::<Vec<usize>>());
+        alignment_metadata.score.append(&mut res.clone().into_iter().map(|(_, _, score)| score).collect::<Vec<f64>>());
         alignment_metadata.barcode_sample_name.append(&mut res.clone().into_iter().map(|_| (&reader).current_cell_barcode.clone()).collect::<Vec<String>>());
         alignment_metadata.read_umi_name.append(&mut res.clone().into_iter().map(|_| (&reader).current_umi.clone()).collect::<Vec<String>>());
         alignment_metadata.pair.append(&mut get_pair(get_sequence_list_from_metadata(&res), &current_metadata_table));
@@ -255,7 +255,7 @@ fn get_pair(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String
     ret
 }
 
-fn get_sequence_list_from_metadata(metadata: &Vec<(Vec<String>, String, usize)>) -> Vec<String> {
+fn get_sequence_list_from_metadata(metadata: &Vec<(Vec<String>, String, f64)>) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
     for (_, seq, _) in metadata.iter() {
@@ -272,7 +272,7 @@ fn get_score<'a>(
     align_config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>,
     reverse_comp_read: &'a Vec<bool>
-) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, usize)>) {
+) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, f64)>) {
     let sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
         current_umi_group.iter().zip(reverse_comp_read.iter())
             .step_by(2)
