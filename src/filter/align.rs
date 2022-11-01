@@ -3,16 +3,18 @@ use crate::align::FilterReason;
 /* Takes a given alignment and returns it if it's above the given match threshold and
  * has an equivalence class. Can be configured to discard alignments with more than one match. */
 pub fn filter_alignment_by_metrics(
-    score: f64,
-    equiv_class: Vec<u32>,
+    score: usize,
+    normalized_score: f64,
+    score_threshold: usize,
     score_percent: f64,
+    equiv_class: Vec<u32>,
     discard_multiple_matches: bool,
-) -> (Option<(Vec<u32>, f64)>, Option<FilterReason>) {
-    if score >= score_percent && !equiv_class.is_empty() {
+) -> (Option<(Vec<u32>, f64, usize)>, Option<FilterReason>) {
+    if score >= score_threshold && normalized_score >= score_percent && !equiv_class.is_empty() {
         if discard_multiple_matches && equiv_class.len() > 1 {
             (None, Some(FilterReason::DiscardedMultipleMatch))
         } else {
-            (Some((equiv_class, score)), None)
+            (Some((equiv_class, normalized_score, score)), None)
         }
     } else {
         (None, Some(FilterReason::ScoreBelowThreshold))

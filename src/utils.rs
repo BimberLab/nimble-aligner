@@ -181,6 +181,7 @@ pub struct PseudoalignerData {
     pub read_umi_name: Vec<String>,
     pub barcode_sample_name: Vec<String>,
     pub score: Vec<f64>,
+    pub raw_score: Vec<usize>,
     pub pair: Vec<String>,
     pub sequence: Vec<String>
 }
@@ -208,6 +209,8 @@ pub fn write_read_list(pseudoaligner_data: &PseudoalignerData, bam_data: Option<
         str_rep += &pseudoaligner_data.barcode_sample_name[i];
         str_rep += "\t";
         str_rep += &pseudoaligner_data.score[i].to_string();
+        str_rep += "\t";
+        str_rep += &pseudoaligner_data.raw_score[i].to_string();
         str_rep += "\t";
         str_rep += &pseudoaligner_data.pair[i];
         str_rep += "\t";
