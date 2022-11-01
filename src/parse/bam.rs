@@ -7,11 +7,11 @@ pub struct UMIReader {
     reader: bam::Reader,
     read_counter: usize,
     pub current_umi_group: Vec<DnaString>,
-    pub current_metadata_group: Vec<(u8, String, String, bool)>,
+    pub current_metadata_group: Vec<(u8, String, String, bool, String)>,
     pub current_umi: String,
     pub current_cell_barcode: String,
     pub next_umi_group: Vec<DnaString>,
-    pub next_metadata_group: Vec<(u8, String, String, bool)>,
+    pub next_metadata_group: Vec<(u8, String, String, bool, String)>,
     next_umi: String,
     next_cell_barcode: String
 }
@@ -65,13 +65,13 @@ impl UMIReader {
             let read_umi = if let Ok(Aux::String(s)) = record.aux(b"UR") {
                 s.to_owned()
             } else {
-                panic!("Error -- Could not read UMI, internal error.");
+                panic!("Error -- Could not read UMI.");
             };
 
             let current_cell_barcode = if let Ok(Aux::String(s)) = record.aux(b"CR") {
                 s.to_owned()
             } else {
-                panic!("Error -- Could not read cell barcode, internal error.");
+                panic!("Error -- Could not read cell barcode.");
             };
 
             if self.current_umi == "" {
@@ -86,18 +86,23 @@ impl UMIReader {
                 false => String::from("F")
             };
             let rev_comp = record.is_reverse();
+            let hit = if let Ok(Aux::String(s)) = record.aux(b"GN") {
+                s.to_owned()
+            } else {
+                panic!("Error -- Could not get feature hits from read.");
+            };
 
             if self.current_umi == read_umi {
                 self.current_umi_group
                     .push(seq);
                 self.current_metadata_group
-                    .push((mapq, orientation, pair, rev_comp));
+                    .push((mapq, orientation, pair, rev_comp, hit));
                 self.current_cell_barcode = current_cell_barcode.clone();
             } else {
                 self.next_umi_group
                     .push(seq);
                 self.next_metadata_group
-                    .push((mapq, orientation, pair, rev_comp));
+                    .push((mapq, orientation, pair, rev_comp, hit));
                 self.next_umi = read_umi.clone();
                 self.next_cell_barcode = current_cell_barcode;
                 return Some(true);
@@ -115,7 +120,7 @@ impl UMIReader {
         let seq = String::from_utf8(seq.to_owned()).unwrap();
 
         // Find TSO if it exists
-        let mut tso_idx = seq.find("TTTCTTATATGGG"); // forward case
+        /*let mut tso_idx = seq.find("TTTCTTATATGGG"); // forward case
 
         if tso_idx.is_none() {
             tso_idx = seq.find("AAAGAATATACCC"); // reverse case
@@ -129,7 +134,7 @@ impl UMIReader {
             String::from_utf8(seq.as_bytes()[tso_idx.unwrap()+13..].to_vec()).unwrap()
         } else {
             seq
-        };
+        };*/
 
         // Remove the poly-T/poly-A tail if it exists
         let mut poly_tail_idx = seq.find("TTTTTTTTTTTTTTTTTTT");
@@ -145,7 +150,7 @@ impl UMIReader {
         };
 
         // Find the reverse primer if it exists
-        let mut reverse_primer_idx = seq.find("GTACTCTGCGTTGATACCACTGCTT"); // forward case
+        /*let mut reverse_primer_idx = seq.find("GTACTCTGCGTTGATACCACTGCTT"); // forward case
 
         if reverse_primer_idx.is_none() {
             reverse_primer_idx = seq.find("CATGAGACGCAACTATGGTGACGAA"); // reverse case
@@ -156,7 +161,7 @@ impl UMIReader {
             String::from_utf8(seq.as_bytes()[..reverse_primer_idx.unwrap()].to_vec()).unwrap()
         } else {
             seq
-        };
+        };*/
 
 
         DnaString::from_dna_string(&seq)
@@ -165,7 +170,7 @@ impl UMIReader {
 
 #[cfg(test)]
 mod tests {
-    #[test]
+    /*#[test]
     fn strip_tso_forward() {
         let expected_results = String::from("CCCC");
         let input = "TTTCTTATATGGGCCCC".as_bytes();
@@ -195,7 +200,7 @@ mod tests {
         let input = "TTTTTTTATATATAAGAGAGAGAGAGAGAGAGAAAGAATATACCCCCCC".as_bytes();
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
-    }
+    }*/
     
     #[test]
     fn strip_tail_t() {
@@ -229,7 +234,7 @@ mod tests {
         assert_eq!(results, expected_results);
     }
 
-    #[test]
+    /*#[test]
     fn strip_forward_all() {
         let expected_results = String::from("CCCC");
         let input = "GGGGGGGGGGGGAGAGGAGAGACCACACACATTTCTTATATGGGCCCCTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTAGAGAGAGAGAG".as_bytes();
@@ -259,7 +264,7 @@ mod tests {
         let input = "CCCCCATGAGACGCAACTATGGTGACGAA".as_bytes();
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
-    }
+    }*/
 
     #[test]
     fn strip_nothing_one() {

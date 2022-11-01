@@ -188,7 +188,8 @@ pub struct PseudoalignerData {
 
 pub struct BamSpecificAlignMetadata {
     pub mapq: Vec<u8>,
-    pub orientation: Vec<String>
+    pub orientation: Vec<String>,
+    pub hits: Vec<String>
 }
 
 pub fn write_read_list(pseudoaligner_data: &PseudoalignerData, bam_data: Option<&BamSpecificAlignMetadata>, output_path: &str) {
@@ -225,6 +226,11 @@ pub fn write_read_list(pseudoaligner_data: &PseudoalignerData, bam_data: Option<
             if metadata.orientation.len() > 0 && i < metadata.orientation.len() {
                 str_rep += "\t";
                 str_rep += &metadata.orientation[i].to_string();
+            }
+
+            if metadata.hits.len() > 0 && i < metadata.hits.len() {
+                str_rep += "\t";
+                str_rep += &metadata.hits[i].to_string();
             }
         }
 
