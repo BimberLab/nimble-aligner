@@ -89,7 +89,7 @@ impl UMIReader {
             let hit = if let Ok(Aux::String(s)) = record.aux(b"GN") {
                 s.to_owned()
             } else {
-                panic!("Error -- Could not get feature hits from read.");
+                String::new()
             };
 
             if self.current_umi == read_umi {
