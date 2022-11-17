@@ -1,13 +1,16 @@
 use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
-use std::io::Error;
 use std::collections::HashMap;
+use std::io::Error;
 
-use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
+use crate::align::{AlignDebugInfo, AlignFilterConfig, PseudoAligner};
 use crate::parse::bam;
 use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
-use crate::utils::{write_to_tsv, write_debug_info, write_read_list, PseudoalignerData, BamSpecificAlignMetadata, revcomp};
+use crate::utils::{
+    revcomp, write_debug_info, write_read_list, write_to_tsv, BamSpecificAlignMetadata,
+    PseudoalignerData,
+};
 
 pub fn process(
     input_files: Vec<&str>,
@@ -16,7 +19,7 @@ pub fn process(
     align_config: &AlignFilterConfig,
     output_path: &str,
     debug_file: Option<String>,
-    alignment_file: Option<String>
+    alignment_file: Option<String>,
 ) -> Vec<(Vec<String>, i32)> {
     let mut reader = bam::UMIReader::new(input_files[0]);
     let mut has_aligned = false;
@@ -43,13 +46,13 @@ pub fn process(
         score: Vec::new(),
         raw_score: Vec::new(),
         pair: Vec::new(),
-        sequence: Vec::new()
+        sequence: Vec::new(),
     };
 
     let mut bam_specific_alignment_metadata: BamSpecificAlignMetadata = BamSpecificAlignMetadata {
         mapq: Vec::new(),
         orientation: Vec::new(),
-        hits: Vec::new()
+        hits: Vec::new(),
     };
 
     let mut debug_info: AlignDebugInfo = Default::default();
@@ -68,7 +71,7 @@ pub fn process(
                 println!("Writing debug table.");
                 write_debug_info(debug_info);
             }
-            
+
             let mut results = Vec::new();
             for (key, value) in score_map.into_iter() {
                 let group = key.0;
@@ -87,7 +90,10 @@ pub fn process(
         has_aligned = true;
 
         let mut current_umi_group = reader.current_umi_group.clone();
-        let current_metadata_table = metadata_to_sequence_hashmap(reader.current_metadata_group.clone(), current_umi_group.clone());
+        let current_metadata_table = metadata_to_sequence_hashmap(
+            reader.current_metadata_group.clone(),
+            current_umi_group.clone(),
+        );
 
         let (extra_read, extra_metadata) = if current_umi_group.len() % 2 != 0 {
             (current_umi_group.pop(), reader.current_metadata_group.pop())
@@ -102,7 +108,13 @@ pub fn process(
                 reference_metadata,
                 align_config,
                 Some(&mut debug_info),
-                &reader.current_metadata_group.clone().into_iter().map(|(_, _, _, r, _)| r).collect::<Vec<bool>>())
+                &reader
+                    .current_metadata_group
+                    .clone()
+                    .into_iter()
+                    .map(|(_, _, _, r, _)| r)
+                    .collect::<Vec<bool>>(),
+            )
         } else {
             get_score(
                 &current_umi_group,
@@ -110,14 +122,22 @@ pub fn process(
                 reference_metadata,
                 align_config,
                 None,
-                &reader.current_metadata_group.clone().into_iter().map(|(_, _, _, r, _)| r).collect::<Vec<bool>>())
+                &reader
+                    .current_metadata_group
+                    .clone()
+                    .into_iter()
+                    .map(|(_, _, _, r, _)| r)
+                    .collect::<Vec<bool>>(),
+            )
         };
 
         let (mut s_extra, mut res_extra) = match extra_read {
             Some(read) => {
-
                 let (read_f, read_r) = if extra_metadata.unwrap().3 {
-                    (vec![Ok(check_reverse_comp((&read.clone(), &true)))], vec![Ok(check_reverse_comp((&read.clone(), &true)))])
+                    (
+                        vec![Ok(check_reverse_comp((&read.clone(), &true)))],
+                        vec![Ok(check_reverse_comp((&read.clone(), &true)))],
+                    )
                 } else {
                     (vec![Ok(read.clone())], vec![Ok(read.clone())])
                 };
@@ -128,28 +148,84 @@ pub fn process(
                     reference_index,
                     &reference_metadata,
                     align_config,
-                    None
+                    None,
                 )
-            },
-            None => (Vec::new(), Vec::new())
+            }
+            None => (Vec::new(), Vec::new()),
         };
 
         s.append(&mut s_extra);
         res.append(&mut res_extra);
-        
-        bam_specific_alignment_metadata.mapq.append(&mut get_mapq_scores(get_sequence_list_from_metadata(&res), &current_metadata_table));
-        bam_specific_alignment_metadata.orientation.append(&mut get_orientation(get_sequence_list_from_metadata(&res), &current_metadata_table));
-        bam_specific_alignment_metadata.hits.append(&mut get_hits(get_sequence_list_from_metadata(&res), &current_metadata_table));
-        alignment_metadata.reference_names.append(&mut res.clone().into_iter().map(|(group, _, _, _)| group).collect::<Vec<Vec<String>>>());
-        alignment_metadata.sequence.append(&mut res.clone().into_iter().map(|(_, seq, _, _)| seq).collect::<Vec<String>>());
-        alignment_metadata.score.append(&mut res.clone().into_iter().map(|(_, _, score, _)| score).collect::<Vec<f64>>());
-        alignment_metadata.raw_score.append(&mut res.clone().into_iter().map(|(_, _, _, raw_score)| raw_score).collect::<Vec<usize>>());
-        alignment_metadata.barcode_sample_name.append(&mut res.clone().into_iter().map(|_| (&reader).current_cell_barcode.clone()).collect::<Vec<String>>());
-        alignment_metadata.read_umi_name.append(&mut res.clone().into_iter().map(|_| (&reader).current_umi.clone()).collect::<Vec<String>>());
-        alignment_metadata.pair.append(&mut get_pair(get_sequence_list_from_metadata(&res), &current_metadata_table));
+
+        bam_specific_alignment_metadata
+            .mapq
+            .append(&mut get_mapq_scores(
+                get_sequence_list_from_metadata(&res),
+                &current_metadata_table,
+            ));
+        bam_specific_alignment_metadata
+            .orientation
+            .append(&mut get_orientation(
+                get_sequence_list_from_metadata(&res),
+                &current_metadata_table,
+            ));
+        bam_specific_alignment_metadata.hits.append(&mut get_hits(
+            get_sequence_list_from_metadata(&res),
+            &current_metadata_table,
+        ));
+        alignment_metadata.reference_names.append(
+            &mut res
+                .clone()
+                .into_iter()
+                .map(|(group, _, _, _)| group)
+                .collect::<Vec<Vec<String>>>(),
+        );
+        alignment_metadata.sequence.append(
+            &mut res
+                .clone()
+                .into_iter()
+                .map(|(_, seq, _, _)| seq)
+                .collect::<Vec<String>>(),
+        );
+        alignment_metadata.score.append(
+            &mut res
+                .clone()
+                .into_iter()
+                .map(|(_, _, score, _)| score)
+                .collect::<Vec<f64>>(),
+        );
+        alignment_metadata.raw_score.append(
+            &mut res
+                .clone()
+                .into_iter()
+                .map(|(_, _, _, raw_score)| raw_score)
+                .collect::<Vec<usize>>(),
+        );
+        alignment_metadata.barcode_sample_name.append(
+            &mut res
+                .clone()
+                .into_iter()
+                .map(|_| (&reader).current_cell_barcode.clone())
+                .collect::<Vec<String>>(),
+        );
+        alignment_metadata.read_umi_name.append(
+            &mut res
+                .clone()
+                .into_iter()
+                .map(|_| (&reader).current_umi.clone())
+                .collect::<Vec<String>>(),
+        );
+        alignment_metadata.pair.append(&mut get_pair(
+            get_sequence_list_from_metadata(&res),
+            &current_metadata_table,
+        ));
 
         if owned_alignment_file != "".to_owned() {
-            write_read_list(&alignment_metadata, Some(&bam_specific_alignment_metadata), &owned_alignment_file);
+            write_read_list(
+                &alignment_metadata,
+                Some(&bam_specific_alignment_metadata),
+                &owned_alignment_file,
+            );
 
             bam_specific_alignment_metadata.mapq.clear();
             bam_specific_alignment_metadata.orientation.clear();
@@ -157,6 +233,7 @@ pub fn process(
             alignment_metadata.reference_names.clear();
             alignment_metadata.sequence.clear();
             alignment_metadata.score.clear();
+            alignment_metadata.raw_score.clear();
             alignment_metadata.barcode_sample_name.clear();
             alignment_metadata.read_umi_name.clear();
             alignment_metadata.pair.clear();
@@ -184,13 +261,18 @@ pub fn process(
         }
 
         if group.len() > 0 {
-            let accessor = score_map.entry((group, reader.current_cell_barcode.clone())).or_insert(0);
+            let accessor = score_map
+                .entry((group, reader.current_cell_barcode.clone()))
+                .or_insert(0);
             *accessor = *accessor + score;
         }
     }
 }
 
-fn metadata_to_sequence_hashmap(metadata: Vec<(u8, String, String, bool, String)>, sequences: Vec<DnaString>) -> HashMap<String, (u8, String, String, bool, String)> {
+fn metadata_to_sequence_hashmap(
+    metadata: Vec<(u8, String, String, bool, String)>,
+    sequences: Vec<DnaString>,
+) -> HashMap<String, (u8, String, String, bool, String)> {
     let mut ret: HashMap<String, (u8, String, String, bool, String)> = HashMap::new();
 
     for (i, seq) in sequences.iter().enumerate() {
@@ -200,7 +282,10 @@ fn metadata_to_sequence_hashmap(metadata: Vec<(u8, String, String, bool, String)
     ret
 }
 
-fn get_mapq_scores(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String, String, bool, String)>) -> Vec<u8> {
+fn get_mapq_scores(
+    sequences: Vec<String>,
+    metadata_table: &HashMap<String, (u8, String, String, bool, String)>,
+) -> Vec<u8> {
     let mut ret: Vec<u8> = Vec::new();
 
     for seq in sequences {
@@ -209,10 +294,12 @@ fn get_mapq_scores(sequences: Vec<String>, metadata_table: &HashMap<String, (u8,
 
         match entry {
             Some(v) => ret.push(v.0),
-            None => if let Some(v) = metadata_table.get(&rc.to_string()) {
-                ret.push(v.0)
-            } else {
-                ret.push(0)
+            None => {
+                if let Some(v) = metadata_table.get(&rc.to_string()) {
+                    ret.push(v.0)
+                } else {
+                    ret.push(0)
+                }
             }
         }
     }
@@ -220,7 +307,10 @@ fn get_mapq_scores(sequences: Vec<String>, metadata_table: &HashMap<String, (u8,
     ret
 }
 
-fn get_hits(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String, String, bool, String)>) -> Vec<String> {
+fn get_hits(
+    sequences: Vec<String>,
+    metadata_table: &HashMap<String, (u8, String, String, bool, String)>,
+) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
     for seq in sequences {
@@ -229,10 +319,12 @@ fn get_hits(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String
 
         match entry {
             Some(v) => ret.push(v.4.clone()),
-            None => if let Some(v) = metadata_table.get(&rc.to_string()) {
-                ret.push(v.4.clone())
-            } else {
-                ret.push(String::new())
+            None => {
+                if let Some(v) = metadata_table.get(&rc.to_string()) {
+                    ret.push(v.4.clone())
+                } else {
+                    ret.push(String::new())
+                }
             }
         }
     }
@@ -240,7 +332,10 @@ fn get_hits(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String
     ret
 }
 
-fn get_orientation(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String, String, bool, String)>) -> Vec<String> {
+fn get_orientation(
+    sequences: Vec<String>,
+    metadata_table: &HashMap<String, (u8, String, String, bool, String)>,
+) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
     for seq in sequences {
@@ -249,10 +344,12 @@ fn get_orientation(sequences: Vec<String>, metadata_table: &HashMap<String, (u8,
 
         match entry {
             Some(v) => ret.push(v.1.clone()),
-            None => if let Some(v) = metadata_table.get(&rc.to_string()) {
-                ret.push(v.1.clone())
-            } else {
-                ret.push(String::new())
+            None => {
+                if let Some(v) = metadata_table.get(&rc.to_string()) {
+                    ret.push(v.1.clone())
+                } else {
+                    ret.push(String::new())
+                }
             }
         }
     }
@@ -260,7 +357,10 @@ fn get_orientation(sequences: Vec<String>, metadata_table: &HashMap<String, (u8,
     ret
 }
 
-fn get_pair(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String, String, bool, String)>) -> Vec<String> {
+fn get_pair(
+    sequences: Vec<String>,
+    metadata_table: &HashMap<String, (u8, String, String, bool, String)>,
+) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
     for seq in sequences {
@@ -269,10 +369,12 @@ fn get_pair(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String
 
         match entry {
             Some(v) => ret.push(v.2.clone()),
-            None => if let Some(v) = metadata_table.get(&rc.to_string()) {
-                ret.push(v.2.clone())
-            } else {
-                ret.push(String::new())
+            None => {
+                if let Some(v) = metadata_table.get(&rc.to_string()) {
+                    ret.push(v.2.clone())
+                } else {
+                    ret.push(String::new())
+                }
             }
         }
     }
@@ -280,7 +382,9 @@ fn get_pair(sequences: Vec<String>, metadata_table: &HashMap<String, (u8, String
     ret
 }
 
-fn get_sequence_list_from_metadata(metadata: &Vec<(Vec<String>, String, f64, usize)>) -> Vec<String> {
+fn get_sequence_list_from_metadata(
+    metadata: &Vec<(Vec<String>, String, f64, usize)>,
+) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
     for (_, seq, _, _) in metadata.iter() {
@@ -296,29 +400,40 @@ fn get_score<'a>(
     reference_metadata: &ReferenceMetadata,
     align_config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>,
-    reverse_comp_read: &'a Vec<bool>
-) -> (Vec<(Vec<String>, i32)>, Vec<(Vec<String>, String, f64, usize)>) {
+    reverse_comp_read: &'a Vec<bool>,
+) -> (
+    Vec<(Vec<String>, i32)>,
+    Vec<(Vec<String>, String, f64, usize)>,
+) {
     let sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
-        current_umi_group.iter().zip(reverse_comp_read.iter())
+        current_umi_group
+            .iter()
+            .zip(reverse_comp_read.iter())
             .step_by(2)
             .map(|rec| Ok(check_reverse_comp(rec))),
     );
 
     let sequences_clone: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
-        current_umi_group.iter().zip(reverse_comp_read.iter())
+        current_umi_group
+            .iter()
+            .zip(reverse_comp_read.iter())
             .step_by(2)
             .map(|rec| Ok(check_reverse_comp(rec))),
     );
 
     let reverse_sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
-        current_umi_group.iter().zip(reverse_comp_read.iter())
+        current_umi_group
+            .iter()
+            .zip(reverse_comp_read.iter())
             .skip(1)
             .step_by(2)
             .map(|rec| Ok(check_reverse_comp(rec))),
     );
 
     let reverse_sequences_clone: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
-        current_umi_group.iter().zip(reverse_comp_read.iter())
+        current_umi_group
+            .iter()
+            .zip(reverse_comp_read.iter())
             .skip(1)
             .step_by(2)
             .map(|rec| Ok(check_reverse_comp(rec))),
@@ -333,7 +448,7 @@ fn get_score<'a>(
         reference_index,
         &reference_metadata,
         align_config,
-        debug_info
+        debug_info,
     )
 }
 

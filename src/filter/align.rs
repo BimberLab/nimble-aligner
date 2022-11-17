@@ -9,15 +9,28 @@ pub fn filter_alignment_by_metrics(
     score_percent: f64,
     equiv_class: Vec<u32>,
     discard_multiple_matches: bool,
-) -> (Option<(Vec<u32>, f64, usize)>, Option<FilterReason>) {
+) -> (
+    Option<(Vec<u32>, f64, usize)>,
+    Option<(FilterReason, f64, usize)>,
+) {
     if score >= score_threshold && normalized_score >= score_percent && !equiv_class.is_empty() {
         if discard_multiple_matches && equiv_class.len() > 1 {
-            (None, Some(FilterReason::DiscardedMultipleMatch))
+            (
+                None,
+                Some((
+                    FilterReason::DiscardedMultipleMatch,
+                    normalized_score,
+                    score,
+                )),
+            )
         } else {
             (Some((equiv_class, normalized_score, score)), None)
         }
     } else {
-        (None, Some(FilterReason::ScoreBelowThreshold))
+        (
+            None,
+            Some((FilterReason::ScoreBelowThreshold, normalized_score, score)),
+        )
     }
 }
 
