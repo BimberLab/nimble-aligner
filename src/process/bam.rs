@@ -47,6 +47,7 @@ pub fn process(
         raw_score: Vec::new(),
         pair: Vec::new(),
         sequence: Vec::new(),
+        strand_filter_reason: Vec::new(),
     };
 
     let mut bam_specific_alignment_metadata: BamSpecificAlignMetadata = BamSpecificAlignMetadata {
@@ -177,29 +178,36 @@ pub fn process(
             &mut res
                 .clone()
                 .into_iter()
-                .map(|(group, _, _, _)| group)
+                .map(|(group, _, _, _, _)| group)
                 .collect::<Vec<Vec<String>>>(),
         );
         alignment_metadata.sequence.append(
             &mut res
                 .clone()
                 .into_iter()
-                .map(|(_, seq, _, _)| seq)
+                .map(|(_, seq, _, _, _)| seq)
                 .collect::<Vec<String>>(),
         );
         alignment_metadata.score.append(
             &mut res
                 .clone()
                 .into_iter()
-                .map(|(_, _, score, _)| score)
+                .map(|(_, _, score, _, _)| score)
                 .collect::<Vec<f64>>(),
         );
         alignment_metadata.raw_score.append(
             &mut res
                 .clone()
                 .into_iter()
-                .map(|(_, _, _, raw_score)| raw_score)
+                .map(|(_, _, _, raw_score, _)| raw_score)
                 .collect::<Vec<usize>>(),
+        );
+        alignment_metadata.strand_filter_reason.append(
+            &mut res
+                .clone()
+                .into_iter()
+                .map(|(_, _, _, _, reason)| reason)
+                .collect::<Vec<String>>(),
         );
         alignment_metadata.barcode_sample_name.append(
             &mut res
@@ -234,6 +242,7 @@ pub fn process(
             alignment_metadata.sequence.clear();
             alignment_metadata.score.clear();
             alignment_metadata.raw_score.clear();
+            alignment_metadata.strand_filter_reason.clear();
             alignment_metadata.barcode_sample_name.clear();
             alignment_metadata.read_umi_name.clear();
             alignment_metadata.pair.clear();
@@ -383,11 +392,11 @@ fn get_pair(
 }
 
 fn get_sequence_list_from_metadata(
-    metadata: &Vec<(Vec<String>, String, f64, usize)>,
+    metadata: &Vec<(Vec<String>, String, f64, usize, String)>,
 ) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
-    for (_, seq, _, _) in metadata.iter() {
+    for (_, seq, _, _, _) in metadata.iter() {
         ret.push(seq.to_string());
     }
 
@@ -403,7 +412,7 @@ fn get_score<'a>(
     reverse_comp_read: &'a Vec<bool>,
 ) -> (
     Vec<(Vec<String>, i32)>,
-    Vec<(Vec<String>, String, f64, usize)>,
+    Vec<(Vec<String>, String, f64, usize, String)>,
 ) {
     let sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
         current_umi_group

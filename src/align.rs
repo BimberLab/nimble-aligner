@@ -2,6 +2,7 @@ use crate::filter;
 use crate::reference_library;
 
 use std::collections::HashMap;
+use std::fmt;
 use std::io::Error;
 
 use array_tool::vec::Intersect;
@@ -74,7 +75,7 @@ pub struct AlignDebugInfo {
     pub max_hits_exceeded: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum AlignmentDirection {
     FF,
     RR,
@@ -85,6 +86,35 @@ pub enum AlignmentDirection {
     RU,
     UF,
     UR,
+}
+impl fmt::Display for AlignmentDirection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AlignmentDirection::FF => write!(f, "FF"),
+            AlignmentDirection::RR => write!(f, "RR"),
+            AlignmentDirection::UU => write!(f, "UU"),
+            AlignmentDirection::FR => write!(f, "FR"),
+            AlignmentDirection::FU => write!(f, "FU"),
+            AlignmentDirection::RF => write!(f, "RF"),
+            AlignmentDirection::RU => write!(f, "RU"),
+            AlignmentDirection::UF => write!(f, "UF"),
+            AlignmentDirection::UR => write!(f, "UR"),
+        }
+    }
+}
+
+fn replace_key_with_strand_dir(
+    key: String,
+    matched_seqs: &mut Vec<(Vec<String>, String, f64, usize, String)>,
+    dir: AlignmentDirection,
+) {
+    for elem in matched_seqs {
+        if elem.4 == key {
+            elem.4 = dir.to_string()
+        } else {
+            elem.4 = String::new()
+        }
+    }
 }
 
 impl AlignmentDirection {
@@ -119,28 +149,34 @@ impl AlignmentDirection {
         reference_metadata: &ReferenceMetadata,
         config: &AlignFilterConfig,
         debug_info: &mut AlignDebugInfo,
+        matched_sequences: &mut Vec<(Vec<String>, String, f64, usize, String)>,
+        key: String,
+        debug: bool,
     ) {
         if let Some((f_pair_state, _, _)) = forward_hits {
             if let Some((r_pair_state, _, _)) = reverse_hits {
-                if AlignmentDirection::filter_read(
-                    AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state),
-                    &config.strand_filter,
-                ) {
+                let dir = AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state);
+                if AlignmentDirection::filter_read(dir, &config.strand_filter) {
+                    if debug {
+                        replace_key_with_strand_dir(key, matched_sequences, dir);
+                    }
                     return;
                 }
             }
 
-            if AlignmentDirection::filter_read(
-                AlignmentDirection::get_alignment_dir(f_pair_state, PairState::None),
-                &config.strand_filter,
-            ) {
+            let dir = AlignmentDirection::get_alignment_dir(f_pair_state, PairState::None);
+            if AlignmentDirection::filter_read(dir, &config.strand_filter) {
+                if debug {
+                    replace_key_with_strand_dir(key, matched_sequences, dir);
+                }
                 return;
             }
         } else if let Some((r_pair_state, _, _)) = reverse_hits {
-            if AlignmentDirection::filter_read(
-                AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state),
-                &config.strand_filter,
-            ) {
+            let dir = AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state);
+            if AlignmentDirection::filter_read(dir, &config.strand_filter) {
+                if debug {
+                    replace_key_with_strand_dir(key, matched_sequences, dir);
+                }
                 return;
             }
         }
@@ -300,7 +336,7 @@ pub fn score<'a>(
     debug_info: Option<&mut AlignDebugInfo>,
 ) -> (
     Vec<(Vec<String>, i32)>,
-    Vec<(Vec<String>, String, f64, usize)>,
+    Vec<(Vec<String>, String, f64, usize, String)>,
 ) {
     let (index_forward, index_backward) = index_pair;
     let (sequences, sequences_2) = sequence_iter_pair;
@@ -325,6 +361,7 @@ pub fn score<'a>(
             reference_metadata,
             config,
         );
+    forward_matched_sequences.append(&mut backward_matched_sequences);
 
     forward_align_debug_info.merge(backward_align_debug_info);
     let mut results: HashMap<Vec<String>, i32> = HashMap::new();
@@ -342,10 +379,13 @@ pub fn score<'a>(
             reference_metadata,
             config,
             &mut forward_align_debug_info,
+            &mut forward_matched_sequences,
+            key,
+            debug_info.is_some(),
         );
     }
 
-    for (_, r) in backward_score.into_iter() {
+    for (key, r) in backward_score.into_iter() {
         AlignmentDirection::filter_hits(
             None,
             Some(r),
@@ -353,6 +393,9 @@ pub fn score<'a>(
             reference_metadata,
             config,
             &mut forward_align_debug_info,
+            &mut forward_matched_sequences,
+            key,
+            debug_info.is_some(),
         );
     }
 
@@ -366,7 +409,6 @@ pub fn score<'a>(
         debug_info.merge(forward_align_debug_info);
     }
 
-    forward_matched_sequences.append(&mut backward_matched_sequences);
     (ret, forward_matched_sequences)
 }
 
@@ -378,7 +420,7 @@ fn generate_score<'a>(
     config: &AlignFilterConfig,
 ) -> (
     HashMap<String, (PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
-    Vec<(Vec<String>, String, f64, usize)>,
+    Vec<(Vec<String>, String, f64, usize, String)>,
     AlignDebugInfo,
 ) {
     // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
@@ -387,7 +429,7 @@ fn generate_score<'a>(
         (PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>),
     > = HashMap::new();
     let mut debug_info: AlignDebugInfo = Default::default();
-    let mut read_matches: Vec<(Vec<String>, String, f64, usize)> = Vec::new();
+    let mut read_matches: Vec<(Vec<String>, String, f64, usize, String)> = Vec::new();
 
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
     for read in sequences {
@@ -507,26 +549,42 @@ fn generate_score<'a>(
                 continue;
             };
 
-            match v.0 {
-                PairState::First => read_matches.push((key.clone(), read.to_string(), s, n_s)),
-                PairState::Second => match &read_rev {
-                    Some(r) => read_matches.push((key.clone(), r.to_string(), r_s, r_n_s)),
-                    None => (),
-                },
-                PairState::Both => read_matches.push((key.clone(), read.to_string(), s, r_n_s)),
-                PairState::None => (),
-            };
-
             let read_key = match &read_rev {
                 Some(rev) => read.to_string() + &rev.to_string(),
                 None => read.to_string(),
+            };
+
+            match v.0 {
+                PairState::First => {
+                    read_matches.push((key.clone(), read.to_string(), s, n_s, read_key.clone()))
+                }
+                PairState::Second => match &read_rev {
+                    Some(r) => read_matches.push((
+                        key.clone(),
+                        r.to_string(),
+                        r_s,
+                        r_n_s,
+                        read_key.clone(),
+                    )),
+                    None => (),
+                },
+                PairState::Both => {
+                    read_matches.push((key.clone(), read.to_string(), s, r_n_s, read_key.clone()))
+                }
+                PairState::None => (),
             };
 
             score_map.insert(read_key, v);
             debug_info.read_units_aligned += 1;
         } else {
             // If both equivalence classes are empty, the attempted alignment has failed, but we still report the failed alignment
-            read_matches.push((Vec::new(), read.to_string(), failed_score, failed_raw_score));
+            read_matches.push((
+                Vec::new(),
+                read.to_string(),
+                failed_score,
+                failed_raw_score,
+                String::new(),
+            ));
         }
     }
 

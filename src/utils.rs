@@ -1,12 +1,11 @@
-
 use crate::align::AlignDebugInfo;
+use crate::reference_library::ReferenceMetadata;
 use csv::Reader;
 use debruijn::dna_string::DnaString;
-use crate::reference_library::ReferenceMetadata;
-use std::fs::{OpenOptions, File};
+use flate2::{Compression, GzBuilder};
+use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use unwrap::unwrap;
-use flate2::{Compression, GzBuilder};
 
 // Takes a reader and returns a csv reader that wraps it, configures to use tab delimiters
 pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
@@ -38,9 +37,7 @@ pub fn validate_reference_pairs(
 
     for (i, reference) in reference_genome.enumerate() {
         reference_seqs.push(DnaString::from_acgt_bytes(reference.as_bytes()));
-        reference_seqs_rev.push(DnaString::from_dna_string(&revcomp(
-            reference,
-        )));
+        reference_seqs_rev.push(DnaString::from_dna_string(&revcomp(reference)));
         reference_names.push(unwrap!(reference_library.next(), "Error -- could not read library name #{} after JSON parse, corrupted internal state.", i).clone());
     }
 
@@ -65,7 +62,12 @@ pub fn append_match_percent(
 }
 
 // Write the given vector of scores to a TSV file
-pub fn write_to_tsv(results: &Vec<(Vec<String>, i32)>, group_row: Option<Vec<String>>, write_header: bool, output_path: &str) {
+pub fn write_to_tsv(
+    results: &Vec<(Vec<String>, i32)>,
+    group_row: Option<Vec<String>>,
+    write_header: bool,
+    output_path: &str,
+) {
     let mut str_rep = String::new();
 
     // Add the headers to the top of the string representation of the tsv file
@@ -76,8 +78,8 @@ pub fn write_to_tsv(results: &Vec<(Vec<String>, i32)>, group_row: Option<Vec<Str
             Some(ref _s) => {
                 str_rep += "\t";
                 str_rep += "cell barcode";
-            },
-            None => ()
+            }
+            None => (),
         }
 
         str_rep += "\n";
@@ -85,7 +87,7 @@ pub fn write_to_tsv(results: &Vec<(Vec<String>, i32)>, group_row: Option<Vec<Str
 
     let group_row_iter = match group_row {
         Some(ref vec) => vec.clone(),
-        None => Vec::new()
+        None => Vec::new(),
     };
     let mut group_row_iter = group_row_iter.iter();
 
@@ -99,8 +101,8 @@ pub fn write_to_tsv(results: &Vec<(Vec<String>, i32)>, group_row: Option<Vec<Str
             Some(ref _vec) => {
                 str_rep += "\t";
                 str_rep += group_row_iter.next().unwrap();
-            },
-            None => ()
+            }
+            None => (),
         }
 
         str_rep += "\n";
@@ -142,17 +144,39 @@ pub fn write_debug_info(info: AlignDebugInfo) {
 
     let mut str_rep = String::new();
 
-    str_rep += "Read units aligned: "; str_rep += &info.read_units_aligned.to_string(); str_rep += "\n";
-    str_rep += "Units filtered due to being below score threshold: "; str_rep += &info.score_below_threshold.to_string(); str_rep += "\n";
-    str_rep += "Units filtered due to multiple match: "; str_rep += &info.discarded_multiple_match.to_string(); str_rep += "\n";
-    str_rep += "Units filtered due to non-zero mismatches: "; str_rep += &info.discarded_nonzero_mismatch.to_string(); str_rep += "\n";
-    str_rep += "Units filtered due to not matching the reference library: "; str_rep += &info.no_match.to_string(); str_rep += "\n";
-    str_rep += "Units filtered due to not matching the reference library and having a low score: "; str_rep += &info.no_match_and_score_below_threshold.to_string(); str_rep += "\n";
-    str_rep += "Units filtered for different reasons between the forward and reverse read: "; str_rep += &info.different_filter_reasons.to_string(); str_rep += "\n";
-    str_rep += "Units filtered due to non-matching pair alignments: "; str_rep += &info.not_matching_pair.to_string(); str_rep += "\n";
-    str_rep += "Units filtered due to a failed force intersect: "; str_rep += &info.force_intersect_failure.to_string(); str_rep += "\n";
-    str_rep += "Reads discarded due to being too short after processing: "; str_rep += &info.short_read.to_string(); str_rep += "\n";
-    str_rep += "Reads discarded due to equivalence class exceeding the max hits to report: "; str_rep += &info.max_hits_exceeded.to_string(); str_rep += "\n";
+    str_rep += "Read units aligned: ";
+    str_rep += &info.read_units_aligned.to_string();
+    str_rep += "\n";
+    str_rep += "Units filtered due to being below score threshold: ";
+    str_rep += &info.score_below_threshold.to_string();
+    str_rep += "\n";
+    str_rep += "Units filtered due to multiple match: ";
+    str_rep += &info.discarded_multiple_match.to_string();
+    str_rep += "\n";
+    str_rep += "Units filtered due to non-zero mismatches: ";
+    str_rep += &info.discarded_nonzero_mismatch.to_string();
+    str_rep += "\n";
+    str_rep += "Units filtered due to not matching the reference library: ";
+    str_rep += &info.no_match.to_string();
+    str_rep += "\n";
+    str_rep += "Units filtered due to not matching the reference library and having a low score: ";
+    str_rep += &info.no_match_and_score_below_threshold.to_string();
+    str_rep += "\n";
+    str_rep += "Units filtered for different reasons between the forward and reverse read: ";
+    str_rep += &info.different_filter_reasons.to_string();
+    str_rep += "\n";
+    str_rep += "Units filtered due to non-matching pair alignments: ";
+    str_rep += &info.not_matching_pair.to_string();
+    str_rep += "\n";
+    str_rep += "Units filtered due to a failed force intersect: ";
+    str_rep += &info.force_intersect_failure.to_string();
+    str_rep += "\n";
+    str_rep += "Reads discarded due to being too short after processing: ";
+    str_rep += &info.short_read.to_string();
+    str_rep += "\n";
+    str_rep += "Reads discarded due to equivalence class exceeding the max hits to report: ";
+    str_rep += &info.max_hits_exceeded.to_string();
+    str_rep += "\n";
 
     let mut file = OpenOptions::new()
         .write(true)
@@ -165,7 +189,10 @@ pub fn write_debug_info(info: AlignDebugInfo) {
         .expect("Error -- could not write debug info to file");
 }
 
-pub fn filter_scores(reference_scores: Vec<(Vec<String>, i32)>, score_filter: &i32) -> Vec<(Vec<String>, i32)> {
+pub fn filter_scores(
+    reference_scores: Vec<(Vec<String>, i32)>,
+    score_filter: &i32,
+) -> Vec<(Vec<String>, i32)> {
     // Remove scores below the score threshold
     let reference_scores: Vec<(Vec<String>, i32)> = reference_scores
         .into_iter()
@@ -175,7 +202,6 @@ pub fn filter_scores(reference_scores: Vec<(Vec<String>, i32)>, score_filter: &i
     reference_scores
 }
 
-
 pub struct PseudoalignerData {
     pub reference_names: Vec<Vec<String>>,
     pub read_umi_name: Vec<String>,
@@ -183,24 +209,35 @@ pub struct PseudoalignerData {
     pub score: Vec<f64>,
     pub raw_score: Vec<usize>,
     pub pair: Vec<String>,
-    pub sequence: Vec<String>
+    pub sequence: Vec<String>,
+    pub strand_filter_reason: Vec<String>,
 }
 
 pub struct BamSpecificAlignMetadata {
     pub mapq: Vec<u8>,
     pub orientation: Vec<String>,
-    pub hits: Vec<String>
+    pub hits: Vec<String>,
 }
 
-pub fn write_read_list(pseudoaligner_data: &PseudoalignerData, bam_data: Option<&BamSpecificAlignMetadata>, output_path: &str) {
+pub fn write_read_list(
+    pseudoaligner_data: &PseudoalignerData,
+    bam_data: Option<&BamSpecificAlignMetadata>,
+    output_path: &str,
+) {
     let mut str_rep = String::new();
 
     // Append the results to the tsv string
     for (i, _) in pseudoaligner_data.reference_names.iter().enumerate() {
-        if !(i < pseudoaligner_data.reference_names.len() && i < pseudoaligner_data.read_umi_name.len() && i < pseudoaligner_data.barcode_sample_name.len() && 
-             i < pseudoaligner_data.score.len() && i < pseudoaligner_data.pair.len() && i < pseudoaligner_data.sequence.len()) {
-                println!("Debug data truncated due to indexing error");
-                return
+        if !(i < pseudoaligner_data.reference_names.len()
+            && i < pseudoaligner_data.read_umi_name.len()
+            && i < pseudoaligner_data.barcode_sample_name.len()
+            && i < pseudoaligner_data.score.len()
+            && i < pseudoaligner_data.pair.len()
+            && i < pseudoaligner_data.sequence.len()
+            && i < pseudoaligner_data.strand_filter_reason.len())
+        {
+            println!("Debug data truncated due to indexing error");
+            return;
         }
 
         str_rep += &pseudoaligner_data.reference_names[i].join(",");
@@ -216,6 +253,8 @@ pub fn write_read_list(pseudoaligner_data: &PseudoalignerData, bam_data: Option<
         str_rep += &pseudoaligner_data.pair[i];
         str_rep += "\t";
         str_rep += &pseudoaligner_data.sequence[i];
+        str_rep += "\t";
+        str_rep += &pseudoaligner_data.strand_filter_reason[i];
 
         if let Some(ref metadata) = bam_data {
             if metadata.mapq.len() > 0 && i < metadata.mapq.len() {
@@ -244,47 +283,49 @@ pub fn write_read_list(pseudoaligner_data: &PseudoalignerData, bam_data: Option<
         .expect("Could not create output file path for alignment metadata");
 
     let mut gz = GzBuilder::new()
-                            .filename(output_path)
-                            .write(f, Compression::default());
-    gz.write(str_rep.as_bytes()).expect("Could not write to alignment metadata file.");
-    gz.finish().expect("Could not flush to alignment metadata file buffer.");
+        .filename(output_path)
+        .write(f, Compression::default());
+    gz.write(str_rep.as_bytes())
+        .expect("Could not write to alignment metadata file.");
+    gz.finish()
+        .expect("Could not flush to alignment metadata file buffer.");
 }
 
 pub fn revcomp(dna: &str) -> String {
     // result vector
-    let mut rdna: String = String::with_capacity(dna.len()); 
+    let mut rdna: String = String::with_capacity(dna.len());
 
     // iterate through the input &str
     for c in dna.chars().rev() {
         // test the input
         match is_dna(c) {
             false => panic!("Input sequence base is not DNA: {}", dna),
-            true => rdna.push(switch_base(c))
+            true => rdna.push(switch_base(c)),
         }
     }
     rdna
 }
 
-fn switch_base(c:char) -> char {
+fn switch_base(c: char) -> char {
     match c {
-        'a' => 't' ,
-        'c' => 'g' ,
-        't' => 'a' ,
-        'g' => 'c' ,
+        'a' => 't',
+        'c' => 'g',
+        't' => 'a',
+        'g' => 'c',
         'u' => 'a',
-        'A' => 'T' ,
-        'C' => 'G' ,
-        'T' => 'A' ,
+        'A' => 'T',
+        'C' => 'G',
+        'T' => 'A',
         'G' => 'C',
         'U' => 'A',
-        _ => 'N'
+        _ => 'N',
     }
 }
 
 fn is_dna(dna: char) -> bool {
     match dna {
-        'A' | 'a' | 'C' | 'c' | 'G' | 'g' | 'T' | 't' | 'U'| 'u' | 'N' | 'n' => true,
-        _ => false
+        'A' | 'a' | 'C' | 'c' | 'G' | 'g' | 'T' | 't' | 'U' | 'u' | 'N' | 'n' => true,
+        _ => false,
     }
 }
 
