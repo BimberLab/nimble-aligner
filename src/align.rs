@@ -73,6 +73,15 @@ pub struct AlignDebugInfo {
     pub force_intersect_failure: usize,
     pub short_read: usize,
     pub max_hits_exceeded: usize,
+    pub ff_reported: usize,
+    pub rr_reported: usize,
+    pub uu_reported: usize,
+    pub fr_reported: usize,
+    pub fu_reported: usize,
+    pub rf_reported: usize,
+    pub ru_reported: usize,
+    pub uf_reported: usize,
+    pub ur_reported: usize
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -121,8 +130,9 @@ impl AlignmentDirection {
     fn get_alignment_dir(
         forward_pair_state: PairState,
         reverse_pair_state: PairState,
+        debug_info: &mut AlignDebugInfo
     ) -> AlignmentDirection {
-        match (forward_pair_state, reverse_pair_state) {
+        let dir = match (forward_pair_state, reverse_pair_state) {
             (PairState::First, PairState::First) => AlignmentDirection::FF,
             (PairState::First, PairState::Second) => AlignmentDirection::FR,
             (PairState::Second, PairState::First) => AlignmentDirection::RF,
@@ -139,7 +149,21 @@ impl AlignmentDirection {
             (PairState::Both, PairState::None) => AlignmentDirection::FU,
             (PairState::None, PairState::Both) => AlignmentDirection::UF,
             (PairState::None, PairState::None) => AlignmentDirection::UU,
-        }
+        };
+
+        match dir {
+            AlignmentDirection::FF => { debug_info.ff_reported += 1 },
+            AlignmentDirection::RR => { debug_info.rr_reported += 1 },
+            AlignmentDirection::UU => { debug_info.uu_reported += 1 },
+            AlignmentDirection::FR => { debug_info.fr_reported += 1 },
+            AlignmentDirection::FU => { debug_info.fu_reported += 1 },
+            AlignmentDirection::RF => { debug_info.rf_reported += 1 },
+            AlignmentDirection::RU => { debug_info.ru_reported += 1 },
+            AlignmentDirection::UF => { debug_info.uf_reported += 1 },
+            AlignmentDirection::UR => { debug_info.ur_reported += 1 },
+        };
+
+        dir
     }
 
     fn filter_hits(
@@ -155,7 +179,7 @@ impl AlignmentDirection {
     ) {
         if let Some((f_pair_state, _, _)) = forward_hits {
             if let Some((r_pair_state, _, _)) = reverse_hits {
-                let dir = AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state);
+                let dir = AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state, debug_info);
                 if AlignmentDirection::filter_read(dir, &config.strand_filter) {
                     if debug {
                         replace_key_with_strand_dir(key, matched_sequences, dir);
@@ -164,7 +188,7 @@ impl AlignmentDirection {
                 }
             }
 
-            let dir = AlignmentDirection::get_alignment_dir(f_pair_state, PairState::None);
+            let dir = AlignmentDirection::get_alignment_dir(f_pair_state, PairState::None, debug_info);
             if AlignmentDirection::filter_read(dir, &config.strand_filter) {
                 if debug {
                     replace_key_with_strand_dir(key, matched_sequences, dir);
@@ -172,7 +196,7 @@ impl AlignmentDirection {
                 return;
             }
         } else if let Some((r_pair_state, _, _)) = reverse_hits {
-            let dir = AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state);
+            let dir = AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state, debug_info);
             if AlignmentDirection::filter_read(dir, &config.strand_filter) {
                 if debug {
                     replace_key_with_strand_dir(key, matched_sequences, dir);
@@ -241,7 +265,7 @@ impl AlignmentDirection {
             AlignmentDirection::FR => false,
             AlignmentDirection::FU => false,
             AlignmentDirection::RF => true,
-            AlignmentDirection::RU => true,
+            AlignmentDirection::RU => false,
             AlignmentDirection::UF => false,
             AlignmentDirection::UR => false,
         }
@@ -257,7 +281,7 @@ impl AlignmentDirection {
             AlignmentDirection::RF => false,
             AlignmentDirection::RU => false,
             AlignmentDirection::UF => false,
-            AlignmentDirection::UR => true,
+            AlignmentDirection::UR => false,
         }
     }
 }
@@ -303,7 +327,6 @@ impl AlignDebugInfo {
 
     fn merge(&mut self, info: AlignDebugInfo) {
         self.read_units_aligned += info.read_units_aligned;
-        self.read_units_aligned += info.read_units_aligned;
         self.score_below_threshold += info.score_below_threshold;
         self.discarded_multiple_match += info.discarded_multiple_match;
         self.discarded_nonzero_mismatch += info.discarded_nonzero_mismatch;
@@ -313,6 +336,19 @@ impl AlignDebugInfo {
         self.not_matching_pair += info.not_matching_pair;
         self.force_intersect_failure += info.force_intersect_failure;
         self.short_read += info.short_read;
+        self.ff_reported += info.ff_reported;
+        self.rr_reported += info.rr_reported;
+        self.uu_reported += info.uu_reported;
+        self.fr_reported += info.fr_reported;
+        self.fu_reported += info.fu_reported;
+        self.rf_reported += info.rf_reported;
+        self.ru_reported += info.ru_reported;
+        self.uf_reported += info.uf_reported;
+        self.ur_reported += info.ur_reported;
+    }
+
+    pub fn get_total_attempted_reads(&self) -> usize {
+        return self.read_units_aligned + self.score_below_threshold + self.discarded_multiple_match + self.discarded_nonzero_mismatch + self.no_match + self.no_match_and_score_below_threshold + self.different_filter_reasons + self.not_matching_pair + self.force_intersect_failure + self.short_read
     }
 }
 
