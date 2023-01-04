@@ -41,9 +41,12 @@ fn main() {
         "fiveprime" => StrandFilter::FivePrime,
         "threeprime" => StrandFilter::ThreePrime,
         "none" => StrandFilter::None,
-        _ => panic!("Could not parse strand_filter option.")
+        _ => panic!("Could not parse strand_filter option."),
     };
 
+    if debug_file.is_some() {
+        println!("Reference path: {:?}\nOutput path: {:?}\nInput files: {:?}\nNumber of Cores: {:?}\nDebug file: {:?}\nAlignment file: {:?}\nStrand filter: {:?}", reference_json_path, output_path, input_files, num_cores, debug_file, alignment_file, strand_filter);
+    }
     println!("Loading and preprocessing reference data");
 
     // Read library alignment config info, reference library metadata, and sequences from library json
@@ -86,7 +89,7 @@ fn main() {
             &align_config,
             output_path,
             debug_file,
-            alignment_file
+            alignment_file,
         );
     } else {
         bam::process(
@@ -96,7 +99,7 @@ fn main() {
             &align_config,
             output_path,
             debug_file,
-            alignment_file
+            alignment_file,
         );
     };
 

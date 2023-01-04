@@ -52,6 +52,7 @@ pub struct AlignFilterConfig {
     pub strand_filter: StrandFilter,
 }
 
+#[derive(Debug)]
 pub enum StrandFilter {
     Unstranded,
     FivePrime,
@@ -81,7 +82,7 @@ pub struct AlignDebugInfo {
     pub rf_reported: usize,
     pub ru_reported: usize,
     pub uf_reported: usize,
-    pub ur_reported: usize
+    pub ur_reported: usize,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -130,7 +131,7 @@ impl AlignmentDirection {
     fn get_alignment_dir(
         forward_pair_state: PairState,
         reverse_pair_state: PairState,
-        debug_info: &mut AlignDebugInfo
+        debug_info: &mut AlignDebugInfo,
     ) -> AlignmentDirection {
         let dir = match (forward_pair_state, reverse_pair_state) {
             (PairState::First, PairState::First) => AlignmentDirection::FF,
@@ -152,15 +153,15 @@ impl AlignmentDirection {
         };
 
         match dir {
-            AlignmentDirection::FF => { debug_info.ff_reported += 1 },
-            AlignmentDirection::RR => { debug_info.rr_reported += 1 },
-            AlignmentDirection::UU => { debug_info.uu_reported += 1 },
-            AlignmentDirection::FR => { debug_info.fr_reported += 1 },
-            AlignmentDirection::FU => { debug_info.fu_reported += 1 },
-            AlignmentDirection::RF => { debug_info.rf_reported += 1 },
-            AlignmentDirection::RU => { debug_info.ru_reported += 1 },
-            AlignmentDirection::UF => { debug_info.uf_reported += 1 },
-            AlignmentDirection::UR => { debug_info.ur_reported += 1 },
+            AlignmentDirection::FF => debug_info.ff_reported += 1,
+            AlignmentDirection::RR => debug_info.rr_reported += 1,
+            AlignmentDirection::UU => debug_info.uu_reported += 1,
+            AlignmentDirection::FR => debug_info.fr_reported += 1,
+            AlignmentDirection::FU => debug_info.fu_reported += 1,
+            AlignmentDirection::RF => debug_info.rf_reported += 1,
+            AlignmentDirection::RU => debug_info.ru_reported += 1,
+            AlignmentDirection::UF => debug_info.uf_reported += 1,
+            AlignmentDirection::UR => debug_info.ur_reported += 1,
         };
 
         dir
@@ -179,7 +180,8 @@ impl AlignmentDirection {
     ) {
         if let Some((f_pair_state, _, _)) = forward_hits {
             if let Some((r_pair_state, _, _)) = reverse_hits {
-                let dir = AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state, debug_info);
+                let dir =
+                    AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state, debug_info);
                 if AlignmentDirection::filter_read(dir, &config.strand_filter) {
                     if debug {
                         replace_key_with_strand_dir(key, matched_sequences, dir);
@@ -188,7 +190,8 @@ impl AlignmentDirection {
                 }
             }
 
-            let dir = AlignmentDirection::get_alignment_dir(f_pair_state, PairState::None, debug_info);
+            let dir =
+                AlignmentDirection::get_alignment_dir(f_pair_state, PairState::None, debug_info);
             if AlignmentDirection::filter_read(dir, &config.strand_filter) {
                 if debug {
                     replace_key_with_strand_dir(key, matched_sequences, dir);
@@ -196,7 +199,8 @@ impl AlignmentDirection {
                 return;
             }
         } else if let Some((r_pair_state, _, _)) = reverse_hits {
-            let dir = AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state, debug_info);
+            let dir =
+                AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state, debug_info);
             if AlignmentDirection::filter_read(dir, &config.strand_filter) {
                 if debug {
                     replace_key_with_strand_dir(key, matched_sequences, dir);
@@ -348,7 +352,16 @@ impl AlignDebugInfo {
     }
 
     pub fn get_total_attempted_reads(&self) -> usize {
-        return self.read_units_aligned + self.score_below_threshold + self.discarded_multiple_match + self.discarded_nonzero_mismatch + self.no_match + self.no_match_and_score_below_threshold + self.different_filter_reasons + self.not_matching_pair + self.force_intersect_failure + self.short_read
+        return self.read_units_aligned
+            + self.score_below_threshold
+            + self.discarded_multiple_match
+            + self.discarded_nonzero_mismatch
+            + self.no_match
+            + self.no_match_and_score_below_threshold
+            + self.different_filter_reasons
+            + self.not_matching_pair
+            + self.force_intersect_failure
+            + self.short_read;
     }
 }
 
