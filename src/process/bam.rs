@@ -84,7 +84,13 @@ pub fn process(
             }
 
             println!("Writing results.");
-            write_to_tsv(&results, Some(cell_barcodes), false, output_path);
+            write_to_tsv(
+                &results,
+                Some(cell_barcodes),
+                false,
+                output_path,
+                reader.number_error_reports > 0,
+            );
 
             return results;
         };

@@ -1,8 +1,8 @@
-use crate::align::{AlignFilterConfig, AlignDebugInfo, PseudoAligner};
+use crate::align::{AlignDebugInfo, AlignFilterConfig, PseudoAligner};
 use crate::parse::fastq::get_error_checked_fastq_readers;
 use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
-use crate::utils::{write_to_tsv, write_debug_info, filter_scores, write_read_list};
+use crate::utils::{filter_scores, write_debug_info, write_read_list, write_to_tsv};
 
 pub fn process(
     input_files: Vec<&str>,
@@ -11,7 +11,7 @@ pub fn process(
     align_config: &AlignFilterConfig,
     output_path: &str,
     debug_file: Option<String>,
-    alignment_file: Option<String>
+    alignment_file: Option<String>,
 ) {
     /* Get error-checked iterators to the sequences that will be aligned to the reference from the
      * sequence genome file(s) */
@@ -53,7 +53,7 @@ pub fn process(
             reference_index,
             reference_metadata,
             align_config,
-            Some(&mut debug_info)
+            Some(&mut debug_info),
         )
     } else {
         score(
@@ -62,13 +62,19 @@ pub fn process(
             reference_index,
             reference_metadata,
             align_config,
-            None
+            None,
         )
     };
 
     println!("Writing results to file");
 
-    write_to_tsv(&filter_scores(results, &align_config.score_filter), None, true, output_path);
+    write_to_tsv(
+        &filter_scores(results, &align_config.score_filter),
+        None,
+        true,
+        output_path,
+        false,
+    );
 
     if owned_debug_file != "".to_owned() {
         write_debug_info(debug_info);

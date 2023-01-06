@@ -74,6 +74,7 @@ pub fn write_to_tsv(
     group_row: Option<Vec<String>>,
     write_header: bool,
     output_path: &str,
+    in_error_state: bool,
 ) {
     let mut str_rep = String::new();
 
@@ -124,6 +125,10 @@ pub fn write_to_tsv(
 
     file.write_all(str_rep.as_bytes())
         .expect("Error -- could not write results to file");
+
+    if in_error_state {
+        panic!("Error: nimble in error state, see log");
+    }
 }
 
 // Take a score vector produced by utils::convert_scores_to_percentage() and sort them by name
@@ -154,140 +159,203 @@ pub fn write_debug_info(info: AlignDebugInfo) {
     str_rep += "Read units aligned: ";
     str_rep += &info.read_units_aligned.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.read_units_aligned as f64 / info.get_total_attempted_reads() as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.read_units_aligned as f64 / info.get_total_attempted_reads() as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads attempted)";
     str_rep += "\n";
 
     str_rep += "Units filtered due to being below score threshold: ";
     str_rep += &info.score_below_threshold.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.score_below_threshold as f64 / info.get_total_attempted_reads() as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.score_below_threshold as f64 / info.get_total_attempted_reads() as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads attempted)";
     str_rep += "\n";
 
     str_rep += "Units filtered due to multiple match: ";
     str_rep += &info.discarded_multiple_match.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.discarded_multiple_match as f64 / info.get_total_attempted_reads() as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.discarded_multiple_match as f64 / info.get_total_attempted_reads() as f64)
+            .to_string(),
+        6,
+    );
     str_rep += "% of reads attempted)";
     str_rep += "\n";
 
     str_rep += "Units filtered due to non-zero mismatches: ";
     str_rep += &info.discarded_nonzero_mismatch.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.discarded_nonzero_mismatch as f64 / info.get_total_attempted_reads() as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.discarded_nonzero_mismatch as f64 / info.get_total_attempted_reads() as f64)
+            .to_string(),
+        6,
+    );
     str_rep += "% of reads attempted)";
     str_rep += "\n";
 
     str_rep += "Units filtered due to not matching the reference library: ";
     str_rep += &info.no_match.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.no_match as f64 / info.get_total_attempted_reads() as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.no_match as f64 / info.get_total_attempted_reads() as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads attempted)";
     str_rep += "\n";
 
     str_rep += "Units filtered due to non-matching pair alignments: ";
     str_rep += &info.not_matching_pair.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.not_matching_pair as f64 / info.get_total_attempted_reads() as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.not_matching_pair as f64 / info.get_total_attempted_reads() as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads attempted)";
     str_rep += "\n";
 
     str_rep += "Reads discarded due to being too short after processing: ";
     str_rep += &info.short_read.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.short_read as f64 / info.get_total_attempted_reads() as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.short_read as f64 / info.get_total_attempted_reads() as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads attempted)";
     str_rep += "\n";
 
     str_rep += "Units filtered due to not matching the reference library and having a low score: ";
     str_rep += &info.no_match_and_score_below_threshold.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.no_match_and_score_below_threshold as f64 / info.get_total_attempted_reads() as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.no_match_and_score_below_threshold as f64 / info.get_total_attempted_reads() as f64)
+            .to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Units filtered for different reasons between the forward and reverse read: ";
     str_rep += &info.different_filter_reasons.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.different_filter_reasons as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.different_filter_reasons as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Units filtered due to a failed force intersect: ";
     str_rep += &info.force_intersect_failure.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.force_intersect_failure as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.force_intersect_failure as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Reads discarded due to equivalence class exceeding the max hits to report: ";
     str_rep += &info.max_hits_exceeded.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.max_hits_exceeded as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.max_hits_exceeded as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Read direction FF reported: ";
     str_rep += &info.ff_reported.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.ff_reported as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.ff_reported as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Read direction RR reported: ";
     str_rep += &info.rr_reported.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.rr_reported as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.rr_reported as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Read direction UU reported: ";
     str_rep += &info.uu_reported.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.uu_reported as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.uu_reported as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Read direction FR reported: ";
     str_rep += &info.fr_reported.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.fr_reported as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.fr_reported as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Read direction FU reported: ";
     str_rep += &info.fu_reported.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.fu_reported as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.fu_reported as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Read direction RF reported: ";
     str_rep += &info.rf_reported.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.rf_reported as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.rf_reported as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Read direction RU reported: ";
     str_rep += &info.ru_reported.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.ru_reported as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.ru_reported as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Read direction UF reported: ";
     str_rep += &info.uf_reported.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.uf_reported as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.uf_reported as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
     str_rep += "Read direction UR reported: ";
     str_rep += &info.ur_reported.to_string();
     str_rep += " (";
-    str_rep += truncate(&(info.ur_reported as f64 / info.read_units_aligned as f64).to_string(), 6);
+    str_rep += truncate(
+        &(info.ur_reported as f64 / info.read_units_aligned as f64).to_string(),
+        6,
+    );
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 

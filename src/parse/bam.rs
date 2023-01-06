@@ -16,7 +16,7 @@ pub struct UMIReader {
     next_umi: String,
     next_cell_barcode: String,
     terminate_on_error: bool,
-    number_error_reports: usize,
+    pub number_error_reports: usize,
 }
 
 impl UMIReader {
