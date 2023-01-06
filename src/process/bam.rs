@@ -21,7 +21,7 @@ pub fn process(
     debug_file: Option<String>,
     alignment_file: Option<String>,
 ) -> Vec<(Vec<String>, i32)> {
-    let mut reader = bam::UMIReader::new(input_files[0]);
+    let mut reader = bam::UMIReader::new(input_files[0], debug_file.is_none());
     let mut has_aligned = false;
     let mut score_map: HashMap<(Vec<String>, String), i32> = HashMap::new();
 

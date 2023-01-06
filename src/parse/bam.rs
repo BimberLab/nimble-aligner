@@ -2,6 +2,7 @@ use debruijn::dna_string::DnaString;
 use rust_htslib::{bam, bam::record::Aux, bam::Read, bam::Reader};
 
 const READ_BLOCK_REPORT_SIZE: usize = 1000000;
+const MAX_RECORD_ERROR_REPORT_SIZE: usize = 100;
 
 pub struct UMIReader {
     reader: bam::Reader,
@@ -13,11 +14,13 @@ pub struct UMIReader {
     pub next_umi_group: Vec<DnaString>,
     pub next_metadata_group: Vec<(u8, String, String, bool, String)>,
     next_umi: String,
-    next_cell_barcode: String
+    next_cell_barcode: String,
+    terminate_on_error: bool,
+    number_error_reports: usize,
 }
 
 impl UMIReader {
-    pub fn new(file_path: &str) -> UMIReader {
+    pub fn new(file_path: &str, terminate_on_error: bool) -> UMIReader {
         UMIReader {
             reader: Reader::from_path(file_path).unwrap(),
             read_counter: 0,
@@ -28,7 +31,9 @@ impl UMIReader {
             next_umi_group: Vec::new(),
             next_metadata_group: Vec::new(),
             next_umi: String::new(),
-            next_cell_barcode: String::new()
+            next_cell_barcode: String::new(),
+            terminate_on_error,
+            number_error_reports: 0,
         }
     }
 
@@ -53,14 +58,44 @@ impl UMIReader {
         self.next_cell_barcode.clear();
 
         for r in self.reader.records() {
-
             self.read_counter = self.read_counter + 1;
 
             if self.read_counter % READ_BLOCK_REPORT_SIZE == 0 && self.read_counter != 0 {
-                println!("Aligned reads {}-{}", self.read_counter-READ_BLOCK_REPORT_SIZE, self.read_counter);
+                println!(
+                    "Aligned reads {}-{}",
+                    self.read_counter - READ_BLOCK_REPORT_SIZE,
+                    self.read_counter
+                );
             }
 
-            let mut record = r.unwrap();
+            let record = match r {
+                Ok(record) => Ok(record),
+                Err(rust_htslib::tpool::Error::BamTruncatedRecord) => {
+                    if self.number_error_reports < MAX_RECORD_ERROR_REPORT_SIZE {
+                        println!("{}: Found truncated record", self.number_error_reports);
+                        self.number_error_reports += 1;
+                    }
+                    Err(rust_htslib::tpool::Error::BamTruncatedRecord)
+                }
+                Err(err) => {
+                    if self.number_error_reports < MAX_RECORD_ERROR_REPORT_SIZE {
+                        println!(
+                            "{}: Error {:?} when reading record",
+                            self.number_error_reports, err
+                        );
+                        self.number_error_reports += 1;
+                    }
+                    Err(err)
+                }
+            };
+
+            if record.is_err() && self.terminate_on_error {
+                panic!("Terminating on error when reading record.")
+            } else if record.is_err() && !self.terminate_on_error {
+                continue;
+            }
+
+            let mut record = record.unwrap();
 
             let read_umi = if let Ok(Aux::String(s)) = record.aux(b"UR") {
                 s.to_owned()
@@ -83,7 +118,7 @@ impl UMIReader {
             let orientation = String::from(record.strand().strand_symbol());
             let pair = match record.is_secondary() {
                 true => String::from("T"),
-                false => String::from("F")
+                false => String::from("F"),
             };
             let rev_comp = record.is_reverse();
             let hit = if let Ok(Aux::String(s)) = record.aux(b"GN") {
@@ -93,14 +128,12 @@ impl UMIReader {
             };
 
             if self.current_umi == read_umi {
-                self.current_umi_group
-                    .push(seq);
+                self.current_umi_group.push(seq);
                 self.current_metadata_group
                     .push((mapq, orientation, pair, rev_comp, hit));
                 self.current_cell_barcode = current_cell_barcode.clone();
             } else {
-                self.next_umi_group
-                    .push(seq);
+                self.next_umi_group.push(seq);
                 self.next_metadata_group
                     .push((mapq, orientation, pair, rev_comp, hit));
                 self.next_umi = read_umi.clone();
@@ -163,7 +196,6 @@ impl UMIReader {
             seq
         };*/
 
-
         DnaString::from_dna_string(&seq)
     }
 }
@@ -201,7 +233,7 @@ mod tests {
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
     }*/
-    
+
     #[test]
     fn strip_tail_t() {
         let expected_results = String::from("CCCC");
@@ -209,7 +241,7 @@ mod tests {
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
     }
-    
+
     #[test]
     fn strip_tail_a() {
         let expected_results = String::from("CCCC");
@@ -276,7 +308,8 @@ mod tests {
 
     #[test]
     fn strip_nothing_two() {
-        let expected_results = String::from("CAGACTAGCTAGCTAGCTACGCTACGACTAGCGCATCGAGAGGGCATAGCTCTAGCTACTAC");
+        let expected_results =
+            String::from("CAGACTAGCTAGCTAGCTACGCTACGACTAGCGCATCGAGAGGGCATAGCTCTAGCTACTAC");
         let input = "CAGACTAGCTAGCTAGCTACGCTACGACTAGCGCATCGAGAGGGCATAGCTCTAGCTACTAC".as_bytes();
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
