@@ -164,77 +164,77 @@ pub fn process(
         s.append(&mut s_extra);
         res.append(&mut res_extra);
 
-        bam_specific_alignment_metadata
-            .mapq
-            .append(&mut get_mapq_scores(
-                get_sequence_list_from_metadata(&res),
-                &current_metadata_table,
-            ));
-        bam_specific_alignment_metadata
-            .orientation
-            .append(&mut get_orientation(
-                get_sequence_list_from_metadata(&res),
-                &current_metadata_table,
-            ));
-        bam_specific_alignment_metadata.hits.append(&mut get_hits(
-            get_sequence_list_from_metadata(&res),
-            &current_metadata_table,
-        ));
-        alignment_metadata.reference_names.append(
-            &mut res
-                .clone()
-                .into_iter()
-                .map(|(group, _, _, _, _)| group)
-                .collect::<Vec<Vec<String>>>(),
-        );
-        alignment_metadata.sequence.append(
-            &mut res
-                .clone()
-                .into_iter()
-                .map(|(_, seq, _, _, _)| seq)
-                .collect::<Vec<String>>(),
-        );
-        alignment_metadata.score.append(
-            &mut res
-                .clone()
-                .into_iter()
-                .map(|(_, _, score, _, _)| score)
-                .collect::<Vec<f64>>(),
-        );
-        alignment_metadata.raw_score.append(
-            &mut res
-                .clone()
-                .into_iter()
-                .map(|(_, _, _, raw_score, _)| raw_score)
-                .collect::<Vec<usize>>(),
-        );
-        alignment_metadata.strand_filter_reason.append(
-            &mut res
-                .clone()
-                .into_iter()
-                .map(|(_, _, _, _, reason)| reason)
-                .collect::<Vec<String>>(),
-        );
-        alignment_metadata.barcode_sample_name.append(
-            &mut res
-                .clone()
-                .into_iter()
-                .map(|_| (&reader).current_cell_barcode.clone())
-                .collect::<Vec<String>>(),
-        );
-        alignment_metadata.read_umi_name.append(
-            &mut res
-                .clone()
-                .into_iter()
-                .map(|_| (&reader).current_umi.clone())
-                .collect::<Vec<String>>(),
-        );
-        alignment_metadata.pair.append(&mut get_pair(
-            get_sequence_list_from_metadata(&res),
-            &current_metadata_table,
-        ));
-
         if owned_alignment_file != "".to_owned() {
+            bam_specific_alignment_metadata
+                .mapq
+                .append(&mut get_mapq_scores(
+                    get_sequence_list_from_metadata(&res),
+                    &current_metadata_table,
+                ));
+            bam_specific_alignment_metadata
+                .orientation
+                .append(&mut get_orientation(
+                    get_sequence_list_from_metadata(&res),
+                    &current_metadata_table,
+                ));
+            bam_specific_alignment_metadata.hits.append(&mut get_hits(
+                get_sequence_list_from_metadata(&res),
+                &current_metadata_table,
+            ));
+            alignment_metadata.reference_names.append(
+                &mut res
+                    .clone()
+                    .into_iter()
+                    .map(|(group, _, _, _, _)| group)
+                    .collect::<Vec<Vec<String>>>(),
+            );
+            alignment_metadata.sequence.append(
+                &mut res
+                    .clone()
+                    .into_iter()
+                    .map(|(_, seq, _, _, _)| seq)
+                    .collect::<Vec<String>>(),
+            );
+            alignment_metadata.score.append(
+                &mut res
+                    .clone()
+                    .into_iter()
+                    .map(|(_, _, score, _, _)| score)
+                    .collect::<Vec<f64>>(),
+            );
+            alignment_metadata.raw_score.append(
+                &mut res
+                    .clone()
+                    .into_iter()
+                    .map(|(_, _, _, raw_score, _)| raw_score)
+                    .collect::<Vec<usize>>(),
+            );
+            alignment_metadata.strand_filter_reason.append(
+                &mut res
+                    .clone()
+                    .into_iter()
+                    .map(|(_, _, _, _, reason)| reason)
+                    .collect::<Vec<String>>(),
+            );
+            alignment_metadata.barcode_sample_name.append(
+                &mut res
+                    .clone()
+                    .into_iter()
+                    .map(|_| (&reader).current_cell_barcode.clone())
+                    .collect::<Vec<String>>(),
+            );
+            alignment_metadata.read_umi_name.append(
+                &mut res
+                    .clone()
+                    .into_iter()
+                    .map(|_| (&reader).current_umi.clone())
+                    .collect::<Vec<String>>(),
+            );
+            alignment_metadata.pair.append(&mut get_pair(
+                get_sequence_list_from_metadata(&res),
+                &current_metadata_table,
+            ));
+
             write_read_list(
                 &alignment_metadata,
                 Some(&bam_specific_alignment_metadata),
