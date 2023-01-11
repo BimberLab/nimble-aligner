@@ -3,7 +3,7 @@ use crate::reference_library::ReferenceMetadata;
 use csv::Reader;
 use debruijn::dna_string::DnaString;
 use flate2::{Compression, GzBuilder};
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use unwrap::unwrap;
 

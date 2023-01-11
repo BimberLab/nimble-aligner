@@ -13,7 +13,11 @@ fn unstranded_filter_fr() {
     // SETUP
     let seq_filename = "strandedness_FR.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::Unstranded);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::Unstranded,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -23,10 +27,9 @@ fn unstranded_filter_fr() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -36,19 +39,12 @@ fn unstranded_filter_fr() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![
-        (
-            vec![
-                String::from("strandedness_test_first"),
-            ],
-            1,
-        ),
-    ];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
@@ -59,7 +55,11 @@ fn unstranded_filter_rf() {
     // SETUP
     let seq_filename = "strandedness_RF.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::Unstranded);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::Unstranded,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -69,10 +69,9 @@ fn unstranded_filter_rf() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -82,19 +81,12 @@ fn unstranded_filter_rf() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![
-        (
-            vec![
-                String::from("strandedness_test_first"),
-            ],
-            1,
-        ),
-    ];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
@@ -105,7 +97,11 @@ fn unstranded_filter_fu() {
     // SETUP
     let seq_filename = "strandedness_FU.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::Unstranded);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::Unstranded,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -115,10 +111,9 @@ fn unstranded_filter_fu() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -128,19 +123,12 @@ fn unstranded_filter_fu() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![
-        (
-            vec![
-                String::from("strandedness_test_first"),
-            ],
-            1,
-        ),
-    ];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
@@ -151,7 +139,11 @@ fn unstranded_filter_uf() {
     // SETUP
     let seq_filename = "strandedness_UF.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::Unstranded);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::Unstranded,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -161,10 +153,9 @@ fn unstranded_filter_uf() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -174,19 +165,12 @@ fn unstranded_filter_uf() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![
-        (
-            vec![
-                String::from("strandedness_test_first"),
-            ],
-            1,
-        ),
-    ];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
@@ -197,7 +181,11 @@ fn unstranded_filter_ru() {
     // SETUP
     let seq_filename = "strandedness_RU.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::Unstranded);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::Unstranded,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -207,10 +195,9 @@ fn unstranded_filter_ru() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -220,19 +207,12 @@ fn unstranded_filter_ru() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![
-        (
-            vec![
-                String::from("strandedness_test_first"),
-            ],
-            1,
-        ),
-    ];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
@@ -243,7 +223,11 @@ fn unstranded_filter_ur() {
     // SETUP
     let seq_filename = "strandedness_UR.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::Unstranded);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::Unstranded,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -253,10 +237,9 @@ fn unstranded_filter_ur() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -266,19 +249,12 @@ fn unstranded_filter_ur() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![
-        (
-            vec![
-                String::from("strandedness_test_first"),
-            ],
-            1,
-        ),
-    ];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
@@ -289,7 +265,11 @@ fn fiveprime_filter_rf_failure() {
     // SETUP
     let seq_filename = "strandedness_RF.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::FivePrime);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::FivePrime,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -299,10 +279,9 @@ fn fiveprime_filter_rf_failure() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -312,7 +291,7 @@ fn fiveprime_filter_rf_failure() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
@@ -323,13 +302,16 @@ fn fiveprime_filter_rf_failure() {
     assert_eq!(results, expected_results);
 }
 
-
 #[test]
-fn fiveprime_filter_ru_failure() {
+fn fiveprime_filter_ru_success() {
     // SETUP
     let seq_filename = "strandedness_RU.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::FivePrime);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::FivePrime,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -339,10 +321,9 @@ fn fiveprime_filter_ru_failure() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -352,24 +333,27 @@ fn fiveprime_filter_ru_failure() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
 }
 
-
 #[test]
-fn fiveprime_filter_uf_failure() {
+fn fiveprime_filter_uf_success() {
     // SETUP
     let seq_filename = "strandedness_UF.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::FivePrime);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::FivePrime,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -379,10 +363,9 @@ fn fiveprime_filter_uf_failure() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -392,23 +375,27 @@ fn fiveprime_filter_uf_failure() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
 }
 
 #[test]
-fn fiveprime_filter_ur_revcomp_failure() {
+fn fiveprime_filter_ur_revcomp_success() {
     // SETUP
     let seq_filename = "UR_reversecomp.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::FivePrime);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::FivePrime,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -418,10 +405,9 @@ fn fiveprime_filter_ur_revcomp_failure() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -431,12 +417,12 @@ fn fiveprime_filter_ur_revcomp_failure() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
@@ -447,7 +433,11 @@ fn fiveprime_filter_fr_success() {
     // SETUP
     let seq_filename = "strandedness_FR.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::FivePrime);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::FivePrime,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -457,10 +447,9 @@ fn fiveprime_filter_fr_success() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -470,19 +459,12 @@ fn fiveprime_filter_fr_success() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![
-        (
-            vec![
-                String::from("strandedness_test_first"),
-            ],
-            1,
-        ),
-    ];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
@@ -493,7 +475,11 @@ fn threeprime_filter_fr_failure() {
     // SETUP
     let seq_filename = "strandedness_FR.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::ThreePrime);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::ThreePrime,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -503,10 +489,9 @@ fn threeprime_filter_fr_failure() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -516,7 +501,7 @@ fn threeprime_filter_fr_failure() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
@@ -526,14 +511,17 @@ fn threeprime_filter_fr_failure() {
 
     assert_eq!(results, expected_results);
 }
-
 
 #[test]
 fn threeprime_filter_fu_success() {
     // SETUP
     let seq_filename = "strandedness_FU.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::ThreePrime);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::ThreePrime,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -543,10 +531,9 @@ fn threeprime_filter_fu_success() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -556,30 +543,27 @@ fn threeprime_filter_fu_success() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![
-        (
-            vec![
-                String::from("strandedness_test_first"),
-            ],
-            1,
-        ),
-    ];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
 }
 
 #[test]
-fn threeprime_filter_ur_failure() {
+fn threeprime_filter_ur_success() {
     // SETUP
     let seq_filename = "strandedness_UR.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::ThreePrime);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::ThreePrime,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -589,10 +573,9 @@ fn threeprime_filter_ur_failure() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -602,12 +585,12 @@ fn threeprime_filter_ur_failure() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
@@ -618,7 +601,11 @@ fn fiveprime_filter_rf_success() {
     // SETUP
     let seq_filename = "strandedness_RF.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::ThreePrime);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::ThreePrime,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -628,10 +615,9 @@ fn fiveprime_filter_rf_success() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -641,19 +627,12 @@ fn fiveprime_filter_rf_success() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![
-        (
-            vec![
-                String::from("strandedness_test_first"),
-            ],
-            1,
-        ),
-    ];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
@@ -664,7 +643,11 @@ fn unstranded_revcomp_ur_to_uf() {
     // SETUP
     let seq_filename = "UR_reversecomp.sam";
     let lib_filename = "strandedness.json";
-    let (_, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::Unstranded);
+    let (_, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::Unstranded,
+    );
 
     let mut data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     data_path.push("tests/test-sequences");
@@ -674,10 +657,9 @@ fn unstranded_revcomp_ur_to_uf() {
     sequences.push(seq_filename);
 
     let sequences = &sequences
-            .into_os_string()
-            .into_string()
-            .expect("Could not convert unit test sequence to OsStr slice.");
-
+        .into_os_string()
+        .into_string()
+        .expect("Could not convert unit test sequence to OsStr slice.");
 
     // TEST
     let results = nimble::process::bam::process(
@@ -687,19 +669,12 @@ fn unstranded_revcomp_ur_to_uf() {
         &align_config,
         "/dev/null",
         None,
-        None
+        None,
     );
 
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![
-        (
-            vec![
-                String::from("strandedness_test_first"),
-            ],
-            1,
-        ),
-    ];
+    let expected_results = vec![(vec![String::from("strandedness_test_first")], 1)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);

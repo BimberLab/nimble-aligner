@@ -1,5 +1,3 @@
-use nimble::align::StrandFilter;
-
 extern crate csv;
 extern crate debruijn;
 extern crate debruijn_mapping;
@@ -13,7 +11,11 @@ mod utils;
 fn mismatch() {
     let seq_filename = "mismatch.fastq";
     let lib_filename = "mismatch.json";
-    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
+    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(
+        seq_filename,
+        lib_filename,
+        nimble::align::StrandFilter::None,
+    );
 
     let (results, _) = nimble::align::score(
         sequences,
@@ -21,13 +23,11 @@ fn mismatch() {
         &reference_index,
         &reference_metadata,
         &align_config,
-        None
+        None,
     );
     let results = utils::sort_score_vector(results);
 
-    let expected_results = vec![
-        (vec![String::from("NKG2E_NM_001104593")], 2),
-    ];
+    let expected_results = vec![(vec![String::from("NKG2E_NM_001104593")], 2)];
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);

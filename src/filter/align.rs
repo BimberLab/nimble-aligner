@@ -40,11 +40,21 @@ mod tests {
     // Case where the score is higher than the threshold -- should not filter the alignment
     #[test]
     fn do_not_filter() {
-        let score = 1.0;
+        let score = 50;
+        let normalized_score = 1.0;
+        let score_threshold = 20;
+        let score_percent = 0.5;
         let equiv_class = vec![1, 2];
 
-        let (results, _) = super::filter_alignment_by_metrics(score, equiv_class, 0.5, false);
-        let expected_results = Some((vec![1, 2], 1.0));
+        let (results, _) = super::filter_alignment_by_metrics(
+            score,
+            normalized_score,
+            score_threshold,
+            score_percent,
+            equiv_class,
+            false,
+        );
+        let expected_results = Some((vec![1, 2], 1.0, 50));
 
         assert_eq!(results, expected_results);
     }
@@ -52,11 +62,21 @@ mod tests {
     // Case where the score is lower than the threshold -- should filter the alignment
     #[test]
     fn filter() {
-        let score = 0.25;
+        let score = 10;
+        let normalized_score = 0.10;
+        let score_threshold = 20;
+        let score_percent = 0.5;
         let equiv_class = vec![1, 2];
 
-        let (results, _) = super::filter_alignment_by_metrics(score, equiv_class, 0.50, false);
-        let expected_results = None;
+        let (_, results) = super::filter_alignment_by_metrics(
+            score,
+            normalized_score,
+            score_threshold,
+            score_percent,
+            equiv_class,
+            false,
+        );
+        let expected_results = Some((super::FilterReason::ScoreBelowThreshold, 0.10, 10));
 
         assert_eq!(results, expected_results);
     }
@@ -65,11 +85,22 @@ mod tests {
      * reference and has discard_multiple_matches = true -- should filter the alignment */
     #[test]
     fn filter_multiple_matches() {
-        let score = 1.0;
+        let score = 50;
+        let normalized_score = 1.0;
+        let score_threshold = 20;
+        let score_percent = 0.5;
         let equiv_class = vec![1, 2];
 
-        let (results, _) = super::filter_alignment_by_metrics(score, equiv_class, 0.5, true);
-        let expected_results = None;
+        let (_, results) = super::filter_alignment_by_metrics(
+            score,
+            normalized_score,
+            score_threshold,
+            score_percent,
+            equiv_class,
+            true,
+        );
+
+        let expected_results = Some((super::FilterReason::DiscardedMultipleMatch, 1.0, 50));
 
         assert_eq!(results, expected_results);
     }

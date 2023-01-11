@@ -2,7 +2,7 @@ use crate::align::{AlignDebugInfo, AlignFilterConfig, PseudoAligner};
 use crate::parse::fastq::get_error_checked_fastq_readers;
 use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
-use crate::utils::{filter_scores, write_debug_info, write_read_list, write_to_tsv};
+use crate::utils::{filter_scores, write_debug_info, write_to_tsv};
 
 pub fn process(
     input_files: Vec<&str>,
@@ -33,7 +33,7 @@ pub fn process(
         "".to_owned()
     };
 
-    let owned_alignment_file = if alignment_file.is_some() {
+    let _owned_alignment_file = if alignment_file.is_some() {
         alignment_file.unwrap()
     } else {
         "".to_owned()
@@ -46,7 +46,7 @@ pub fn process(
     };
 
     // Perform alignment and filtration using the score package
-    let (results, alignment_metadata) = if owned_debug_file.clone() != "" {
+    let (results, _alignment_metadata) = if owned_debug_file.clone() != "" {
         score(
             sequences,
             reverse_sequences,
@@ -78,10 +78,6 @@ pub fn process(
 
     if owned_debug_file != "".to_owned() {
         write_debug_info(debug_info);
-    }
-
-    if owned_alignment_file != "".to_owned() {
-        //write_read_list(alignment_metadata, None, &owned_alignment_file);
     }
 
     print!("Output results written to output path");
