@@ -97,7 +97,7 @@ impl UMIReader {
 
             let mut record = record.unwrap();
 
-            let read_umi = if let Ok(Aux::String(s)) = record.aux(b"UR") {
+            let read_umi = if let Ok(Aux::String(s)) = record.aux(b"UB") {
                 s.to_owned()
             } else {
                 panic!("Error -- Could not read UMI.");
