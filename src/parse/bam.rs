@@ -103,7 +103,7 @@ impl UMIReader {
                 panic!("Error -- Could not read UMI.");
             };
 
-            let current_cell_barcode = if let Ok(Aux::String(s)) = record.aux(b"CR") {
+            let current_cell_barcode = if let Ok(Aux::String(s)) = record.aux(b"CB") {
                 s.to_owned()
             } else {
                 panic!("Error -- Could not read cell barcode.");
