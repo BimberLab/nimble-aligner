@@ -97,16 +97,24 @@ impl UMIReader {
 
             let mut record = record.unwrap();
 
-            let read_umi = if let Ok(Aux::String(s)) = record.aux(b"UB") {
-                s.to_owned()
+            let read_umi = if let Ok(Aux::String(corrected)) = record.aux(b"UB") {
+                corrected.to_owned()
             } else {
-                panic!("Error -- Could not read UMI.");
+                if let Ok(Aux::String(uncorrected)) = record.aux(b"UR") {
+                    uncorrected.to_owned()
+                } else {
+                    panic!("Error -- Could not read UMI.");
+                }
             };
 
-            let current_cell_barcode = if let Ok(Aux::String(s)) = record.aux(b"CB") {
-                s.to_owned()
+            let current_cell_barcode = if let Ok(Aux::String(corrected)) = record.aux(b"CB") {
+                (&corrected[0..corrected.len() - 2]).to_owned()
             } else {
-                panic!("Error -- Could not read cell barcode.");
+                if let Ok(Aux::String(uncorrected)) = record.aux(b"CR") {
+                    uncorrected.to_owned()
+                } else {
+                    panic!("Error -- Could not read cell barcode.");
+                }
             };
 
             if self.current_umi == "" {
