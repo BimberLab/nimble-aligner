@@ -158,7 +158,7 @@ impl UMIReader {
     // page 76, figure 3.1
     fn strip_nonbio_regions(seq: &[u8]) -> DnaString {
         // Convert seq to string for easy search operations
-        let seq = String::from_utf8(seq.to_owned()).unwrap();
+        //let seq = String::from_utf8(seq.to_owned()).unwrap();
 
         // Find TSO if it exists
         /*let mut tso_idx = seq.find("TTTCTTATATGGG"); // forward case
@@ -178,17 +178,21 @@ impl UMIReader {
         };*/
 
         // Remove the poly-T/poly-A tail if it exists
-        let mut poly_tail_idx = seq.find("TTTTTTTTTTTTTTTTTTT");
+        /*let mut poly_tail_idx = seq.find("TTTTTTTTTTTTTTTTTTT");
 
         if poly_tail_idx.is_none() {
             poly_tail_idx = seq.find("AAAAAAAAAAAAAAAAAAA");
         };
 
         let seq = if poly_tail_idx.is_some() {
-            String::from_utf8(seq.as_bytes()[..poly_tail_idx.unwrap()].to_vec()).unwrap()
+            println!("before: {}", seq);
+            let after =
+                String::from_utf8(seq.as_bytes()[..poly_tail_idx.unwrap()].to_vec()).unwrap();
+            println!("after: {}", after);
+            after
         } else {
             seq
-        };
+        };*/
 
         // Find the reverse primer if it exists
         /*let mut reverse_primer_idx = seq.find("GTACTCTGCGTTGATACCACTGCTT"); // forward case
@@ -204,7 +208,8 @@ impl UMIReader {
             seq
         };*/
 
-        DnaString::from_dna_string(&seq)
+        //DnaString::from_dna_string(&seq)
+        DnaString::from_acgt_bytes(seq)
     }
 }
 
@@ -240,7 +245,7 @@ mod tests {
         let input = "TTTTTTTATATATAAGAGAGAGAGAGAGAGAGAAAGAATATACCCCCCC".as_bytes();
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
-    }*/
+    }
 
     #[test]
     fn strip_tail_t() {
@@ -274,7 +279,7 @@ mod tests {
         assert_eq!(results, expected_results);
     }
 
-    /*#[test]
+    #[test]
     fn strip_forward_all() {
         let expected_results = String::from("CCCC");
         let input = "GGGGGGGGGGGGAGAGGAGAGACCACACACATTTCTTATATGGGCCCCTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTAGAGAGAGAGAG".as_bytes();
@@ -304,7 +309,7 @@ mod tests {
         let input = "CCCCCATGAGACGCAACTATGGTGACGAA".as_bytes();
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
-    }*/
+    }
 
     #[test]
     fn strip_nothing_one() {
@@ -321,5 +326,5 @@ mod tests {
         let input = "CAGACTAGCTAGCTAGCTACGCTACGACTAGCGCATCGAGAGGGCATAGCTCTAGCTACTAC".as_bytes();
         let results = super::UMIReader::strip_nonbio_regions(input).to_string();
         assert_eq!(results, expected_results);
-    }
+    }*/
 }
