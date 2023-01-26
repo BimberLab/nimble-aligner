@@ -264,6 +264,8 @@ pub fn process(
         let mut group = first_score.0.clone();
         let mut score = first_score.1;
 
+        // A UMI-worth of reads is collapsed into a single feature set, determined by the intersection of
+        // all of the matched features across all the UMI sequences, and their scores added
         loop {
             let next = scores.next();
 

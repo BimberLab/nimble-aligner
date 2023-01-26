@@ -17,6 +17,8 @@ pub struct UMIReader {
     next_cell_barcode: String,
     terminate_on_error: bool,
     pub number_error_reports: usize,
+    current_iteration_key: String,
+    next_iteration_key: String,
 }
 
 impl UMIReader {
@@ -34,6 +36,8 @@ impl UMIReader {
             next_cell_barcode: String::new(),
             terminate_on_error,
             number_error_reports: 0,
+            current_iteration_key: String::new(),
+            next_iteration_key: String::new(),
         }
     }
 
@@ -51,11 +55,13 @@ impl UMIReader {
         self.current_umi_group = self.next_umi_group.clone();
         self.current_metadata_group = self.next_metadata_group.clone();
         self.current_umi = self.next_umi.clone();
+        self.current_iteration_key = self.next_iteration_key.clone();
         self.current_cell_barcode = self.next_cell_barcode.clone();
         self.next_umi_group.clear();
         self.next_metadata_group.clear();
         self.next_umi.clear();
         self.next_cell_barcode.clear();
+        self.next_iteration_key.clear();
 
         for r in self.reader.records() {
             self.read_counter = self.read_counter + 1;
@@ -117,8 +123,14 @@ impl UMIReader {
                 }
             };
 
+            let current_iteration_key = read_umi.clone() + current_cell_barcode.as_str();
+
             if self.current_umi == "" {
                 self.current_umi = read_umi.clone();
+            }
+
+            if self.current_iteration_key == "" {
+                self.current_iteration_key = read_umi.clone() + current_cell_barcode.as_str();
             }
 
             let seq = UMIReader::strip_nonbio_regions(&record.seq().as_bytes()[..]);
@@ -135,17 +147,19 @@ impl UMIReader {
                 String::new()
             };
 
-            if self.current_umi == read_umi {
+            if self.current_iteration_key == current_iteration_key {
                 self.current_umi_group.push(seq);
                 self.current_metadata_group
                     .push((mapq, orientation, pair, rev_comp, hit));
                 self.current_cell_barcode = current_cell_barcode.clone();
+                self.current_iteration_key = current_iteration_key;
             } else {
                 self.next_umi_group.push(seq);
                 self.next_metadata_group
                     .push((mapq, orientation, pair, rev_comp, hit));
                 self.next_umi = read_umi.clone();
                 self.next_cell_barcode = current_cell_barcode;
+                self.next_iteration_key = current_iteration_key;
                 return Some(true);
             }
         }
