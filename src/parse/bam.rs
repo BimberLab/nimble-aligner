@@ -17,6 +17,7 @@ pub struct UMIReader {
     next_cell_barcode: String,
     terminate_on_error: bool,
     pub number_error_reports: usize,
+    pub number_cr_skipped: usize,
     current_iteration_key: String,
     next_iteration_key: String,
 }
@@ -36,6 +37,7 @@ impl UMIReader {
             next_cell_barcode: String::new(),
             terminate_on_error,
             number_error_reports: 0,
+            number_cr_skipped: 0,
             current_iteration_key: String::new(),
             next_iteration_key: String::new(),
         }
@@ -64,6 +66,7 @@ impl UMIReader {
         self.next_iteration_key.clear();
 
         for r in self.reader.records() {
+            let mut skip = false;
             self.read_counter = self.read_counter + 1;
 
             if self.read_counter % READ_BLOCK_REPORT_SIZE == 0 && self.read_counter != 0 {
@@ -116,11 +119,8 @@ impl UMIReader {
             let current_cell_barcode = if let Ok(Aux::String(corrected)) = record.aux(b"CB") {
                 (&corrected[0..corrected.len() - 2]).to_owned()
             } else {
-                if let Ok(Aux::String(uncorrected)) = record.aux(b"CR") {
-                    uncorrected.to_owned()
-                } else {
-                    panic!("Error -- Could not read cell barcode.");
-                }
+                skip = true;
+                number_cr_skipped += 1;
             };
 
             let current_iteration_key = read_umi.clone() + current_cell_barcode.as_str();
@@ -148,17 +148,23 @@ impl UMIReader {
             };
 
             if self.current_iteration_key == current_iteration_key {
-                self.current_umi_group.push(seq);
-                self.current_metadata_group
-                    .push((mapq, orientation, pair, rev_comp, hit));
-                self.current_cell_barcode = current_cell_barcode.clone();
+                if !skip {
+                    self.current_umi_group.push(seq);
+                    self.current_metadata_group
+                        .push((mapq, orientation, pair, rev_comp, hit));
+                    self.current_cell_barcode = current_cell_barcode.clone();
+                }
+
                 self.current_iteration_key = current_iteration_key;
             } else {
-                self.next_umi_group.push(seq);
-                self.next_metadata_group
-                    .push((mapq, orientation, pair, rev_comp, hit));
-                self.next_umi = read_umi.clone();
-                self.next_cell_barcode = current_cell_barcode;
+                if !skip {
+                    self.next_umi_group.push(seq);
+                    self.next_metadata_group
+                        .push((mapq, orientation, pair, rev_comp, hit));
+                    self.next_umi = read_umi.clone();
+                    self.next_cell_barcode = current_cell_barcode;
+                }
+
                 self.next_iteration_key = current_iteration_key;
                 return Some(true);
             }

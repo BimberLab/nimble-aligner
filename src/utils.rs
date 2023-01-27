@@ -364,6 +364,15 @@ pub fn write_debug_info(info: AlignDebugInfo) {
     str_rep += "% of reads aligned)";
     str_rep += "\n";
 
+    str_rep += "Reads dropped due to lacking corrected cell barcode: ";
+    str_rep += &info.number_cr_skipped.to_string();
+    str_rep += " (";
+    str_rep += truncate(
+        &(info.number_cr_skipped as f64 / info.read_units_aligned as f64 * 100.0).to_string(),
+        6,
+    );
+    str_rep += "% of reads aligned)";
+
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)

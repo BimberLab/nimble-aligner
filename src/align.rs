@@ -83,6 +83,7 @@ pub struct AlignDebugInfo {
     pub ru_reported: usize,
     pub uf_reported: usize,
     pub ur_reported: usize,
+    pub number_cr_skipped: usize,
 }
 
 #[derive(Debug, Copy, Clone)]

@@ -70,6 +70,7 @@ pub fn process(
 
             if owned_debug_file != "".to_owned() {
                 println!("Writing debug table.");
+                debug_info.number_cr_skipped = reader.number_cr_skipped;
                 write_debug_info(debug_info);
             }
 
