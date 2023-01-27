@@ -38,8 +38,15 @@ jobs:
       - shell: bash
         run: |
           mv ${{ matrix.asset_path }}nimble ${{ matrix.asset_path }}${{ matrix.artifact_name }}
+      - name: Generate release tag
+        id: tag
+        run: |
+          echo "::set-output name=release_tag::release_$(date +"%Y.%m.%d_%H-%M")"
       - name: Upload binary to release
         uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
           files: |
             ${{ matrix.asset_path }}${{ matrix.artifact_name }}
