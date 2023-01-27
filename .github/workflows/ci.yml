@@ -1,5 +1,8 @@
 name: Run Tests
-on: [pull_request]
+on:
+  push:
+    branches:
+      - 'main'
 env:
   CARGO_TERM_COLOR: always
 jobs:
@@ -7,7 +10,7 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
