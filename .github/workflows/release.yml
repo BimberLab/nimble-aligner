@@ -15,9 +15,6 @@ jobs:
           - os: ubuntu-latest
             artifact_name: Linux.out
             asset_path: ./target/x86_64-unknown-linux-musl/release/
-          - os: macos-latest
-            artifact_name: MacOS.out
-            asset_path: ./target/release/
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -48,5 +45,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
-          files: |
-            ${{ matrix.asset_path }}${{ matrix.artifact_name }}
+          files: ${{ matrix.asset_path }}${{ matrix.artifact_name }}
