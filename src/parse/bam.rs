@@ -120,7 +120,7 @@ impl UMIReader {
                 (&corrected[0..corrected.len() - 2]).to_owned()
             } else {
                 skip = true;
-                number_cr_skipped += 1;
+                self.number_cr_skipped += 1;
             };
 
             let current_iteration_key = read_umi.clone() + current_cell_barcode.as_str();
