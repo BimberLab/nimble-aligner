@@ -1,11 +1,12 @@
+use super::sorted_bam_reader::SortedBamReader;
 use debruijn::dna_string::DnaString;
-use rust_htslib::{bam, bam::record::Aux, bam::Read, bam::Reader};
+use rust_htslib::bam::record::Aux;
 
 const READ_BLOCK_REPORT_SIZE: usize = 1000000;
 const MAX_RECORD_ERROR_REPORT_SIZE: usize = 100;
 
 pub struct UMIReader {
-    reader: bam::Reader,
+    reader: SortedBamReader,
     read_counter: usize,
     pub current_umi_group: Vec<DnaString>,
     pub current_metadata_group: Vec<(u8, String, String, bool, String)>,
@@ -25,7 +26,7 @@ pub struct UMIReader {
 impl UMIReader {
     pub fn new(file_path: &str, terminate_on_error: bool) -> UMIReader {
         UMIReader {
-            reader: Reader::from_path(file_path).unwrap(),
+            reader: SortedBamReader::from_path(file_path),
             read_counter: 0,
             current_umi_group: Vec::new(),
             current_metadata_group: Vec::new(),
@@ -65,7 +66,13 @@ impl UMIReader {
         self.next_cell_barcode.clear();
         self.next_iteration_key.clear();
 
-        for r in self.reader.records() {
+        loop {
+            let r = self.reader.next();
+
+            if r.is_err() {
+                return None;
+            }
+
             self.read_counter = self.read_counter + 1;
 
             if self.read_counter % READ_BLOCK_REPORT_SIZE == 0 && self.read_counter != 0 {
@@ -163,8 +170,6 @@ impl UMIReader {
                 return Some(true);
             }
         }
-
-        None
     }
 
     // based on

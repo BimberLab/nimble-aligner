@@ -1,9 +1,11 @@
-use rust_htslib::{bam, bam::record::Aux, bam::Read, bam::Reader};
+use rust_htslib::{bam, bam::record::Aux, bam::Read, bam::Reader, bam::Record};
 
 pub struct SortedBamReader {
     reader: bam::Reader,
     current_umi: String,
+    next_umi: String,
     dna_sorted_buffer: Vec<bam::record::Record>,
+    next_records: Vec<bam::record::Record>,
 }
 
 impl SortedBamReader {
@@ -12,66 +14,80 @@ impl SortedBamReader {
             reader: Reader::from_path(file_path).unwrap(),
             current_umi: String::new(),
             dna_sorted_buffer: Vec::new(),
+            next_umi: String::new(),
+            next_records: Vec::new(),
         }
     }
 
-    pub fn records(&mut self) -> impl Iterator<Item = &bam::record::Record> {
-        let mut error_reads = Vec::new();
-
-        if !(self.dna_sorted_buffer.is_empty()) {
-            return self.dna_sorted_buffer.iter();
-        }
+    fn fill_buffer(&mut self) {
+        self.dna_sorted_buffer.clear();
+        self.dna_sorted_buffer.append(&mut self.next_records);
+        self.current_umi = self.next_umi.clone();
 
         for r in self.reader.records() {
-            match r {
-                Ok(record) => {
-                    if let Ok(Aux::String(_)) = record.aux(b"CB") {
-                    } else {
-                        continue;
-                    };
-
-                    self.dna_sorted_buffer.push(record)
-                }
+            let record = match r {
+                Ok(record) => record,
                 Err(_) => {
-                    error_reads.push(r);
                     continue;
                 }
             };
 
-            let read_umi = if let Ok(Aux::String(corrected)) =
-                self.dna_sorted_buffer.last().unwrap().aux(b"UB")
-            {
+            match record.aux(b"CB") {
+                Err(_) => continue,
+                _ => (),
+            };
+
+            let read_umi = if let Ok(Aux::String(corrected)) = record.aux(b"UB") {
                 corrected.to_owned()
             } else {
-                if let Ok(Aux::String(uncorrected)) =
-                    self.dna_sorted_buffer.last().unwrap().aux(b"UR")
-                {
+                if let Ok(Aux::String(uncorrected)) = record.aux(b"UR") {
                     uncorrected.to_owned()
                 } else {
                     panic!("Error -- Could not read UMI.");
                 }
             };
 
+            if self.current_umi == "" {
+                self.current_umi = read_umi.clone();
+            }
+
             if self.current_umi != read_umi {
                 self.dna_sorted_buffer.sort_by(|a, b| {
-                    let cb_a = match a.aux(b"UB") {
+                    let cb_a = match a.aux(b"CB") {
                         Ok(Aux::String(cb)) => cb,
-                        Ok(_) => panic!("Could not read UB"),
-                        Err(_) => panic!("Could not read UB."),
+                        _ => panic!("Could not read CB"),
                     };
 
-                    let cb_b = match b.aux(b"UB") {
+                    let cb_b = match b.aux(b"CB") {
                         Ok(Aux::String(cb)) => cb,
-                        Ok(_) => panic!("Could not read UB"),
-                        Err(_) => panic!("Could not read UB."),
+                        _ => panic!("Could not read CB"),
                     };
 
                     cb_a.cmp(cb_b)
                 });
-                return self.dna_sorted_buffer.iter();
+
+                self.next_records.push(record);
+                self.next_umi = read_umi;
+                return;
+            } else {
+                self.dna_sorted_buffer.push(record);
             }
         }
+    }
 
-        return self.dna_sorted_buffer.iter();
+    pub fn next(&mut self) -> Result<Record, rust_htslib::tpool::Error> {
+        let record = self.dna_sorted_buffer.pop();
+
+        match record {
+            Some(r) => return Ok(r),
+            None => self.fill_buffer(),
+        }
+
+        let record = self.dna_sorted_buffer.pop();
+
+        match record {
+            Some(r) => return Ok(r),
+            None => return Err(rust_htslib::tpool::Error::BamTruncatedRecord),
+        }
     }
 }
