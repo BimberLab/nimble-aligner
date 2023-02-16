@@ -2,6 +2,8 @@ use super::sorted_bam_reader::SortedBamReader;
 use debruijn::dna_string::DnaString;
 use rust_htslib::bam::record::Aux;
 
+use std::time::{Duration, Instant};
+
 const READ_BLOCK_REPORT_SIZE: usize = 1000000;
 const MAX_RECORD_ERROR_REPORT_SIZE: usize = 100;
 
@@ -67,12 +69,16 @@ impl UMIReader {
         self.next_iteration_key.clear();
 
         loop {
+            let start = Instant::now();
             let r = self.reader.next();
+            let duration = start.elapsed();
+            //println!("time to load read read/sort UMI from disk: {:?}", duration);
 
             if r.is_err() {
                 return None;
             }
 
+            let start = Instant::now();
             self.read_counter = self.read_counter + 1;
 
             if self.read_counter % READ_BLOCK_REPORT_SIZE == 0 && self.read_counter != 0 {
@@ -160,6 +166,9 @@ impl UMIReader {
                 self.current_cell_barcode = current_cell_barcode.clone();
 
                 self.current_iteration_key = current_iteration_key;
+
+                let duration = start.elapsed();
+                //println!("time to push read to readlist: {:?}", duration);
             } else {
                 self.next_umi_group.push(seq);
                 self.next_metadata_group
@@ -167,6 +176,9 @@ impl UMIReader {
                 self.next_umi = read_umi.clone();
                 self.next_cell_barcode = current_cell_barcode;
                 self.next_iteration_key = current_iteration_key;
+
+                let duration = start.elapsed();
+                //println!("time to push read to NEXT readlist: {:?}", duration);
                 return Some(true);
             }
         }
