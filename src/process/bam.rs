@@ -11,6 +11,7 @@ use crate::utils::{
     revcomp, write_debug_info, write_read_list, write_to_tsv, BamSpecificAlignMetadata,
     PseudoalignerData,
 };
+use std::time::{Duration, Instant};
 
 pub fn process(
     input_files: Vec<&str>,
@@ -26,6 +27,8 @@ pub fn process(
     let mut score_map: HashMap<(Vec<String>, String), i32> = HashMap::new();
 
     let mut cell_barcodes: Vec<String> = Vec::new();
+
+    let program_start = Instant::now();
 
     let owned_debug_file = if debug_file.is_some() {
         debug_file.unwrap()
@@ -63,7 +66,15 @@ pub fn process(
     };
 
     loop {
+        let duration = program_start.elapsed();
+        println!("time to process to date: {:?}", duration);
+
+        let loop_start = Instant::now();
+
+        let start = Instant::now();
         let final_umi = reader.next();
+        let duration = start.elapsed();
+        println!("time to get UMI: {:?}", duration);
 
         if final_umi && has_aligned {
             println!("Finished aligning. Writing output files.");
@@ -97,6 +108,7 @@ pub fn process(
         };
         has_aligned = true;
 
+        let start = Instant::now();
         let mut current_umi_group = reader.current_umi_group.clone();
         let current_metadata_table = metadata_to_sequence_hashmap(
             reader.current_metadata_group.clone(),
@@ -139,6 +151,10 @@ pub fn process(
             )
         };
 
+        let duration = start.elapsed();
+        println!("time to get score: {:?}", duration);
+
+        let start = Instant::now();
         let (mut s_extra, mut res_extra) = match extra_read {
             Some(read) => {
                 let (read_f, read_r) = if extra_metadata.unwrap().3 {
@@ -255,10 +271,18 @@ pub fn process(
             alignment_metadata.pair.clear();
         }
 
+        let duration = loop_start.elapsed();
+        println!("time to complete loop: {:?}", duration);
+
+        let duration = start.elapsed();
+        println!("time to perform misc tasks: {:?}", duration);
+
         if s.len() == 0 {
+            println!("\n");
             continue;
         }
 
+        let start = Instant::now();
         let mut scores = s.iter();
 
         let first_score = scores.next().unwrap();
@@ -284,6 +308,9 @@ pub fn process(
                 .or_insert(0);
             *accessor = *accessor + score;
         }
+
+        let duration = start.elapsed();
+        println!("time to write score to table: {:?}\n", duration);
     }
 }
 
