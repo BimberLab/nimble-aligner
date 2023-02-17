@@ -69,16 +69,16 @@ impl UMIReader {
         self.next_iteration_key.clear();
 
         loop {
-            let start = Instant::now();
+            //let start = Instant::now();
             let r = self.reader.next();
-            let duration = start.elapsed();
+            //let duration = start.elapsed();
             //println!("time to load read read/sort UMI from disk: {:?}", duration);
 
             if r.is_err() {
                 return None;
             }
 
-            let start = Instant::now();
+            //let start = Instant::now();
             self.read_counter = self.read_counter + 1;
 
             if self.read_counter % READ_BLOCK_REPORT_SIZE == 0 && self.read_counter != 0 {
@@ -167,7 +167,7 @@ impl UMIReader {
 
                 self.current_iteration_key = current_iteration_key;
 
-                let duration = start.elapsed();
+                //let duration = start.elapsed();
                 //println!("time to push read to readlist: {:?}", duration);
             } else {
                 self.next_umi_group.push(seq);
@@ -177,7 +177,7 @@ impl UMIReader {
                 self.next_cell_barcode = current_cell_barcode;
                 self.next_iteration_key = current_iteration_key;
 
-                let duration = start.elapsed();
+                //let duration = start.elapsed();
                 //println!("time to push read to NEXT readlist: {:?}", duration);
                 return Some(true);
             }

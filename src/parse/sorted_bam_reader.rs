@@ -20,7 +20,6 @@ impl SortedBamReader {
     }
 
     fn fill_buffer(&mut self) {
-        println!("filling buffer and sorting");
         self.dna_sorted_buffer.clear();
         self.dna_sorted_buffer.append(&mut self.next_records);
         self.current_umi = self.next_umi.clone();

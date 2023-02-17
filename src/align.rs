@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::Error;
 
+use std::time::{Duration, Instant};
+
 use array_tool::vec::Intersect;
 use array_tool::vec::Uniq;
 use debruijn::dna_string::DnaString;
@@ -411,6 +413,7 @@ pub fn score<'a>(
             reference_metadata,
             config,
         );
+
     forward_matched_sequences.append(&mut backward_matched_sequences);
 
     forward_align_debug_info.merge(backward_align_debug_info);
@@ -481,6 +484,8 @@ fn generate_score<'a>(
     let mut debug_info: AlignDebugInfo = Default::default();
     let mut read_matches: Vec<(Vec<String>, String, f64, usize, String)> = Vec::new();
 
+    //let score_start = Instant::now();
+
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
     for read in sequences {
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
@@ -488,7 +493,12 @@ fn generate_score<'a>(
 
         /* Generate score and equivalence class for this read by aligning the sequence against
          * the current reference, if there is a match.*/
+        //let pseudo_start = Instant::now();
         let (seq_score, forward_filter_reason) = pseudoalign(&read, index, &config);
+        //let duration = pseudo_start.elapsed();
+        //println!("time to pseudoalign: {:?}", duration);
+
+        //let start = Instant::now();
 
         // If there's a reversed sequence, do the paired-end alignment
         let mut rev_seq_score = None;
@@ -636,8 +646,13 @@ fn generate_score<'a>(
                 String::new(),
             ));
         }
+
+        //let duration = start.elapsed();
+        //println!("time to generate score for read: {:?}", duration);
     }
 
+    //let duration = score_start.elapsed();
+    //println!("time to generate score for UMI: {:?}", duration);
     (score_map, read_matches, debug_info)
 }
 
