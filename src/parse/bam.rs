@@ -135,7 +135,7 @@ impl UMIReader {
                 continue;
             };
 
-            let current_iteration_key = read_umi.clone(); // + current_cell_barcode.as_str();
+            let current_iteration_key = read_umi.clone() + current_cell_barcode.as_str();
 
             if self.current_umi == "" {
                 self.current_umi = read_umi.clone();
