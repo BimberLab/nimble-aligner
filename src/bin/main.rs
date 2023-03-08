@@ -4,6 +4,7 @@ use nimble::align::StrandFilter;
 use nimble::process::{bam, fastq};
 use nimble::reference_library;
 use nimble::utils;
+use debruijn::Kmer;
 
 use clap::{load_yaml, App};
 use std::collections::HashMap;
@@ -59,7 +60,7 @@ fn main() {
 
     // Create debruijn index of the reference library
     let reference_index_forward =
-        debruijn_mapping::build_index::build_index::<debruijn_mapping::config::KmerType>(
+        debruijn_mapping::build_index::build_index::<debruijn::kmer::Kmer20>(
             &reference_seqs,
             &reference_names,
             &HashMap::new(),
@@ -69,7 +70,7 @@ fn main() {
 
     // Create debruijn index of the reverse-comp of the reference library
     let reference_index_reverse =
-        debruijn_mapping::build_index::build_index::<debruijn_mapping::config::KmerType>(
+        debruijn_mapping::build_index::build_index::<debruijn::kmer::Kmer20>(
             &reference_seqs_rev,
             &reference_names,
             &HashMap::new(),
