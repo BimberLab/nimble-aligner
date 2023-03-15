@@ -1,5 +1,6 @@
 use array_tool::vec::Intersect;
 use debruijn::dna_string::DnaString;
+use rust_htslib::bam::record::Record;
 use std::collections::HashMap;
 use std::io::Error;
 
@@ -132,7 +133,7 @@ pub fn process(
                     .current_metadata_group
                     .clone()
                     .into_iter()
-                    .map(|(_, _, _, r, _)| r)
+                    .map(|(_, _, _, r, _, _)| r)
                     .collect::<Vec<bool>>(),
             )
         } else {
@@ -146,7 +147,7 @@ pub fn process(
                     .current_metadata_group
                     .clone()
                     .into_iter()
-                    .map(|(_, _, _, r, _)| r)
+                    .map(|(_, _, _, r, _, _)| r)
                     .collect::<Vec<bool>>(),
             )
         };
@@ -315,10 +316,10 @@ pub fn process(
 }
 
 fn metadata_to_sequence_hashmap(
-    metadata: Vec<(u8, String, String, bool, String)>,
+    metadata: Vec<(u8, String, String, bool, String, Record)>,
     sequences: Vec<DnaString>,
-) -> HashMap<String, (u8, String, String, bool, String)> {
-    let mut ret: HashMap<String, (u8, String, String, bool, String)> = HashMap::new();
+) -> HashMap<String, (u8, String, String, bool, String, Record)> {
+    let mut ret: HashMap<String, (u8, String, String, bool, String, Record)> = HashMap::new();
 
     for (i, seq) in sequences.iter().enumerate() {
         ret.insert(seq.to_string(), metadata[i].clone());
@@ -329,7 +330,7 @@ fn metadata_to_sequence_hashmap(
 
 fn get_mapq_scores(
     sequences: Vec<String>,
-    metadata_table: &HashMap<String, (u8, String, String, bool, String)>,
+    metadata_table: &HashMap<String, (u8, String, String, bool, String, Record)>,
 ) -> Vec<u8> {
     let mut ret: Vec<u8> = Vec::new();
 
@@ -354,7 +355,7 @@ fn get_mapq_scores(
 
 fn get_hits(
     sequences: Vec<String>,
-    metadata_table: &HashMap<String, (u8, String, String, bool, String)>,
+    metadata_table: &HashMap<String, (u8, String, String, bool, String, Record)>,
 ) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
@@ -379,7 +380,7 @@ fn get_hits(
 
 fn get_orientation(
     sequences: Vec<String>,
-    metadata_table: &HashMap<String, (u8, String, String, bool, String)>,
+    metadata_table: &HashMap<String, (u8, String, String, bool, String, Record)>,
 ) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
@@ -404,7 +405,7 @@ fn get_orientation(
 
 fn get_pair(
     sequences: Vec<String>,
-    metadata_table: &HashMap<String, (u8, String, String, bool, String)>,
+    metadata_table: &HashMap<String, (u8, String, String, bool, String, Record)>,
 ) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 

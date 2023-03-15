@@ -1,7 +1,6 @@
 use super::sorted_bam_reader::SortedBamReader;
 use debruijn::dna_string::DnaString;
-use rust_htslib::bam::record::Aux;
-
+use rust_htslib::bam::record::{Aux, Record};
 use std::time::{Duration, Instant};
 
 const READ_BLOCK_REPORT_SIZE: usize = 1000000;
@@ -11,11 +10,11 @@ pub struct UMIReader {
     reader: SortedBamReader,
     read_counter: usize,
     pub current_umi_group: Vec<DnaString>,
-    pub current_metadata_group: Vec<(u8, String, String, bool, String)>,
+    pub current_metadata_group: Vec<(u8, String, String, bool, String, Record)>,
     pub current_umi: String,
     pub current_cell_barcode: String,
     pub next_umi_group: Vec<DnaString>,
-    pub next_metadata_group: Vec<(u8, String, String, bool, String)>,
+    pub next_metadata_group: Vec<(u8, String, String, bool, String, Record)>,
     next_umi: String,
     next_cell_barcode: String,
     terminate_on_error: bool,
@@ -162,7 +161,7 @@ impl UMIReader {
             if self.current_iteration_key == current_iteration_key {
                 self.current_umi_group.push(seq);
                 self.current_metadata_group
-                    .push((mapq, orientation, pair, rev_comp, hit));
+                    .push((mapq, orientation, pair, rev_comp, hit, record));
                 self.current_cell_barcode = current_cell_barcode.clone();
 
                 self.current_iteration_key = current_iteration_key;
@@ -172,7 +171,7 @@ impl UMIReader {
             } else {
                 self.next_umi_group.push(seq);
                 self.next_metadata_group
-                    .push((mapq, orientation, pair, rev_comp, hit));
+                    .push((mapq, orientation, pair, rev_comp, hit, record));
                 self.next_umi = read_umi.clone();
                 self.next_cell_barcode = current_cell_barcode;
                 self.next_iteration_key = current_iteration_key;
