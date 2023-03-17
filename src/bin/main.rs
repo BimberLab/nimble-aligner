@@ -101,6 +101,9 @@ fn main() {
             output_path,
             debug_file,
             alignment_file,
+            num_cores,
+            reference_seqs.into_iter().map(|s| s.to_string()).collect(),
+            reference_names,
         );
     };
 

@@ -10,11 +10,11 @@ pub struct UMIReader {
     reader: SortedBamReader,
     read_counter: usize,
     pub current_umi_group: Vec<DnaString>,
-    pub current_metadata_group: Vec<(u8, String, String, bool, String, Record)>,
+    pub current_metadata_group: Vec<(u8, String, String, bool, String, Vec<u8>, Vec<u8>)>,
     pub current_umi: String,
     pub current_cell_barcode: String,
     pub next_umi_group: Vec<DnaString>,
-    pub next_metadata_group: Vec<(u8, String, String, bool, String, Record)>,
+    pub next_metadata_group: Vec<(u8, String, String, bool, String, Vec<u8>, Vec<u8>)>,
     next_umi: String,
     next_cell_barcode: String,
     terminate_on_error: bool,
@@ -117,6 +117,16 @@ impl UMIReader {
 
             let mut record = record.unwrap();
 
+            for tag in record.aux_iter() {
+                let tag = tag.unwrap();
+                println!(
+                    "{} {:?}",
+                    String::from_utf8_lossy(tag.0).into_owned(),
+                    tag.1
+                );
+            }
+            println!("\n");
+
             let read_umi = if let Ok(Aux::String(corrected)) = record.aux(b"UB") {
                 corrected.to_owned()
             } else {
@@ -151,6 +161,8 @@ impl UMIReader {
                 true => String::from("T"),
                 false => String::from("F"),
             };
+            let qname = record.qname().to_vec();
+            let qual = record.qual().to_vec();
             let rev_comp = record.is_reverse();
             let hit = if let Ok(Aux::String(s)) = record.aux(b"GN") {
                 s.to_owned()
@@ -160,8 +172,15 @@ impl UMIReader {
 
             if self.current_iteration_key == current_iteration_key {
                 self.current_umi_group.push(seq);
-                self.current_metadata_group
-                    .push((mapq, orientation, pair, rev_comp, hit, record));
+                self.current_metadata_group.push((
+                    mapq,
+                    orientation,
+                    pair,
+                    rev_comp,
+                    hit,
+                    qname,
+                    qual,
+                ));
                 self.current_cell_barcode = current_cell_barcode.clone();
 
                 self.current_iteration_key = current_iteration_key;
@@ -170,8 +189,15 @@ impl UMIReader {
                 //println!("time to push read to readlist: {:?}", duration);
             } else {
                 self.next_umi_group.push(seq);
-                self.next_metadata_group
-                    .push((mapq, orientation, pair, rev_comp, hit, record));
+                self.next_metadata_group.push((
+                    mapq,
+                    orientation,
+                    pair,
+                    rev_comp,
+                    hit,
+                    qname,
+                    qual,
+                ));
                 self.next_umi = read_umi.clone();
                 self.next_cell_barcode = current_cell_barcode;
                 self.next_iteration_key = current_iteration_key;
