@@ -38,6 +38,7 @@ pub fn process(
     hd_record.push_tag(b"SO", &"unknown");
     header.push_record(&hd_record);
     let mut bam_writer = bam::Writer::from_path(&output_path, &header, bam::Format::Bam).unwrap();
+    bam_writer.set_threads(num_cores);
 
     let cell_barcodes: Vec<String> = Vec::new();
 
@@ -282,6 +283,8 @@ pub fn process(
             strand_filter_reason: Vec::new(),
         };
 
+        let mut pos_alignments_filtered = Vec::new();
+
         for (i, alns) in pos_alignments.iter().enumerate() {
             if !alns.is_empty() {
                 alignment_metadata_filtered
@@ -315,13 +318,13 @@ pub fn process(
                 bam_specific_alignment_metadata_filtered
                     .hits
                     .push(bam_specific_alignment_metadata.hits[i].clone());
-            }
-        }
+                bam_specific_alignment_metadata_filtered
+                    .qnames
+                    .push(bam_specific_alignment_metadata.qnames[i].clone());
+                bam_specific_alignment_metadata_filtered
+                    .quals
+                    .push(bam_specific_alignment_metadata.quals[i].clone());
 
-        let mut pos_alignments_filtered = Vec::new();
-
-        for (i, alns) in pos_alignments.iter().enumerate() {
-            if !alns.is_empty() {
                 pos_alignments_filtered.push(alns.clone());
             }
         }
@@ -345,6 +348,8 @@ pub fn process(
         bam_specific_alignment_metadata.mapq.clear();
         bam_specific_alignment_metadata.orientation.clear();
         bam_specific_alignment_metadata.hits.clear();
+        bam_specific_alignment_metadata.quals.clear();
+        bam_specific_alignment_metadata.qnames.clear();
         alignment_metadata.reference_names.clear();
         alignment_metadata.sequence.clear();
         alignment_metadata.score.clear();
@@ -660,7 +665,7 @@ fn positional_alignment(
             let mut aligner = Aligner::with_scoring(scoring.clone());
             let mut alignments = Vec::new();
             for (j, ref_seq) in reference.iter().enumerate() {
-                let alignment = aligner.local(sequence.as_bytes(), ref_seq.as_bytes());
+                let alignment = aligner.semiglobal(sequence.as_bytes(), ref_seq.as_bytes());
                 alignments.push((alignment, reference_names[j].clone()));
             }
             alignments.sort_by(|a, b| b.0.score.cmp(&a.0.score));
@@ -694,14 +699,18 @@ fn write_to_bam(
 ) {
     for (i, alns) in pos_alignments_filtered.iter().enumerate() {
         if !alns.is_empty() {
-            let ref_name = alignment_metadata_filtered.reference_names[i][0].as_bytes();
+            //let ref_name = alignment_metadata_filtered.reference_names[i][0].as_bytes();
             let sequence = alignment_metadata_filtered.sequence[i].as_bytes();
 
             let qname = bam_specific_alignment_metadata_filtered.qnames[i].as_slice();
             let qual = bam_specific_alignment_metadata_filtered.quals[i].as_slice();
 
             for (alignment, feature_name) in alns {
-                let mut rec = Record::new();
+                let mut rec = bam::Record::from_sam(
+                    &mut bam::HeaderView::from_header(&header),
+                    "ali1\t4\t*\t0\t0\t*\t*\t0\t0\tACGT\tFFFF".as_bytes(),
+                )
+                .unwrap();
 
                 //header.tid(ref_name).unwrap();
 
@@ -711,7 +720,9 @@ fn write_to_bam(
                 // compute AS from the alignment score
                 rec.push_aux(b"AS", Aux::I32(alignment.score as i32))
                     .unwrap();
+
                 rec.push_aux(b"CB", Aux::String(&cb)).unwrap();
+
                 rec.push_aux(b"XF", Aux::String(&feature_name)).unwrap();
 
                 // set variable length data
@@ -735,8 +746,8 @@ fn write_to_bam(
                         _ => (),
                     }
                 }
+
                 rec.push_aux(b"nM", Aux::I32(nm_count as i32)).unwrap();
-                rec.push_aux(b"xf", Aux::I32(0)).unwrap();
 
                 let mut flags = 0;
                 // Set the read paired flag

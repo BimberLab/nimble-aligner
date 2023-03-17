@@ -117,16 +117,6 @@ impl UMIReader {
 
             let mut record = record.unwrap();
 
-            for tag in record.aux_iter() {
-                let tag = tag.unwrap();
-                println!(
-                    "{} {:?}",
-                    String::from_utf8_lossy(tag.0).into_owned(),
-                    tag.1
-                );
-            }
-            println!("\n");
-
             let read_umi = if let Ok(Aux::String(corrected)) = record.aux(b"UB") {
                 corrected.to_owned()
             } else {
