@@ -15,7 +15,7 @@ use reference_library::ReferenceMetadata;
 
 const MIN_READ_LENGTH: usize = 12;
 
-pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<debruijn::kmer::Kmer64>;
+pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<debruijn::kmer::Kmer30>;
 
 pub enum IntersectLevel {
     NoIntersect,
