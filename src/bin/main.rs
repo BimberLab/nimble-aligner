@@ -15,8 +15,8 @@ fn main() {
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
 
-    let reference_json_path = matches.value_of("reference").unwrap();
-    let output_path = matches.value_of("output").unwrap();
+    let reference_json_paths = matches.value_of("reference").unwrap();
+    let output_paths = matches.value_of("output").unwrap();
     let input_files: Vec<&str> = matches.values_of("input").unwrap().collect();
     let num_cores = matches
         .value_of("num_cores")
@@ -50,9 +50,11 @@ fn main() {
     }
     println!("Loading and preprocessing reference data");
 
-    // Read library alignment config info, reference library metadata, and sequences from library json
-    let (align_config, reference_metadata) =
-        reference_library::get_reference_library(Path::new(reference_json_path), strand_filter);
+    // Read library alignment config info, reference library metadata, and sequences from
+    let reference_library_paths = reference_json_paths.split(',');
+    let reference_libraries = reference_library_paths
+        .map(|path| reference_library(Path::new(path), strand_filter))
+        .collect();
 
     // Generate error-checked vectors of seqs and names for the debrujin index
     let (reference_seqs, reference_seqs_rev, reference_names) =
