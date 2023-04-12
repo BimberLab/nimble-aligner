@@ -4,8 +4,11 @@ use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
 use crate::utils::{revcomp, write_debug_info, BamSpecificAlignMetadata, PseudoalignerData};
 use array_tool::vec::Intersect;
-use bio::alignment::pairwise::*;
+use bio::alignment::pairwise::banded::*;
+use bio::alignment::pairwise::{Scoring, MIN_SCORE};
+use bio::alignment::sparse::hash_kmers;
 use bio::alignment::Alignment;
+use bio::alignment::AlignmentOperation::*;
 use bio::scores::blosum62;
 use debruijn::dna_string::DnaString;
 use rayon::prelude::*;
@@ -16,6 +19,32 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::io::Error;
 use std::sync::mpsc::channel;
+
+use bio::alignment::sparse::HashMapFx;
+
+const BAND_SIZE: usize = 8;
+const BANDED_KMER_SIZE: usize = 6;
+
+pub fn hash_reference_seqs(
+    reference_seqs: &Vec<String>,
+    k: usize,
+) -> HashMap<String, HashMapFx<Vec<u8>, Vec<u32>>> {
+    let mut seq_kmer_hashmap = HashMap::new();
+
+    for seq in reference_seqs {
+        let seq_bytes = seq.clone().into_bytes();
+        let kmer_hash = hash_kmers(&seq_bytes, k);
+
+        let mut owned_kmer_hash = HashMapFx::default();
+        for (key, value) in kmer_hash {
+            owned_kmer_hash.insert(key.to_vec(), value);
+        }
+
+        seq_kmer_hashmap.insert(seq.clone(), owned_kmer_hash);
+    }
+
+    seq_kmer_hashmap
+}
 
 pub fn process(
     input_files: Vec<&str>,
@@ -39,6 +68,8 @@ pub fn process(
     header.push_record(&hd_record);
     let mut bam_writer = bam::Writer::from_path(&output_path, &header, bam::Format::Bam).unwrap();
     bam_writer.set_threads(num_cores);
+
+    let reference_hashes = hash_reference_seqs(&reference_seqs, BANDED_KMER_SIZE);
 
     let cell_barcodes: Vec<String> = Vec::new();
 
@@ -261,6 +292,7 @@ pub fn process(
             &reference_seqs,
             &alignment_metadata.sequence,
             &reference_names,
+            &reference_hashes,
         );
 
         // Filter out all reads that didn't have positional alignments
@@ -645,15 +677,9 @@ fn positional_alignment(
     reference: &Vec<String>,
     sequence_list: &Vec<String>,
     reference_names: &Vec<String>,
+    reference_hashes: &HashMap<String, HashMapFx<Vec<u8>, Vec<u32>>>,
 ) -> Vec<Vec<(Alignment, String)>> {
-    let aligner = Aligner::with_capacity(
-        reference[0].len(),
-        sequence_list[0].len(),
-        -5,
-        -1,
-        &blosum62,
-    );
-    let scoring = Scoring::new(-5, -1, &|a: u8, b: u8| if a == b { 1i32 } else { -1i32 });
+    let score = |a: u8, b: u8| if a == b { 1i32 } else { -1i32 };
 
     let (sender, receiver) = channel();
     let sender = Arc::new(Mutex::new(sender));
@@ -662,11 +688,26 @@ fn positional_alignment(
         .par_iter()
         .enumerate()
         .for_each(|(i, sequence)| {
-            let mut aligner = Aligner::with_scoring(scoring.clone());
+            let mut aligner = Aligner::new(-5, -1, score, BANDED_KMER_SIZE, BAND_SIZE);
             let mut alignments = Vec::new();
             for (j, ref_seq) in reference.iter().enumerate() {
-                let alignment = aligner.semiglobal(sequence.as_bytes(), ref_seq.as_bytes());
-                alignments.push((alignment, reference_names[j].clone()));
+                if let Some(ref_kmer_hash_owned) = reference_hashes.get(ref_seq) {
+                    let ref_kmer_hash_transient: HashMapFx<&[u8], Vec<u32>> = ref_kmer_hash_owned
+                        .iter()
+                        .map(|(bytes, hashes)| {
+                            (bytes.as_slice().try_into().unwrap(), hashes.clone())
+                        })
+                        .collect();
+
+                    let alignment = aligner.semiglobal_with_prehash(
+                        sequence.as_bytes(),
+                        ref_seq.as_bytes(),
+                        &ref_kmer_hash_transient,
+                    );
+                    alignments.push((alignment, reference_names[j].clone()));
+                } else {
+                    println!("WARNING: Reference sequence not found in the precomputed hashes.");
+                }
             }
             alignments.sort_by(|a, b| b.0.score.cmp(&a.0.score));
             sender
