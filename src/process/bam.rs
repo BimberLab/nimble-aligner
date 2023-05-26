@@ -13,7 +13,9 @@ use bio::scores::blosum62;
 use debruijn::dna_string::DnaString;
 use rayon::prelude::*;
 use rust_htslib::{bam, bam::header::HeaderRecord, bam::record::Aux, bam::record::Record};
+use std::io::Write;
 
+use std::fs::OpenOptions;
 use std::sync::{Arc, Mutex};
 
 use std::collections::HashMap;
@@ -104,6 +106,7 @@ pub fn process(
         hits: Vec::new(),
         quals: Vec::new(),
         qnames: Vec::new(),
+        txs: Vec::new(),
     };
 
     let mut debug_info: AlignDebugInfo = Default::default();
@@ -144,6 +147,7 @@ pub fn process(
         let (mut s, mut res) = if owned_debug_file.clone() != "" {
             get_score(
                 &current_umi_group,
+                &reader.current_metadata_group.clone(),
                 reference_index,
                 reference_metadata,
                 align_config,
@@ -152,12 +156,13 @@ pub fn process(
                     .current_metadata_group
                     .clone()
                     .into_iter()
-                    .map(|(_, _, _, r, _, _, _)| r)
+                    .map(|(_, _, _, r, _, _, _, _, _, _, _)| r)
                     .collect::<Vec<bool>>(),
             )
         } else {
             get_score(
                 &current_umi_group,
+                &reader.current_metadata_group.clone(),
                 reference_index,
                 reference_metadata,
                 align_config,
@@ -166,7 +171,7 @@ pub fn process(
                     .current_metadata_group
                     .clone()
                     .into_iter()
-                    .map(|(_, _, _, r, _, _, _)| r)
+                    .map(|(_, _, _, r, _, _, _, _, _, _, _)| r)
                     .collect::<Vec<bool>>(),
             )
         };
@@ -189,6 +194,7 @@ pub fn process(
                 score(
                     (Box::new(read_f.into_iter()), Box::new(read_r.into_iter())),
                     None,
+                    &reader.current_metadata_group.clone(),
                     reference_index,
                     &reference_metadata,
                     align_config,
@@ -230,6 +236,10 @@ pub fn process(
                 &current_metadata_table,
             ));
         bam_specific_alignment_metadata.quals.append(&mut get_quals(
+            get_sequence_list_from_metadata(&res),
+            &current_metadata_table,
+        ));
+        bam_specific_alignment_metadata.txs.append(&mut get_txs(
             get_sequence_list_from_metadata(&res),
             &current_metadata_table,
         ));
@@ -288,9 +298,11 @@ pub fn process(
         ));
 
         // Perfom positional alignment
-        let pos_alignments = positional_alignment(
+        /*let pos_alignments =*/
+        positional_alignment(
             &reference_seqs,
             &alignment_metadata.sequence,
+            &bam_specific_alignment_metadata.qnames,
             &reference_names,
             &reference_hashes,
         );
@@ -302,6 +314,7 @@ pub fn process(
             hits: Vec::new(),
             quals: Vec::new(),
             qnames: Vec::new(),
+            txs: Vec::new(),
         };
 
         let mut alignment_metadata_filtered = PseudoalignerData {
@@ -315,7 +328,7 @@ pub fn process(
             strand_filter_reason: Vec::new(),
         };
 
-        let mut pos_alignments_filtered = Vec::new();
+        /*let mut pos_alignments_filtered = Vec::new();
 
         for (i, alns) in pos_alignments.iter().enumerate() {
             if !alns.is_empty() {
@@ -359,9 +372,9 @@ pub fn process(
 
                 pos_alignments_filtered.push(alns.clone());
             }
-        }
+        }*/
 
-        write_to_bam(
+        /*write_to_bam(
             &mut bam_writer,
             &header,
             &reference_seqs,
@@ -369,7 +382,7 @@ pub fn process(
             &bam_specific_alignment_metadata_filtered,
             &pos_alignments_filtered,
             reader.current_cell_barcode.clone(),
-        );
+        );*/
 
         /*write_read_list(
             &alignment_metadata,
@@ -382,6 +395,7 @@ pub fn process(
         bam_specific_alignment_metadata.hits.clear();
         bam_specific_alignment_metadata.quals.clear();
         bam_specific_alignment_metadata.qnames.clear();
+        bam_specific_alignment_metadata.txs.clear();
         alignment_metadata.reference_names.clear();
         alignment_metadata.sequence.clear();
         alignment_metadata.score.clear();
@@ -430,11 +444,52 @@ pub fn process(
 }
 
 fn metadata_to_sequence_hashmap(
-    metadata: Vec<(u8, String, String, bool, String, Vec<u8>, Vec<u8>)>,
+    metadata: Vec<(
+        u8,
+        String,
+        String,
+        bool,
+        String,
+        Vec<u8>,
+        Vec<u8>,
+        String,
+        String,
+        String,
+        String,
+    )>,
     sequences: Vec<DnaString>,
-) -> HashMap<String, (u8, String, String, bool, String, Vec<u8>, Vec<u8>)> {
-    let mut ret: HashMap<String, (u8, String, String, bool, String, Vec<u8>, Vec<u8>)> =
-        HashMap::new();
+) -> HashMap<
+    String,
+    (
+        u8,
+        String,
+        String,
+        bool,
+        String,
+        Vec<u8>,
+        Vec<u8>,
+        String,
+        String,
+        String,
+        String,
+    ),
+> {
+    let mut ret: HashMap<
+        String,
+        (
+            u8,
+            String,
+            String,
+            bool,
+            String,
+            Vec<u8>,
+            Vec<u8>,
+            String,
+            String,
+            String,
+            String,
+        ),
+    > = HashMap::new();
 
     for (i, seq) in sequences.iter().enumerate() {
         ret.insert(seq.to_string(), metadata[i].clone());
@@ -445,7 +500,22 @@ fn metadata_to_sequence_hashmap(
 
 fn get_mapq_scores(
     sequences: Vec<String>,
-    metadata_table: &HashMap<String, (u8, String, String, bool, String, Vec<u8>, Vec<u8>)>,
+    metadata_table: &HashMap<
+        String,
+        (
+            u8,
+            String,
+            String,
+            bool,
+            String,
+            Vec<u8>,
+            Vec<u8>,
+            String,
+            String,
+            String,
+            String,
+        ),
+    >,
 ) -> Vec<u8> {
     let mut ret: Vec<u8> = Vec::new();
 
@@ -470,7 +540,22 @@ fn get_mapq_scores(
 
 fn get_hits(
     sequences: Vec<String>,
-    metadata_table: &HashMap<String, (u8, String, String, bool, String, Vec<u8>, Vec<u8>)>,
+    metadata_table: &HashMap<
+        String,
+        (
+            u8,
+            String,
+            String,
+            bool,
+            String,
+            Vec<u8>,
+            Vec<u8>,
+            String,
+            String,
+            String,
+            String,
+        ),
+    >,
 ) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
@@ -495,7 +580,22 @@ fn get_hits(
 
 fn get_qnames(
     sequences: Vec<String>,
-    metadata_table: &HashMap<String, (u8, String, String, bool, String, Vec<u8>, Vec<u8>)>,
+    metadata_table: &HashMap<
+        String,
+        (
+            u8,
+            String,
+            String,
+            bool,
+            String,
+            Vec<u8>,
+            Vec<u8>,
+            String,
+            String,
+            String,
+            String,
+        ),
+    >,
 ) -> Vec<Vec<u8>> {
     let mut ret: Vec<Vec<u8>> = Vec::new();
 
@@ -520,7 +620,22 @@ fn get_qnames(
 
 fn get_quals(
     sequences: Vec<String>,
-    metadata_table: &HashMap<String, (u8, String, String, bool, String, Vec<u8>, Vec<u8>)>,
+    metadata_table: &HashMap<
+        String,
+        (
+            u8,
+            String,
+            String,
+            bool,
+            String,
+            Vec<u8>,
+            Vec<u8>,
+            String,
+            String,
+            String,
+            String,
+        ),
+    >,
 ) -> Vec<Vec<u8>> {
     let mut ret: Vec<Vec<u8>> = Vec::new();
 
@@ -543,9 +658,64 @@ fn get_quals(
     ret
 }
 
+fn get_txs(
+    sequences: Vec<String>,
+    metadata_table: &HashMap<
+        String,
+        (
+            u8,
+            String,
+            String,
+            bool,
+            String,
+            Vec<u8>,
+            Vec<u8>,
+            String,
+            String,
+            String,
+            String,
+        ),
+    >,
+) -> Vec<String> {
+    let mut ret: Vec<String> = Vec::new();
+
+    for seq in sequences {
+        let rc = check_reverse_comp((&DnaString::from_dna_string(&seq), &true));
+        let entry = metadata_table.get(&seq);
+
+        match entry {
+            Some(v) => ret.push(v.7.clone()),
+            None => {
+                if let Some(v) = metadata_table.get(&rc.to_string()) {
+                    ret.push(v.7.clone())
+                } else {
+                    ret.push(String::new())
+                }
+            }
+        }
+    }
+
+    ret
+}
+
 fn get_orientation(
     sequences: Vec<String>,
-    metadata_table: &HashMap<String, (u8, String, String, bool, String, Vec<u8>, Vec<u8>)>,
+    metadata_table: &HashMap<
+        String,
+        (
+            u8,
+            String,
+            String,
+            bool,
+            String,
+            Vec<u8>,
+            Vec<u8>,
+            String,
+            String,
+            String,
+            String,
+        ),
+    >,
 ) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
@@ -570,7 +740,22 @@ fn get_orientation(
 
 fn get_pair(
     sequences: Vec<String>,
-    metadata_table: &HashMap<String, (u8, String, String, bool, String, Vec<u8>, Vec<u8>)>,
+    metadata_table: &HashMap<
+        String,
+        (
+            u8,
+            String,
+            String,
+            bool,
+            String,
+            Vec<u8>,
+            Vec<u8>,
+            String,
+            String,
+            String,
+            String,
+        ),
+    >,
 ) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
 
@@ -607,6 +792,19 @@ fn get_sequence_list_from_metadata(
 
 fn get_score<'a>(
     current_umi_group: &'a Vec<DnaString>,
+    current_metadata_group: &'a Vec<(
+        u8,
+        String,
+        String,
+        bool,
+        String,
+        Vec<u8>,
+        Vec<u8>,
+        String,
+        String,
+        String,
+        String,
+    )>,
     reference_index: &(PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     align_config: &AlignFilterConfig,
@@ -656,6 +854,7 @@ fn get_score<'a>(
     score(
         (sequences, sequences_clone),
         reverse_sequence_pair,
+        current_metadata_group,
         reference_index,
         &reference_metadata,
         align_config,
@@ -676,9 +875,13 @@ fn check_reverse_comp(rec: (&DnaString, &bool)) -> DnaString {
 fn positional_alignment(
     reference: &Vec<String>,
     sequence_list: &Vec<String>,
+    qname: &Vec<Vec<u8>>,
     reference_names: &Vec<String>,
     reference_hashes: &HashMap<String, HashMapFx<Vec<u8>, Vec<u32>>>,
-) -> Vec<Vec<(Alignment, String)>> {
+) /*-> Vec<Vec<(Alignment, String)>>*/
+{
+    //return Vec::new();
+
     let score = |a: u8, b: u8| if a == b { 1i32 } else { -1i32 };
 
     let (sender, receiver) = channel();
@@ -704,7 +907,18 @@ fn positional_alignment(
                         ref_seq.as_bytes(),
                         &ref_kmer_hash_transient,
                     );
-                    alignments.push((alignment, reference_names[j].clone()));
+
+                    let pretty = String::new();
+                    /*alignment
+                    .pretty(sequence.as_bytes(), ref_seq.as_bytes())
+                    .replace("\t", "&");*/
+
+                    alignments.push((
+                        alignment,
+                        reference_names[j].clone(),
+                        String::from_utf8(qname[j].clone()).unwrap(),
+                        pretty,
+                    ));
                 } else {
                     println!("WARNING: Reference sequence not found in the precomputed hashes.");
                 }
@@ -726,7 +940,38 @@ fn positional_alignment(
         ordered_results[i].push(alignment);
     }
 
-    ordered_results
+    // Define the path for your log file.
+    let log_path = "/home/hextraza/work/data/alignment_logs/pos.tsv";
+
+    // Log to file.
+    let mut file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(log_path)
+        .unwrap();
+
+    // Check if file is empty (i.e., if it's new), if so, write the header.
+    if file.metadata().unwrap().len() == 0 {
+        writeln!(file, "QNAME\tScore\tCIGAR\tPretty").unwrap();
+    }
+
+    // Write each alignment.
+    for result in &ordered_results {
+        for (alignment, _, qname_string, pretty) in result {
+            // Write the log.
+            writeln!(
+                file,
+                "{}\t{}\t{}\t{}",
+                qname_string,
+                alignment.score,
+                alignment.cigar(false),
+                pretty
+            )
+            .unwrap();
+        }
+    }
+
+    //ordered_results
 }
 
 fn write_to_bam(

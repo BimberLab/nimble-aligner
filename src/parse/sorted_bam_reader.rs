@@ -33,7 +33,9 @@ impl SortedBamReader {
             };
 
             match record.aux(b"CB") {
-                Err(_) => continue,
+                Err(_) => {
+                    continue;
+                }
                 _ => (),
             };
 
@@ -75,12 +77,45 @@ impl SortedBamReader {
         }
     }
 
+    fn filter_paired_reads(&mut self) {
+        let mut paired_reads_buffer = Vec::new();
+        let mut seen_qnames = std::collections::HashSet::new();
+        let mut i = 0;
+        while i < self.dna_sorted_buffer.len() {
+            if i + 1 < self.dna_sorted_buffer.len() {
+                let read1_qname = self.dna_sorted_buffer[i].qname();
+                let read2_qname = self.dna_sorted_buffer[i + 1].qname();
+                if read1_qname == read2_qname {
+                    paired_reads_buffer.push(self.dna_sorted_buffer[i].clone());
+                    paired_reads_buffer.push(self.dna_sorted_buffer[i + 1].clone());
+                    seen_qnames.insert(read1_qname);
+                    i += 2;
+                } else {
+                    if seen_qnames.contains(&read1_qname) {
+                        println!(
+                            "Warning: Read with qname '{:?}' has been deleted but was seen before.",
+                            String::from_utf8_lossy(read1_qname)
+                        );
+                    }
+                    seen_qnames.insert(read1_qname);
+                    i += 1;
+                }
+            } else {
+                break;
+            }
+        }
+        self.dna_sorted_buffer = paired_reads_buffer;
+    }
+
     pub fn next(&mut self) -> Result<Record, rust_htslib::tpool::Error> {
         let record = self.dna_sorted_buffer.pop();
 
         match record {
             Some(r) => return Ok(r),
-            None => self.fill_buffer(),
+            None => {
+                self.fill_buffer();
+                self.filter_paired_reads();
+            }
         }
 
         let record = self.dna_sorted_buffer.pop();

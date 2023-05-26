@@ -10,11 +10,35 @@ pub struct UMIReader {
     reader: SortedBamReader,
     read_counter: usize,
     pub current_umi_group: Vec<DnaString>,
-    pub current_metadata_group: Vec<(u8, String, String, bool, String, Vec<u8>, Vec<u8>)>,
+    pub current_metadata_group: Vec<(
+        u8,
+        String,
+        String,
+        bool,
+        String,
+        Vec<u8>,
+        Vec<u8>,
+        String,
+        String,
+        String,
+        String,
+    )>,
     pub current_umi: String,
     pub current_cell_barcode: String,
     pub next_umi_group: Vec<DnaString>,
-    pub next_metadata_group: Vec<(u8, String, String, bool, String, Vec<u8>, Vec<u8>)>,
+    pub next_metadata_group: Vec<(
+        u8,
+        String,
+        String,
+        bool,
+        String,
+        Vec<u8>,
+        Vec<u8>,
+        String,
+        String,
+        String,
+        String,
+    )>,
     next_umi: String,
     next_cell_barcode: String,
     terminate_on_error: bool,
@@ -92,18 +116,18 @@ impl UMIReader {
                 Ok(record) => Ok(record),
                 Err(rust_htslib::tpool::Error::BamTruncatedRecord) => {
                     if self.number_error_reports < MAX_RECORD_ERROR_REPORT_SIZE {
-                        println!("{}: Found truncated record", self.number_error_reports);
-                        self.number_error_reports += 1;
+                        panic!("{}: Found truncated record", self.number_error_reports);
+                        //self.number_error_reports += 1;
                     }
                     Err(rust_htslib::tpool::Error::BamTruncatedRecord)
                 }
                 Err(err) => {
                     if self.number_error_reports < MAX_RECORD_ERROR_REPORT_SIZE {
-                        println!(
+                        panic!(
                             "{}: Error {:?} when reading record",
                             self.number_error_reports, err
                         );
-                        self.number_error_reports += 1;
+                        //self.number_error_reports += 1;
                     }
                     Err(err)
                 }
@@ -130,8 +154,9 @@ impl UMIReader {
             let current_cell_barcode = if let Ok(Aux::String(corrected)) = record.aux(b"CB") {
                 (&corrected[0..corrected.len() - 2]).to_owned()
             } else {
-                self.number_cr_skipped += 1;
-                continue;
+                //self.number_cr_skipped += 1;
+                panic!("Error Read without cell barcode, cannot excise read-mate.");
+                //continue;
             };
 
             let current_iteration_key = read_umi.clone() + current_cell_barcode.as_str();
@@ -152,9 +177,33 @@ impl UMIReader {
                 false => String::from("F"),
             };
             let qname = record.qname().to_vec();
+
+            match self.current_metadata_group.last() {
+                Some(record) => {
+                    if !(self.current_metadata_group.len() % 2 == 0) {
+                        if qname != record.5 {
+                            panic!("Error -- QNAME mismatch, mangled read-pair due to incorrect assumptions about sorted order.");
+                        }
+                    }
+                }
+                None => {}
+            }
+
             let qual = record.qual().to_vec();
             let rev_comp = record.is_reverse();
             let hit = if let Ok(Aux::String(s)) = record.aux(b"GN") {
+                s.to_owned()
+            } else {
+                String::new()
+            };
+
+            let tx = if let Ok(Aux::String(s)) = record.aux(b"TX") {
+                s.to_owned()
+            } else {
+                String::new()
+            };
+
+            let an = if let Ok(Aux::String(s)) = record.aux(b"TX") {
                 s.to_owned()
             } else {
                 String::new()
@@ -170,6 +219,10 @@ impl UMIReader {
                     hit,
                     qname,
                     qual,
+                    tx,
+                    read_umi.clone(),
+                    current_cell_barcode.clone(),
+                    an,
                 ));
                 self.current_cell_barcode = current_cell_barcode.clone();
 
@@ -187,6 +240,10 @@ impl UMIReader {
                     hit,
                     qname,
                     qual,
+                    tx,
+                    read_umi.clone(),
+                    current_cell_barcode.clone(),
+                    an,
                 ));
                 self.next_umi = read_umi.clone();
                 self.next_cell_barcode = current_cell_barcode;

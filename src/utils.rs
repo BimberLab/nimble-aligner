@@ -414,6 +414,7 @@ pub struct BamSpecificAlignMetadata {
     pub hits: Vec<String>,
     pub qnames: Vec<Vec<u8>>,
     pub quals: Vec<Vec<u8>>,
+    pub txs: Vec<String>,
 }
 
 pub fn write_read_list(

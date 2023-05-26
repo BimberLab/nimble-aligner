@@ -50,6 +50,7 @@ pub fn process(
         score(
             sequences,
             reverse_sequences,
+            &Vec::new(),
             reference_index,
             reference_metadata,
             align_config,
@@ -59,6 +60,7 @@ pub fn process(
         score(
             sequences,
             reverse_sequences,
+            &Vec::new(),
             reference_index,
             reference_metadata,
             align_config,

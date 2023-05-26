@@ -5,6 +5,11 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::Error;
 
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+use std::path::Path;
+
+use std::fmt::{Display, Formatter};
 use std::time::{Duration, Instant};
 
 use array_tool::vec::Intersect;
@@ -23,7 +28,7 @@ pub enum IntersectLevel {
     ForceIntersect,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum FilterReason {
     ScoreBelowThreshold,
     DiscardedMultipleMatch,
@@ -35,6 +40,25 @@ pub enum FilterReason {
     ForceIntersectFailure,
     ShortRead,
     MaxHitsExceeded,
+}
+
+impl Display for FilterReason {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match *self {
+            FilterReason::ScoreBelowThreshold => write!(f, "Score Below Threshold"),
+            FilterReason::DiscardedMultipleMatch => write!(f, "Discarded Multiple Match"),
+            FilterReason::DiscardedNonzeroMismatch => write!(f, "Discarded Nonzero Mismatch"),
+            FilterReason::NoMatch => write!(f, "No Match"),
+            FilterReason::NoMatchAndScoreBelowThreshold => {
+                write!(f, "No Match and Score Below Threshold")
+            }
+            FilterReason::DifferentFilterReasons => write!(f, "Different Filter Reasons"),
+            FilterReason::NotMatchingPair => write!(f, "Not Matching Pair"),
+            FilterReason::ForceIntersectFailure => write!(f, "Force Intersect Failure"),
+            FilterReason::ShortRead => write!(f, "Short Read"),
+            FilterReason::MaxHitsExceeded => write!(f, "Max Hits Exceeded"),
+        }
+    }
 }
 
 pub struct AlignFilterConfig {
@@ -184,6 +208,11 @@ impl AlignmentDirection {
                 let dir =
                     AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state, debug_info);
                 if AlignmentDirection::filter_read(dir, &config.strand_filter) {
+                    println!(
+                        "filtered read-pair: {:?}, due to alignment dir {:?}",
+                        &key, dir
+                    );
+
                     if debug {
                         replace_key_with_strand_dir(key, matched_sequences, dir);
                     }
@@ -194,6 +223,11 @@ impl AlignmentDirection {
             let dir =
                 AlignmentDirection::get_alignment_dir(f_pair_state, PairState::None, debug_info);
             if AlignmentDirection::filter_read(dir, &config.strand_filter) {
+                println!(
+                    "filtered read-pair: {:?}, due to alignment dir {:?}",
+                    &key, dir
+                );
+
                 if debug {
                     replace_key_with_strand_dir(key, matched_sequences, dir);
                 }
@@ -203,6 +237,11 @@ impl AlignmentDirection {
             let dir =
                 AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state, debug_info);
             if AlignmentDirection::filter_read(dir, &config.strand_filter) {
+                println!(
+                    "filtered read-pair: {:?}, due to alignment dir {:?}",
+                    &key, dir
+                );
+
                 if debug {
                     replace_key_with_strand_dir(key, matched_sequences, dir);
                 }
@@ -380,6 +419,19 @@ pub fn score<'a>(
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     )>,
+    current_metadata_group: &Vec<(
+        u8,
+        String,
+        String,
+        bool,
+        String,
+        Vec<u8>,
+        Vec<u8>,
+        String,
+        String,
+        String,
+        String,
+    )>,
     index_pair: &(PseudoAligner, PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
@@ -399,17 +451,21 @@ pub fn score<'a>(
         generate_score(
             sequences,
             reverse_sequences,
+            current_metadata_group,
             index_forward,
             reference_metadata,
             config,
+            String::from("forward"),
         );
     let (mut backward_score, mut backward_matched_sequences, backward_align_debug_info) =
         generate_score(
             sequences_2,
             reverse_sequences_2,
+            current_metadata_group,
             index_backward,
             reference_metadata,
             config,
+            String::from("reverse"),
         );
 
     forward_matched_sequences.append(&mut backward_matched_sequences);
@@ -466,9 +522,23 @@ pub fn score<'a>(
 fn generate_score<'a>(
     sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     mut reverse_sequences: Option<Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>>,
+    current_metadata_group: &Vec<(
+        u8,
+        String,
+        String,
+        bool,
+        String,
+        Vec<u8>,
+        Vec<u8>,
+        String,
+        String,
+        String,
+        String,
+    )>,
     index: &PseudoAligner,
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
+    reference_orientation: String,
 ) -> (
     HashMap<String, (PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
     Vec<(Vec<String>, String, f64, usize, String)>,
@@ -485,7 +555,68 @@ fn generate_score<'a>(
     //let score_start = Instant::now();
 
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
+    let mut metadata_iter = current_metadata_group.iter();
     for read in sequences {
+        let forward_metadata_raw = metadata_iter.next().unwrap();
+        let reverse_metadata_raw = metadata_iter.next().unwrap();
+
+        let (mapq, orientation, pair, rev_comp, hit, qname, qual, tx, umi, cb, an) =
+            forward_metadata_raw;
+        let (mapq2, orientation2, pair2, rev_comp2, hit2, qname2, qual2, tx2, umi2, cb2, an2) =
+            reverse_metadata_raw;
+
+        let qname_ascii = match String::from_utf8(qname.clone()) {
+            Ok(string) => string,
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                String::new()
+            }
+        };
+
+        let qname_ascii2 = match String::from_utf8(qname2.clone()) {
+            Ok(string) => string,
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                String::new()
+            }
+        };
+
+        let forward_metadata: (
+            &u8,
+            &String,
+            &String,
+            &bool,
+            &String,
+            String,
+            &String,
+            &String,
+            &String,
+            &String,
+        ) = (
+            mapq,
+            orientation,
+            pair,
+            rev_comp,
+            hit,
+            qname_ascii,
+            tx,
+            umi,
+            cb,
+            an,
+        );
+        let reverse_metadata = (
+            mapq2,
+            orientation2,
+            pair2,
+            rev_comp2,
+            hit2,
+            qname_ascii2,
+            tx2,
+            umi2,
+            cb2,
+            an2,
+        );
+
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
         let mut read_rev = None;
 
@@ -501,16 +632,110 @@ fn generate_score<'a>(
         // If there's a reversed sequence, do the paired-end alignment
         let mut rev_seq_score = None;
         let mut rev_filter_reason: Option<(FilterReason, f64, usize)> = None;
+        let mut reverse_read_t = DnaString::blank(0);
         if let Some(itr) = &mut reverse_sequences {
             let reverse_read = itr
                 .next()
                 .expect("Error -- read and reverse read files do not have matching lengths: ")
                 .expect("Error -- could not parse reverse read. Input R2 data malformed.");
             let (score, reason) = pseudoalign(&reverse_read, index, &config);
+            reverse_read_t = reverse_read.clone();
             rev_seq_score = Some(score);
             read_rev = Some(reverse_read);
             rev_filter_reason = reason;
         }
+
+        let mut seq_score_names = Vec::new();
+        let mut rev_seq_score_names = Vec::new();
+        let mut seq_score_weighted = -1.0;
+        let mut rev_seq_score_weighted = -1.0;
+        let mut forward_filter_reason_unwrapped = None;
+        let mut rev_filter_reason_unwrapped = None;
+
+        if seq_score.is_some() {
+            let t: &(Vec<u32>, f64, usize) = seq_score.as_ref().unwrap();
+            seq_score_names = get_score_map_key(&t.0, reference_metadata, &config);
+            seq_score_weighted = t.1;
+        }
+
+        if rev_seq_score.is_some() {
+            if rev_seq_score.as_ref().unwrap().is_some() {
+                let t: &(Vec<u32>, f64, usize) = rev_seq_score.as_ref().unwrap().as_ref().unwrap();
+                rev_seq_score_names = get_score_map_key(&t.0, reference_metadata, &config);
+                rev_seq_score_weighted = t.1;
+            }
+        }
+
+        if forward_filter_reason.as_ref().is_some() {
+            forward_filter_reason_unwrapped = Some(forward_filter_reason.as_ref().unwrap().0);
+        }
+
+        if rev_filter_reason.as_ref().is_some() {
+            rev_filter_reason_unwrapped = Some(rev_filter_reason.as_ref().unwrap().0);
+        }
+
+        let feature_of_interest = "CD69";
+        let mut paired_end_type = "";
+        if seq_score_names.is_empty()
+            && rev_seq_score_names.is_empty()
+            && (forward_metadata.4.contains(feature_of_interest)
+                || reverse_metadata.4.contains(feature_of_interest))
+        //&& (forward_metadata.4 == feature_of_interest || reverse_metadata.4 == feature_of_interest)
+        {
+            //println!("{}", forward_metadata.4);
+            //println!("{}", reverse_metadata.4);
+            paired_end_type = "cellranger"
+        } else if (!seq_score_names.is_empty() || !rev_seq_score_names.is_empty())
+            && (forward_metadata.4.is_empty() && reverse_metadata.4.is_empty())
+        {
+            paired_end_type = "nimble"
+        } else if (!seq_score_names.is_empty() || !rev_seq_score_names.is_empty()) //shared hits
+            && (forward_metadata.4.contains(feature_of_interest) || reverse_metadata.4.contains(feature_of_interest))
+        //&& (forward_metadata.4 == feature_of_interest || reverse_metadata.4 == feature_of_interest)
+        {
+            //println!("{}", forward_metadata.4);
+            //println!("{}", reverse_metadata.4);
+            paired_end_type = "both"
+        }
+
+        if !paired_end_type.is_empty() {
+            let file_path = Path::new("/home/hextraza/work/data/alignment_logs/alignment_dump.tsv");
+
+            write_header_if_needed(&file_path)
+                .expect("Header error -- Error writing header to TSV file");
+
+            log_alignment_comparison(
+                &file_path,
+                &read.to_string(),
+                &reverse_read_t.to_string(),
+                &seq_score_names,
+                seq_score_weighted,
+                forward_filter_reason_unwrapped,
+                &rev_seq_score_names,
+                rev_seq_score_weighted,
+                rev_filter_reason_unwrapped,
+                &forward_metadata,
+                &reverse_metadata,
+                paired_end_type.to_owned(),
+                &reference_orientation,
+            )
+            .expect("Log error -- Error writing to TSV file");
+        }
+
+        /*{
+            println!("read: {:?}", read);
+            println!("reverse read: {:?}", reverse_read_t);
+            println!(
+                "class, score, filter reason: {:?} | {:?} | {:?}",
+                seq_score_names, seq_score_weighted, forward_filter_reason_unwrapped
+            );
+            println!(
+                "reverse class, score, filter reason: {:?} | {:?} | {:?}",
+                rev_seq_score_names, rev_seq_score_weighted, rev_filter_reason_unwrapped
+            );
+            println!("forward metadata: {:?}", forward_metadata);
+            println!("reverse metadata: {:?}\n", reverse_metadata);
+        }*/
 
         let (failed_score, failed_raw_score) = if reverse_sequences.is_some() {
             match (forward_filter_reason, rev_filter_reason) {
@@ -858,4 +1083,130 @@ fn pseudoalign(
         }
         None => (None, Some((FilterReason::NoMatch, 0.0, 0))),
     }
+}
+
+fn log_alignment_comparison(
+    file_path: &Path,
+    read: &str,
+    reverse_read: &str,
+    seq_score_names: &Vec<String>,
+    seq_score_weighted: f64,
+    forward_filter_reason_unwrapped: Option<FilterReason>,
+    rev_seq_score_names: &Vec<String>,
+    rev_seq_score_weighted: f64,
+    rev_filter_reason_unwrapped: Option<FilterReason>,
+    forward_metadata: &(
+        &u8,
+        &String,
+        &String,
+        &bool,
+        &String,
+        String,
+        &String,
+        &String,
+        &String,
+        &String,
+    ),
+    reverse_metadata: &(
+        &u8,
+        &String,
+        &String,
+        &bool,
+        &String,
+        String,
+        &String,
+        &String,
+        &String,
+        &String,
+    ),
+    alignment_type: String,
+    reference_orientation: &String,
+) -> std::io::Result<()> {
+    let (mapq, orientation, pair, rev_comp, hit, qname_ascii, tx, umi, cb, an) = forward_metadata;
+    let (mapq2, orientation2, pair2, rev_comp2, hit2, qname_ascii2, tx2, umi2, cb2, an2) =
+        reverse_metadata;
+
+    let mut forward_filter_reason = String::from("No Filter");
+    let mut rev_filter_reason = String::from("No Filter");
+
+    if forward_filter_reason_unwrapped.is_some() {
+        forward_filter_reason = forward_filter_reason_unwrapped.unwrap().to_string();
+    }
+
+    if rev_filter_reason_unwrapped.is_some() {
+        rev_filter_reason = rev_filter_reason_unwrapped.unwrap().to_string();
+    }
+
+    let mut file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(file_path)?;
+
+    writeln!(
+        file,
+        "{}\t{}\t{:?}\t{}\t{:?}\t{}\t{}\t{}\t{}\t{}\t{:?}\t{:?}\t{}\t{}\t{}\t{:?}\t{}\t{:?}\t{}\t{}\t{}\t{:?}\t{:?}\t{}\t{:?}\t{}\t{}\t{}\t{}\t{}\n",
+        read,
+        reverse_read,
+        seq_score_names,
+        seq_score_weighted,
+        forward_filter_reason,
+        mapq,
+        orientation,
+        pair,
+        rev_comp,
+        hit,
+        qname_ascii,
+        tx,
+        umi,
+        cb,
+        an,
+        rev_seq_score_names,
+        rev_seq_score_weighted,
+        rev_filter_reason,
+        mapq2,
+        orientation2,
+        pair2,
+        rev_comp2,
+        hit2,
+        qname_ascii2,
+        tx2,
+        alignment_type,
+        reference_orientation,
+        umi2,
+        cb2,
+        an2,
+    )?;
+
+    Ok(())
+}
+
+fn write_header_if_needed(file_path: &Path) -> std::io::Result<()> {
+    let mut needs_header = false;
+
+    if !file_path.exists() {
+        println!("needs a header/file creation");
+        needs_header = true;
+    } else {
+        let metadata = std::fs::metadata(file_path)?;
+        if metadata.len() == 0 {
+            println!("needs a header/file creation");
+            needs_header = true;
+        }
+    }
+
+    if needs_header {
+        let header = "read\treverse_read\tnimble_score_names\tnimble_score_weighted\tforward_filter_reason\tmapq\torientation\tpair\trev_comp\thit\tqname_ascii\ttx\tumi\tcb\tan\tnimble_rev_score_names\tnimble_rev_score_weighted\tnimble_rev_filter_reason\tmapq2\torientation2\tpair2\trev_comp2\thit2\tqname_ascii2\ttx2\talignment_type\treference_orientation\tumi\tcb\tan";
+
+        println!("Opening tsv file for header writing");
+        let mut file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(file_path)?;
+
+        println!("Writing header to file");
+        writeln!(file, "{}", header)?;
+        println!("Finished writing header to file")
+    }
+
+    Ok(())
 }
