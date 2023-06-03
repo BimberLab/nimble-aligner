@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 
 const READ_BLOCK_REPORT_SIZE: usize = 1000000;
 const MAX_RECORD_ERROR_REPORT_SIZE: usize = 100;
+const CLIP_LENGTH: usize = 13;
 
 pub struct UMIReader {
     reader: SortedBamReader,
@@ -169,7 +170,8 @@ impl UMIReader {
                 self.current_iteration_key = read_umi.clone() + current_cell_barcode.as_str();
             }
 
-            let seq = UMIReader::strip_nonbio_regions(&record.seq().as_bytes()[..]);
+            let seq =
+                UMIReader::strip_nonbio_regions(&record.seq().as_bytes()[..], record.is_reverse());
             let mapq = record.mapq();
             let orientation = String::from(record.strand().strand_symbol());
             let pair = match record.is_secondary() {
@@ -259,7 +261,7 @@ impl UMIReader {
     // based on
     // https://assets.ctfassets.net/an68im79xiti/6yYLKUTpokvZvs4pVwnd0a/c40790cd90b7d57bc4e457e670ae3561/CG000207_ChromiumNextGEMSingleCellV_D_J_ReagentKits_v1.1_UG_RevF.pdf,
     // page 76, figure 3.1
-    fn strip_nonbio_regions(seq: &[u8]) -> DnaString {
+    fn strip_nonbio_regions(seq: &[u8], rev_comp: bool) -> DnaString {
         // Convert seq to string for easy search operations
         //let seq = String::from_utf8(seq.to_owned()).unwrap();
 
@@ -311,8 +313,23 @@ impl UMIReader {
             seq
         };*/
 
-        //DnaString::from_dna_string(&seq)
-        DnaString::from_acgt_bytes(seq)
+        return DnaString::from_acgt_bytes(seq);
+
+        if seq.len() == 124 {
+            if rev_comp {
+                DnaString::from_acgt_bytes(&bio::alphabets::dna::revcomp(
+                    &seq[0..seq.len() - CLIP_LENGTH],
+                ))
+            } else {
+                DnaString::from_acgt_bytes(&seq[CLIP_LENGTH..])
+            }
+        } else {
+            if rev_comp {
+                DnaString::from_acgt_bytes(&bio::alphabets::dna::revcomp(seq))
+            } else {
+                DnaString::from_acgt_bytes(seq)
+            }
+        }
     }
 }
 

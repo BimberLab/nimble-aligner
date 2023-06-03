@@ -35,6 +35,7 @@ pub fn score<'a>(
     reference_metadata: &ReferenceMetadata,
     align_config: &align::AlignFilterConfig,
     debug_info: Option<&mut align::AlignDebugInfo>,
+    output_path: &str,
 ) -> (
     Vec<(Vec<String>, i32)>,
     Vec<(Vec<String>, String, f64, usize, String)>,
@@ -48,6 +49,7 @@ pub fn score<'a>(
         reference_metadata,
         align_config,
         debug_info,
+        output_path,
     );
 
     (

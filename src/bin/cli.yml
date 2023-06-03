@@ -6,6 +6,7 @@ args:
   - reference:
       help: File defining the reference library that will be used for alignment, in nimble .json format
       required: true
+      #multiple: true
   - output:
       help: Output TSV file name
       required: true
@@ -13,7 +14,6 @@ args:
       help: Single fastq.gz/fastq file, or two if you need to do paired-end alignment
       required: true
       multiple: true
-      max_values: 2
   - num_cores:
       short: c
       long: cores

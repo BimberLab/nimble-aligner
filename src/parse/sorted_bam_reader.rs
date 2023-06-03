@@ -88,6 +88,34 @@ impl SortedBamReader {
                 if read1_qname == read2_qname {
                     paired_reads_buffer.push(self.dna_sorted_buffer[i].clone());
                     paired_reads_buffer.push(self.dna_sorted_buffer[i + 1].clone());
+                    /*if self.dna_sorted_buffer[i].is_first_in_template() {
+                        paired_reads_buffer.push(self.dna_sorted_buffer[i].clone());
+                        paired_reads_buffer.push(self.dna_sorted_buffer[i + 1].clone());
+                    } else {
+                        paired_reads_buffer.push(self.dna_sorted_buffer[i + 1].clone());
+                        paired_reads_buffer.push(self.dna_sorted_buffer[i].clone());
+                        println!("SECOND WAS R1")
+                    }
+
+                    println!("first: len: {}", self.dna_sorted_buffer[i].seq_len());
+                    println!("second: len: {}", self.dna_sorted_buffer[i + 1].seq_len());
+                    println!(
+                        "first: first in template: {}",
+                        self.dna_sorted_buffer[i].is_first_in_template()
+                    );
+                    println!(
+                        "first: second in template: {}",
+                        self.dna_sorted_buffer[i].is_last_in_template()
+                    );
+                    println!(
+                        "second: first in template: {}",
+                        self.dna_sorted_buffer[i + 1].is_first_in_template()
+                    );
+                    println!(
+                        "second: second in template: {}\n",
+                        self.dna_sorted_buffer[i + 1].is_last_in_template()
+                    );*/
+
                     seen_qnames.insert(read1_qname);
                     i += 2;
                 } else {

@@ -55,6 +55,7 @@ pub fn process(
             reference_metadata,
             align_config,
             Some(&mut debug_info),
+            "",
         )
     } else {
         score(
@@ -65,6 +66,7 @@ pub fn process(
             reference_metadata,
             align_config,
             None,
+            "",
         )
     };
 

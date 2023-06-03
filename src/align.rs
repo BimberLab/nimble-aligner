@@ -436,6 +436,7 @@ pub fn score<'a>(
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>,
+    output_path: &str,
 ) -> (
     Vec<(Vec<String>, i32)>,
     Vec<(Vec<String>, String, f64, usize, String)>,
@@ -456,6 +457,7 @@ pub fn score<'a>(
             reference_metadata,
             config,
             String::from("forward"),
+            output_path,
         );
     let (mut backward_score, mut backward_matched_sequences, backward_align_debug_info) =
         generate_score(
@@ -466,6 +468,7 @@ pub fn score<'a>(
             reference_metadata,
             config,
             String::from("reverse"),
+            output_path,
         );
 
     forward_matched_sequences.append(&mut backward_matched_sequences);
@@ -539,6 +542,7 @@ fn generate_score<'a>(
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
     reference_orientation: String,
+    output_path: &str,
 ) -> (
     HashMap<String, (PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
     Vec<(Vec<String>, String, f64, usize, String)>,
@@ -674,7 +678,7 @@ fn generate_score<'a>(
             rev_filter_reason_unwrapped = Some(rev_filter_reason.as_ref().unwrap().0);
         }
 
-        let feature_of_interest = "CD69";
+        let feature_of_interest = "LILR";
         let mut paired_end_type = "";
         if seq_score_names.is_empty()
             && rev_seq_score_names.is_empty()
@@ -699,7 +703,8 @@ fn generate_score<'a>(
         }
 
         if !paired_end_type.is_empty() {
-            let file_path = Path::new("/home/hextraza/work/data/alignment_logs/alignment_dump.tsv");
+            //let file_path = Path::new("/home/hextraza/work/data/alignment_logs/alignment_dump.tsv");
+            let file_path = Path::new(output_path);
 
             write_header_if_needed(&file_path)
                 .expect("Header error -- Error writing header to TSV file");

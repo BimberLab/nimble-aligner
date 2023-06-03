@@ -151,13 +151,15 @@ pub fn process(
                 reference_index,
                 reference_metadata,
                 align_config,
-                Some(&mut debug_info),
+                //Some(&mut debug_info),
+                None,
                 &reader
                     .current_metadata_group
                     .clone()
                     .into_iter()
                     .map(|(_, _, _, r, _, _, _, _, _, _, _)| r)
                     .collect::<Vec<bool>>(),
+                output_path,
             )
         } else {
             get_score(
@@ -173,6 +175,7 @@ pub fn process(
                     .into_iter()
                     .map(|(_, _, _, r, _, _, _, _, _, _, _)| r)
                     .collect::<Vec<bool>>(),
+                output_path,
             )
         };
 
@@ -199,6 +202,7 @@ pub fn process(
                     &reference_metadata,
                     align_config,
                     None,
+                    output_path,
                 )
             }
             None => (Vec::new(), Vec::new()),
@@ -305,6 +309,7 @@ pub fn process(
             &bam_specific_alignment_metadata.qnames,
             &reference_names,
             &reference_hashes,
+            &owned_debug_file,
         );
 
         // Filter out all reads that didn't have positional alignments
@@ -810,6 +815,7 @@ fn get_score<'a>(
     align_config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>,
     reverse_comp_read: &'a Vec<bool>,
+    output_path: &str,
 ) -> (
     Vec<(Vec<String>, i32)>,
     Vec<(Vec<String>, String, f64, usize, String)>,
@@ -859,6 +865,7 @@ fn get_score<'a>(
         &reference_metadata,
         align_config,
         debug_info,
+        output_path,
     )
 }
 
@@ -878,6 +885,7 @@ fn positional_alignment(
     qname: &Vec<Vec<u8>>,
     reference_names: &Vec<String>,
     reference_hashes: &HashMap<String, HashMapFx<Vec<u8>, Vec<u32>>>,
+    output_path: &str,
 ) /*-> Vec<Vec<(Alignment, String)>>*/
 {
     //return Vec::new();
@@ -941,7 +949,8 @@ fn positional_alignment(
     }
 
     // Define the path for your log file.
-    let log_path = "/home/hextraza/work/data/alignment_logs/pos.tsv";
+    //let log_path = "/home/hextraza/work/data/alignment_logs/pos.tsv";
+    let log_path = output_path;
 
     // Log to file.
     let mut file = OpenOptions::new()
