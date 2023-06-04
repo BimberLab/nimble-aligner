@@ -313,22 +313,21 @@ impl UMIReader {
             seq
         };*/
 
-        return DnaString::from_acgt_bytes(seq);
+        //return DnaString::from_acgt_bytes(&seq);
 
         if seq.len() == 124 {
             if rev_comp {
-                DnaString::from_acgt_bytes(&bio::alphabets::dna::revcomp(
-                    &seq[0..seq.len() - CLIP_LENGTH],
-                ))
+                DnaString::from_acgt_bytes(&seq[0..seq.len() - CLIP_LENGTH])
             } else {
                 DnaString::from_acgt_bytes(&seq[CLIP_LENGTH..])
             }
         } else {
-            if rev_comp {
+            /*if rev_comp {
                 DnaString::from_acgt_bytes(&bio::alphabets::dna::revcomp(seq))
             } else {
                 DnaString::from_acgt_bytes(seq)
-            }
+            }*/
+            return DnaString::from_acgt_bytes(&seq);
         }
     }
 }

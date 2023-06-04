@@ -167,14 +167,23 @@ impl AlignmentDirection {
             (PairState::Second, PairState::None) => AlignmentDirection::RU,
             (PairState::None, PairState::First) => AlignmentDirection::UF,
             (PairState::None, PairState::Second) => AlignmentDirection::UR,
-            (PairState::Both, PairState::First) => AlignmentDirection::FF,
+
+            (PairState::Both, PairState::First) => AlignmentDirection::UU,
+            (PairState::First, PairState::Both) => AlignmentDirection::UU,
+            (PairState::Both, PairState::Second) => AlignmentDirection::UU,
+            (PairState::Second, PairState::Both) => AlignmentDirection::UU,
+            (PairState::Both, PairState::Both) => AlignmentDirection::UU,
+            (PairState::Both, PairState::None) => AlignmentDirection::UU,
+            (PairState::None, PairState::Both) => AlignmentDirection::UU,
+            (PairState::None, PairState::None) => AlignmentDirection::UU,
+            /*(PairState::Both, PairState::First) => AlignmentDirection::FF,
             (PairState::First, PairState::Both) => AlignmentDirection::FF,
             (PairState::Both, PairState::Second) => AlignmentDirection::RR,
             (PairState::Second, PairState::Both) => AlignmentDirection::RR,
             (PairState::Both, PairState::Both) => AlignmentDirection::FR,
             (PairState::Both, PairState::None) => AlignmentDirection::FU,
             (PairState::None, PairState::Both) => AlignmentDirection::UF,
-            (PairState::None, PairState::None) => AlignmentDirection::UU,
+            (PairState::None, PairState::None) => AlignmentDirection::UU,*/
         };
 
         match dir {
@@ -308,7 +317,7 @@ impl AlignmentDirection {
             AlignmentDirection::UU => true,
             AlignmentDirection::FR => false,
             AlignmentDirection::FU => false,
-            AlignmentDirection::RF => true,
+            AlignmentDirection::RF => false,
             AlignmentDirection::RU => false,
             AlignmentDirection::UF => false,
             AlignmentDirection::UR => false,
@@ -320,7 +329,7 @@ impl AlignmentDirection {
             AlignmentDirection::FF => true,
             AlignmentDirection::RR => true,
             AlignmentDirection::UU => true,
-            AlignmentDirection::FR => true,
+            AlignmentDirection::FR => false,
             AlignmentDirection::FU => false,
             AlignmentDirection::RF => false,
             AlignmentDirection::RU => false,

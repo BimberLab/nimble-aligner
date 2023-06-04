@@ -68,8 +68,8 @@ pub fn process(
     hd_record.push_tag(b"VN", &"1.6");
     hd_record.push_tag(b"SO", &"unknown");
     header.push_record(&hd_record);
-    let mut bam_writer = bam::Writer::from_path(&output_path, &header, bam::Format::Bam).unwrap();
-    bam_writer.set_threads(num_cores);
+    //let mut bam_writer = bam::Writer::from_path(&output_path, &header, bam::Format::Bam).unwrap();
+    //bam_writer.set_threads(num_cores);
 
     let reference_hashes = hash_reference_seqs(&reference_seqs, BANDED_KMER_SIZE);
 
@@ -83,7 +83,7 @@ pub fn process(
         "".to_owned()
     };
 
-    let _owned_alignment_file = if alignment_file.is_some() {
+    let owned_alignment_file = if alignment_file.is_some() {
         alignment_file.unwrap()
     } else {
         "".to_owned()
@@ -309,7 +309,7 @@ pub fn process(
             &bam_specific_alignment_metadata.qnames,
             &reference_names,
             &reference_hashes,
-            &owned_debug_file,
+            &owned_alignment_file,
         );
 
         // Filter out all reads that didn't have positional alignments
@@ -924,7 +924,7 @@ fn positional_alignment(
                     alignments.push((
                         alignment,
                         reference_names[j].clone(),
-                        String::from_utf8(qname[j].clone()).unwrap(),
+                        String::from_utf8(qname[i].clone()).unwrap(),
                         pretty,
                     ));
                 } else {

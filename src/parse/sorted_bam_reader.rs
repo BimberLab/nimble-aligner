@@ -86,18 +86,17 @@ impl SortedBamReader {
                 let read1_qname = self.dna_sorted_buffer[i].qname();
                 let read2_qname = self.dna_sorted_buffer[i + 1].qname();
                 if read1_qname == read2_qname {
-                    paired_reads_buffer.push(self.dna_sorted_buffer[i].clone());
-                    paired_reads_buffer.push(self.dna_sorted_buffer[i + 1].clone());
-                    /*if self.dna_sorted_buffer[i].is_first_in_template() {
+                    //paired_reads_buffer.push(self.dna_sorted_buffer[i].clone());
+                    //paired_reads_buffer.push(self.dna_sorted_buffer[i + 1].clone());
+                    if self.dna_sorted_buffer[i].is_first_in_template() {
                         paired_reads_buffer.push(self.dna_sorted_buffer[i].clone());
                         paired_reads_buffer.push(self.dna_sorted_buffer[i + 1].clone());
                     } else {
                         paired_reads_buffer.push(self.dna_sorted_buffer[i + 1].clone());
                         paired_reads_buffer.push(self.dna_sorted_buffer[i].clone());
-                        println!("SECOND WAS R1")
                     }
 
-                    println!("first: len: {}", self.dna_sorted_buffer[i].seq_len());
+                    /*println!("first: len: {}", self.dna_sorted_buffer[i].seq_len());
                     println!("second: len: {}", self.dna_sorted_buffer[i + 1].seq_len());
                     println!(
                         "first: first in template: {}",
