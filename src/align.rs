@@ -22,6 +22,7 @@ const MIN_READ_LENGTH: usize = 12;
 
 pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<debruijn::kmer::Kmer30>;
 
+#[derive(Debug)]
 pub enum IntersectLevel {
     NoIntersect,
     IntersectWithFallback,
@@ -61,6 +62,7 @@ impl Display for FilterReason {
     }
 }
 
+#[derive(Debug)]
 pub struct AlignFilterConfig {
     pub reference_genome_size: usize,
     pub score_percent: f64,
@@ -76,7 +78,7 @@ pub struct AlignFilterConfig {
     pub strand_filter: StrandFilter,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum StrandFilter {
     Unstranded,
     FivePrime,

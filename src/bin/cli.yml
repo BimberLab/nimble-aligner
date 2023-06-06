@@ -4,14 +4,15 @@ author: Sebastian B. <benjamse@ohsu.edu>
 about: Configurable RNA-seq aligner against arbitrary reference genomes
 args:
   - reference:
-      help: File defining the reference library that will be used for alignment, in nimble .json format
+      help: File(s) defining the reference library/ies that will be used for alignment, in nimble .json format
       required: true
-      #multiple: true
+      multiple: true
   - output:
-      help: Output TSV file name
+      help: Output TSV file name(s)
       required: true
+      multiple: true
   - input:
-      help: Single fastq.gz/fastq file, or two if you need to do paired-end alignment
+      help: Single fastq.gz/fastq file(s), or two if you need to do paired-end alignment
       required: true
       multiple: true
   - num_cores:
@@ -24,16 +25,18 @@ args:
   - log:
       short: l
       long: log
-      value_name: LOG_PATH
-      help: Path to a file which will log alignment information
+      help: Path(s) to a file(s) which will log alignment information
       takes_value: true
+      multiple: true
+      value_name: LOG_PATH
       default_value: ""
   - alignment:
       short: a
       long: alignment
       value_name: ALIGNMENT_PATH
-      help: Path to a gzipped file that will log reference name and sequence for every alignment (note -- can be very large)
+      help: Path(s) to a gzipped file(s) that will log reference name and sequence for every alignment (note -- can be very large)
       takes_value: true
+      multiple: true
       default_value: ""
   - strand_filter:
       short: f

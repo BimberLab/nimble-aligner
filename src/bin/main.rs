@@ -9,32 +9,49 @@ use nimble::utils;
 use clap::{load_yaml, App};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 fn main() {
-    // Parse command line arguments based on the yaml schema
     let yaml = load_yaml!("cli.yml");
+
+    // Parse command line arguments based on the yaml schema
     let matches = App::from_yaml(yaml).get_matches();
 
-    let reference_json_path = matches.value_of("reference").unwrap();
-    let output_path = matches.value_of("output").unwrap();
-    let input_files: Vec<&str> = matches.values_of("input").unwrap().collect();
+    // Modified to handle multiple reference libraries
+    let reference_json_paths: Vec<String> = matches
+        .values_of("reference")
+        .unwrap()
+        .map(|v| v.to_string())
+        .collect();
+
+    let output_paths: Vec<String> = matches
+        .values_of("output")
+        .unwrap()
+        .map(|v| v.to_string())
+        .collect();
+
+    let debug_files: Vec<Option<String>> =
+        matches.values_of("log").map_or_else(Vec::new, |values| {
+            values
+                .map(|v| if v == "" { None } else { Some(v.to_string()) })
+                .collect()
+        });
+
+    let alignment_files: Vec<Option<String>> =
+        matches
+            .values_of("alignment")
+            .map_or_else(Vec::new, |values| {
+                values
+                    .map(|v| if v == "" { None } else { Some(v.to_string()) })
+                    .collect()
+            });
+
     let num_cores = matches
         .value_of("num_cores")
         .unwrap_or("1")
         .parse::<usize>()
         .expect("Error -- please provide an integer value for the number of cores");
-    let debug_file = matches.value_of("log").unwrap_or("").to_owned();
-    let debug_file = if debug_file == "" {
-        None
-    } else {
-        Some(debug_file)
-    };
-    let alignment_file = matches.value_of("alignment").unwrap_or("").to_owned();
-    let alignment_file = if alignment_file == "" {
-        None
-    } else {
-        Some(alignment_file)
-    };
 
     let strand_filter = matches.value_of("strand_filter").unwrap_or("unstranded");
     let strand_filter = match strand_filter {
@@ -45,67 +62,143 @@ fn main() {
         _ => panic!("Could not parse strand_filter option."),
     };
 
-    if debug_file.is_some() {
-        println!("Reference path: {:?}\nOutput path: {:?}\nInput files: {:?}\nNumber of Cores: {:?}\nDebug file: {:?}\nAlignment file: {:?}\nStrand filter: {:?}", reference_json_path, output_path, input_files, num_cores, debug_file, alignment_file, strand_filter);
+    let input_files: Vec<String> = matches
+        .values_of("input")
+        .unwrap()
+        .map(|v| v.to_string())
+        .collect();
+
+    let num_cores = matches
+        .value_of("num_cores")
+        .unwrap_or("1")
+        .parse::<usize>()
+        .expect("Error -- please provide an integer value for the number of cores");
+
+    // Thread-safe collections to store setup data
+    let reference_indices = Arc::new(Mutex::new(Vec::new()));
+    let reference_metadata = Arc::new(Mutex::new(Vec::new()));
+    let align_config = Arc::new(Mutex::new(Vec::new()));
+    let reference_seqs = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
+    let reference_names = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
+
+    let mut handles = vec![];
+
+    for reference_json_path in reference_json_paths {
+        // Clone Arcs to move into the thread
+        let reference_indices = Arc::clone(&reference_indices);
+        let reference_metadata = Arc::clone(&reference_metadata);
+        let align_config = Arc::clone(&align_config);
+        let reference_seqs = Arc::clone(&reference_seqs);
+        let reference_names = Arc::clone(&reference_names);
+
+        let strand_filter = strand_filter.clone();
+
+        let handle = thread::spawn(move || {
+            println!(
+                "Loading and preprocessing reference data for {}",
+                reference_json_path
+            );
+
+            // Read library alignment config info, reference library metadata, and sequences from library json
+            let (align_config_thread, reference_metadata_thread) =
+                reference_library::get_reference_library(
+                    Path::new(&reference_json_path),
+                    strand_filter,
+                );
+
+            // Generate error-checked vectors of seqs and names for the debruijn index
+            let (reference_seqs_thread, reference_seqs_rev_thread, reference_names_thread) =
+                utils::validate_reference_pairs(&reference_metadata_thread);
+
+            // Create debruijn index of the reference library
+            let reference_index_forward =
+                debruijn_mapping::build_index::build_index::<debruijn::kmer::Kmer30>(
+                    &reference_seqs_thread,
+                    &reference_names_thread,
+                    &HashMap::new(),
+                    num_cores,
+                )
+                .expect("Error -- could not create pseudoaligner index of the reference library");
+
+            // Create debruijn index of the reverse-comp of the reference library
+            let reference_index_reverse = debruijn_mapping::build_index::build_index::<
+                debruijn::kmer::Kmer30,
+            >(
+                &reference_seqs_rev_thread,
+                &reference_names_thread,
+                &HashMap::new(),
+                num_cores,
+            )
+            .expect(
+                "Error -- could not create reverse pseudoaligner index of the reference library",
+            );
+
+            // Update the shared data
+            let mut reference_indices_lock = reference_indices.lock().unwrap();
+            reference_indices_lock.push((reference_index_forward, reference_index_reverse));
+            drop(reference_indices_lock);
+
+            let mut reference_metadata_lock = reference_metadata.lock().unwrap();
+            reference_metadata_lock.push(reference_metadata_thread);
+            drop(reference_metadata_lock);
+
+            let mut align_config_lock = align_config.lock().unwrap();
+            align_config_lock.push(align_config_thread);
+            drop(align_config_lock);
+
+            let mut reference_seqs_lock = reference_seqs.lock().unwrap();
+            reference_seqs_lock.push(
+                reference_seqs_thread
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+            );
+            drop(reference_seqs_lock);
+
+            let mut reference_names_lock = reference_names.lock().unwrap();
+            reference_names_lock.push(reference_names_thread);
+            drop(reference_names_lock);
+        });
+
+        handles.push(handle);
     }
-    println!("Loading and preprocessing reference data");
 
-    // Read library alignment config info, reference library metadata, and sequences from library json
-    let (align_config, reference_metadata) =
-        reference_library::get_reference_library(Path::new(reference_json_path), strand_filter);
-
-    // Generate error-checked vectors of seqs and names for the debrujin index
-    let (reference_seqs, reference_seqs_rev, reference_names) =
-        utils::validate_reference_pairs(&reference_metadata);
-
-    // Create debruijn index of the reference library
-    let reference_index_forward =
-        debruijn_mapping::build_index::build_index::<debruijn::kmer::Kmer30>(
-            &reference_seqs,
-            &reference_names,
-            &HashMap::new(),
-            num_cores,
-        )
-        .expect("Error -- could not create pseudoaligner index of the reference library");
-
-    // Create debruijn index of the reverse-comp of the reference library
-    let reference_index_reverse =
-        debruijn_mapping::build_index::build_index::<debruijn::kmer::Kmer30>(
-            &reference_seqs_rev,
-            &reference_names,
-            &HashMap::new(),
-            num_cores,
-        )
-        .expect("Error -- could not create reverse pseudoaligner index of the reference library");
-
-    let reference_index = (reference_index_forward, reference_index_reverse);
+    for handle in handles {
+        handle.join().unwrap();
+    }
 
     println!("Loading read sequences and aligning");
 
-    if utils::is_fastq(input_files[0]) {
-        fastq::process(
-            input_files,
-            &reference_index,
-            &reference_metadata,
-            &align_config,
-            output_path,
-            debug_file,
-            alignment_file,
-        );
-    } else {
-        bam::process(
-            input_files,
-            &reference_index,
-            &reference_metadata,
-            &align_config,
-            output_path,
-            debug_file,
-            alignment_file,
-            num_cores,
-            reference_seqs.into_iter().map(|s| s.to_string()).collect(),
-            reference_names,
-        );
-    };
+    let reference_indices = Arc::try_unwrap(reference_indices)
+        .unwrap()
+        .into_inner()
+        .unwrap();
+    let reference_metadata = Arc::try_unwrap(reference_metadata)
+        .unwrap()
+        .into_inner()
+        .unwrap();
+    let align_config = Arc::try_unwrap(align_config).unwrap().into_inner().unwrap();
+    let reference_seqs = Arc::try_unwrap(reference_seqs)
+        .unwrap()
+        .into_inner()
+        .unwrap();
+    let reference_names = Arc::try_unwrap(reference_names)
+        .unwrap()
+        .into_inner()
+        .unwrap();
+
+    /*bam::process(
+        input_files,
+        reference_indices,
+        &reference_metadata,
+        &align_config,
+        output_paths,
+        debug_files,
+        alignment_files,
+        num_cores,
+        reference_seqs,
+        reference_names,
+    );*/
 
     println!("Alignment successful, terminating.")
 }

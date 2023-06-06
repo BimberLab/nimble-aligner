@@ -62,7 +62,7 @@ pub fn process(
 ) -> Vec<(Vec<String>, i32)> {
     let mut reader = UMIReader::new(input_files[0], debug_file.is_none());
     let mut has_aligned = false;
-    //let mut score_map: HashMap<(Vec<String>, String), i32> = HashMap::new();
+    let mut score_map: HashMap<(Vec<String>, String), i32> = HashMap::new();
     let mut header = bam::Header::new();
     let mut hd_record = HeaderRecord::new(b"HD");
     hd_record.push_tag(b"VN", &"1.6");
@@ -302,8 +302,7 @@ pub fn process(
         ));
 
         // Perfom positional alignment
-        /*let pos_alignments =*/
-        positional_alignment(
+        let pos_alignments = positional_alignment(
             &reference_seqs,
             &alignment_metadata.sequence,
             &bam_specific_alignment_metadata.qnames,
@@ -333,7 +332,7 @@ pub fn process(
             strand_filter_reason: Vec::new(),
         };
 
-        /*let mut pos_alignments_filtered = Vec::new();
+        let mut pos_alignments_filtered = Vec::new();
 
         for (i, alns) in pos_alignments.iter().enumerate() {
             if !alns.is_empty() {
@@ -377,9 +376,9 @@ pub fn process(
 
                 pos_alignments_filtered.push(alns.clone());
             }
-        }*/
+        }
 
-        /*write_to_bam(
+        /*        write_to_bam(
             &mut bam_writer,
             &header,
             &reference_seqs,
@@ -387,13 +386,13 @@ pub fn process(
             &bam_specific_alignment_metadata_filtered,
             &pos_alignments_filtered,
             reader.current_cell_barcode.clone(),
-        );*/
+        );
 
-        /*write_read_list(
+        write_read_list(
             &alignment_metadata,
             Some(&bam_specific_alignment_metadata),
             &owned_alignment_file,
-        );*/
+        )*/
 
         bam_specific_alignment_metadata.mapq.clear();
         bam_specific_alignment_metadata.orientation.clear();
@@ -417,7 +416,7 @@ pub fn process(
         //println!("time to perform misc tasks: {:?}", duration);
 
         //let start = Instant::now();
-        /*let mut scores = s.iter();
+        let mut scores = s.iter();
 
         let first_score = scores.next().unwrap();
         let mut group = first_score.0.clone();
@@ -441,7 +440,7 @@ pub fn process(
                 .entry((group, reader.current_cell_barcode.clone()))
                 .or_insert(0);
             *accessor = *accessor + score;
-        }*/
+        }
 
         //let duration = start.elapsed();
         //println!("time to write score to table: {:?}\n\n", duration);
@@ -886,10 +885,7 @@ fn positional_alignment(
     reference_names: &Vec<String>,
     reference_hashes: &HashMap<String, HashMapFx<Vec<u8>, Vec<u32>>>,
     output_path: &str,
-) /*-> Vec<Vec<(Alignment, String)>>*/
-{
-    //return Vec::new();
-
+) -> Vec<Vec<(Alignment, String, String, String)>> {
     let score = |a: u8, b: u8| if a == b { 1i32 } else { -1i32 };
 
     let (sender, receiver) = channel();
@@ -980,7 +976,7 @@ fn positional_alignment(
         }
     }
 
-    //ordered_results
+    ordered_results
 }
 
 fn write_to_bam(
