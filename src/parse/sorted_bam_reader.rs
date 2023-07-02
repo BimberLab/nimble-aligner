@@ -32,6 +32,10 @@ impl SortedBamReader {
                 }
             };
 
+            if !record.is_paired() {
+                continue;
+            }
+
             match record.aux(b"CB") {
                 Err(_) => {
                     continue;
@@ -118,6 +122,7 @@ impl SortedBamReader {
                     seen_qnames.insert(read1_qname);
                     i += 2;
                 } else {
+                    println!("Warning: Unpaired qname!");
                     if seen_qnames.contains(&read1_qname) {
                         println!(
                             "Warning: Read with qname '{:?}' has been deleted but was seen before.",

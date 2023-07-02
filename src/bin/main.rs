@@ -1,8 +1,7 @@
 extern crate nimble;
 
-use debruijn::Kmer;
 use nimble::align::StrandFilter;
-use nimble::process::{bam, fastq};
+use nimble::process::bam;
 use nimble::reference_library;
 use nimble::utils;
 
@@ -31,14 +30,14 @@ fn main() {
         .map(|v| v.to_string())
         .collect();
 
-    let debug_files: Vec<Option<String>> =
+    let _debug_files: Vec<Option<String>> =
         matches.values_of("log").map_or_else(Vec::new, |values| {
             values
                 .map(|v| if v == "" { None } else { Some(v.to_string()) })
                 .collect()
         });
 
-    let alignment_files: Vec<Option<String>> =
+    let _alignment_files: Vec<Option<String>> =
         matches
             .values_of("alignment")
             .map_or_else(Vec::new, |values| {
@@ -67,12 +66,6 @@ fn main() {
         .unwrap()
         .map(|v| v.to_string())
         .collect();
-
-    let num_cores = matches
-        .value_of("num_cores")
-        .unwrap_or("1")
-        .parse::<usize>()
-        .expect("Error -- please provide an integer value for the number of cores");
 
     // Thread-safe collections to store setup data
     let reference_indices = Arc::new(Mutex::new(Vec::new()));
@@ -178,27 +171,15 @@ fn main() {
         .into_inner()
         .unwrap();
     let align_config = Arc::try_unwrap(align_config).unwrap().into_inner().unwrap();
-    let reference_seqs = Arc::try_unwrap(reference_seqs)
-        .unwrap()
-        .into_inner()
-        .unwrap();
-    let reference_names = Arc::try_unwrap(reference_names)
-        .unwrap()
-        .into_inner()
-        .unwrap();
 
-    /*bam::process(
+    bam::process(
         input_files,
         reference_indices,
-        &reference_metadata,
-        &align_config,
+        reference_metadata,
+        align_config,
         output_paths,
-        debug_files,
-        alignment_files,
         num_cores,
-        reference_seqs,
-        reference_names,
-    );*/
+    );
 
     println!("Alignment successful, terminating.")
 }

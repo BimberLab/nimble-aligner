@@ -5,12 +5,12 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::Error;
 
+use std::default::Default;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::path::Path;
 
 use std::fmt::{Display, Formatter};
-use std::time::{Duration, Instant};
 
 use array_tool::vec::Intersect;
 use array_tool::vec::Uniq;
@@ -204,9 +204,21 @@ impl AlignmentDirection {
     }
 
     fn filter_hits(
-        mut forward_hits: Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
-        mut reverse_hits: Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
-        results: &mut HashMap<Vec<String>, i32>,
+        mut forward_hits: Option<(
+            PairState,
+            Option<(Vec<u32>, f64)>,
+            Option<(Vec<u32>, f64)>,
+            BamData,
+            BamData,
+        )>,
+        mut reverse_hits: Option<(
+            PairState,
+            Option<(Vec<u32>, f64)>,
+            Option<(Vec<u32>, f64)>,
+            BamData,
+            BamData,
+        )>,
+        results: &mut HashMap<Vec<String>, (i32, BamData, BamData)>,
         reference_metadata: &ReferenceMetadata,
         config: &AlignFilterConfig,
         debug_info: &mut AlignDebugInfo,
@@ -214,8 +226,8 @@ impl AlignmentDirection {
         key: String,
         debug: bool,
     ) {
-        if let Some((f_pair_state, _, _)) = forward_hits {
-            if let Some((r_pair_state, _, _)) = reverse_hits {
+        if let Some((f_pair_state, _, _, _, _)) = forward_hits {
+            if let Some((r_pair_state, _, _, _, _)) = reverse_hits {
                 let dir =
                     AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state, debug_info);
                 if AlignmentDirection::filter_read(dir, &config.strand_filter) {
@@ -244,7 +256,7 @@ impl AlignmentDirection {
                 }
                 return;
             }
-        } else if let Some((r_pair_state, _, _)) = reverse_hits {
+        } else if let Some((r_pair_state, _, _, _, _)) = reverse_hits {
             let dir =
                 AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state, debug_info);
             if AlignmentDirection::filter_read(dir, &config.strand_filter) {
@@ -261,13 +273,13 @@ impl AlignmentDirection {
         }
 
         // Take the "best" alignment. The specific behavior is determined by the intersect level set in the aligner config
-        let match_eqv_class = match config.intersect_level {
-            IntersectLevel::NoIntersect => get_all_reads(&mut forward_hits, &mut reverse_hits),
+        let (match_eqv_class, f_bam_data, r_bam_data) = match config.intersect_level {
+            IntersectLevel::NoIntersect => get_all_reads(forward_hits, reverse_hits),
             IntersectLevel::IntersectWithFallback => {
-                get_intersecting_reads(&mut forward_hits, &mut reverse_hits, true, debug_info)
+                get_intersecting_reads(forward_hits, reverse_hits, true, debug_info)
             }
             IntersectLevel::ForceIntersect => {
-                get_intersecting_reads(&mut forward_hits, &mut reverse_hits, false, debug_info)
+                get_intersecting_reads(forward_hits, reverse_hits, false, debug_info)
             }
         };
 
@@ -285,8 +297,13 @@ impl AlignmentDirection {
             return;
         }
 
-        let accessor = results.entry(key).or_insert(0);
+        let (accessor, f, r) =
+            results
+                .entry(key)
+                .or_insert((0, BamData::default(), BamData::default()));
         *accessor += 1;
+        *f = f_bam_data;
+        *r = r_bam_data;
     }
 
     fn filter_read(dir: AlignmentDirection, lib_type: &StrandFilter) -> bool {
@@ -447,9 +464,8 @@ pub fn score<'a>(
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>,
-    output_path: &str,
 ) -> (
-    Vec<(Vec<String>, i32)>,
+    Vec<(Vec<String>, (i32, BamData, BamData))>,
     Vec<(Vec<String>, String, f64, usize, String)>,
 ) {
     let (index_forward, index_backward) = index_pair;
@@ -468,7 +484,6 @@ pub fn score<'a>(
             reference_metadata,
             config,
             String::from("forward"),
-            output_path,
         );
     let (mut backward_score, mut backward_matched_sequences, backward_align_debug_info) =
         generate_score(
@@ -479,13 +494,12 @@ pub fn score<'a>(
             reference_metadata,
             config,
             String::from("reverse"),
-            output_path,
         );
 
     forward_matched_sequences.append(&mut backward_matched_sequences);
 
     forward_align_debug_info.merge(backward_align_debug_info);
-    let mut results: HashMap<Vec<String>, i32> = HashMap::new();
+    let mut results: HashMap<Vec<String>, (i32, BamData, BamData)> = HashMap::new();
 
     for (key, f) in forward_score.into_iter() {
         let r = match backward_score.get(&key) {
@@ -533,6 +547,21 @@ pub fn score<'a>(
     (ret, forward_matched_sequences)
 }
 
+#[derive(Default, Clone)]
+pub struct BamData {
+    pub mapq: u8,
+    pub orientation: String,
+    pub pair: String,
+    pub rev_comp: bool,
+    pub hit: String,
+    pub qname: String,
+    pub qual: Vec<u8>,
+    pub tx: String,
+    pub umi: String,
+    pub cb: String,
+    pub an: String,
+}
+
 fn generate_score<'a>(
     sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     mut reverse_sequences: Option<Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>>,
@@ -553,21 +582,33 @@ fn generate_score<'a>(
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
     reference_orientation: String,
-    output_path: &str,
 ) -> (
-    HashMap<String, (PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
+    HashMap<
+        String,
+        (
+            PairState,
+            Option<(Vec<u32>, f64)>,
+            Option<(Vec<u32>, f64)>,
+            BamData,
+            BamData,
+        ),
+    >,
     Vec<(Vec<String>, String, f64, usize, String)>,
     AlignDebugInfo,
 ) {
     // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
     let mut score_map: HashMap<
         String,
-        (PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>),
+        (
+            PairState,
+            Option<(Vec<u32>, f64)>,
+            Option<(Vec<u32>, f64)>,
+            BamData,
+            BamData,
+        ),
     > = HashMap::new();
     let mut debug_info: AlignDebugInfo = Default::default();
     let mut read_matches: Vec<(Vec<String>, String, f64, usize, String)> = Vec::new();
-
-    //let score_start = Instant::now();
 
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
     let mut metadata_iter = current_metadata_group.iter();
@@ -575,62 +616,39 @@ fn generate_score<'a>(
         let forward_metadata_raw = metadata_iter.next().unwrap();
         let reverse_metadata_raw = metadata_iter.next().unwrap();
 
-        let (mapq, orientation, pair, rev_comp, hit, qname, qual, tx, umi, cb, an) =
-            forward_metadata_raw;
-        let (mapq2, orientation2, pair2, rev_comp2, hit2, qname2, qual2, tx2, umi2, cb2, an2) =
-            reverse_metadata_raw;
-
-        let qname_ascii = match String::from_utf8(qname.clone()) {
-            Ok(string) => string,
-            Err(e) => {
+        let forward_metadata = BamData {
+            mapq: forward_metadata_raw.0.clone(),
+            orientation: forward_metadata_raw.1.clone(),
+            pair: forward_metadata_raw.2.clone(),
+            rev_comp: forward_metadata_raw.3.clone(),
+            hit: forward_metadata_raw.4.clone(),
+            qname: String::from_utf8(forward_metadata_raw.5.clone()).unwrap_or_else(|e| {
                 eprintln!("Error: {}", e);
                 String::new()
-            }
+            }),
+            qual: forward_metadata_raw.6.clone(),
+            tx: forward_metadata_raw.7.clone(),
+            umi: forward_metadata_raw.8.clone(),
+            cb: forward_metadata_raw.9.clone(),
+            an: forward_metadata_raw.10.clone(),
         };
 
-        let qname_ascii2 = match String::from_utf8(qname2.clone()) {
-            Ok(string) => string,
-            Err(e) => {
+        let reverse_metadata = BamData {
+            mapq: reverse_metadata_raw.0.clone(),
+            orientation: reverse_metadata_raw.1.clone(),
+            pair: reverse_metadata_raw.2.clone(),
+            rev_comp: reverse_metadata_raw.3.clone(),
+            hit: reverse_metadata_raw.4.clone(),
+            qname: String::from_utf8(reverse_metadata_raw.5.clone()).unwrap_or_else(|e| {
                 eprintln!("Error: {}", e);
                 String::new()
-            }
+            }),
+            qual: reverse_metadata_raw.6.clone(),
+            tx: reverse_metadata_raw.7.clone(),
+            umi: reverse_metadata_raw.8.clone(),
+            cb: reverse_metadata_raw.9.clone(),
+            an: reverse_metadata_raw.10.clone(),
         };
-
-        let forward_metadata: (
-            &u8,
-            &String,
-            &String,
-            &bool,
-            &String,
-            String,
-            &String,
-            &String,
-            &String,
-            &String,
-        ) = (
-            mapq,
-            orientation,
-            pair,
-            rev_comp,
-            hit,
-            qname_ascii,
-            tx,
-            umi,
-            cb,
-            an,
-        );
-        let reverse_metadata = (
-            mapq2,
-            orientation2,
-            pair2,
-            rev_comp2,
-            hit2,
-            qname_ascii2,
-            tx2,
-            umi2,
-            cb2,
-            an2,
-        );
 
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
         let mut read_rev = None;
@@ -639,10 +657,6 @@ fn generate_score<'a>(
          * the current reference, if there is a match.*/
         //let pseudo_start = Instant::now();
         let (seq_score, forward_filter_reason) = pseudoalign(&read, index, &config);
-        //let duration = pseudo_start.elapsed();
-        //println!("time to pseudoalign: {:?}", duration);
-
-        //let start = Instant::now();
 
         // If there's a reversed sequence, do the paired-end alignment
         let mut rev_seq_score = None;
@@ -688,70 +702,6 @@ fn generate_score<'a>(
         if rev_filter_reason.as_ref().is_some() {
             rev_filter_reason_unwrapped = Some(rev_filter_reason.as_ref().unwrap().0);
         }
-
-        let feature_of_interest = "LILR";
-        let mut paired_end_type = "";
-        if seq_score_names.is_empty()
-            && rev_seq_score_names.is_empty()
-            && (forward_metadata.4.contains(feature_of_interest)
-                || reverse_metadata.4.contains(feature_of_interest))
-        //&& (forward_metadata.4 == feature_of_interest || reverse_metadata.4 == feature_of_interest)
-        {
-            //println!("{}", forward_metadata.4);
-            //println!("{}", reverse_metadata.4);
-            paired_end_type = "cellranger"
-        } else if (!seq_score_names.is_empty() || !rev_seq_score_names.is_empty())
-            && (forward_metadata.4.is_empty() && reverse_metadata.4.is_empty())
-        {
-            paired_end_type = "nimble"
-        } else if (!seq_score_names.is_empty() || !rev_seq_score_names.is_empty()) //shared hits
-            && (forward_metadata.4.contains(feature_of_interest) || reverse_metadata.4.contains(feature_of_interest))
-        //&& (forward_metadata.4 == feature_of_interest || reverse_metadata.4 == feature_of_interest)
-        {
-            //println!("{}", forward_metadata.4);
-            //println!("{}", reverse_metadata.4);
-            paired_end_type = "both"
-        }
-
-        if !paired_end_type.is_empty() {
-            //let file_path = Path::new("/home/hextraza/work/data/alignment_logs/alignment_dump.tsv");
-            let file_path = Path::new(output_path);
-
-            write_header_if_needed(&file_path)
-                .expect("Header error -- Error writing header to TSV file");
-
-            log_alignment_comparison(
-                &file_path,
-                &read.to_string(),
-                &reverse_read_t.to_string(),
-                &seq_score_names,
-                seq_score_weighted,
-                forward_filter_reason_unwrapped,
-                &rev_seq_score_names,
-                rev_seq_score_weighted,
-                rev_filter_reason_unwrapped,
-                &forward_metadata,
-                &reverse_metadata,
-                paired_end_type.to_owned(),
-                &reference_orientation,
-            )
-            .expect("Log error -- Error writing to TSV file");
-        }
-
-        /*{
-            println!("read: {:?}", read);
-            println!("reverse read: {:?}", reverse_read_t);
-            println!(
-                "class, score, filter reason: {:?} | {:?} | {:?}",
-                seq_score_names, seq_score_weighted, forward_filter_reason_unwrapped
-            );
-            println!(
-                "reverse class, score, filter reason: {:?} | {:?} | {:?}",
-                rev_seq_score_names, rev_seq_score_weighted, rev_filter_reason_unwrapped
-            );
-            println!("forward metadata: {:?}", forward_metadata);
-            println!("reverse metadata: {:?}\n", reverse_metadata);
-        }*/
 
         let (failed_score, failed_raw_score) = if reverse_sequences.is_some() {
             match (forward_filter_reason, rev_filter_reason) {
@@ -822,6 +772,8 @@ fn generate_score<'a>(
                         PairState::Both,
                         Some((eqv_class, s)),
                         Some((r_eqv_class, r_s)),
+                        forward_metadata,
+                        reverse_metadata,
                     ),
                     s,
                     r_s,
@@ -830,7 +782,13 @@ fn generate_score<'a>(
                 )
             } else if !eqv_class.is_empty() {
                 (
-                    (PairState::First, Some((eqv_class, s)), None),
+                    (
+                        PairState::First,
+                        Some((eqv_class, s)),
+                        None,
+                        forward_metadata,
+                        reverse_metadata,
+                    ),
                     s,
                     0.0,
                     n_s,
@@ -838,7 +796,13 @@ fn generate_score<'a>(
                 )
             } else if !r_eqv_class.is_empty() {
                 (
-                    (PairState::Second, None, Some((r_eqv_class, r_s))),
+                    (
+                        PairState::Second,
+                        None,
+                        Some((r_eqv_class, r_s)),
+                        forward_metadata,
+                        reverse_metadata,
+                    ),
                     0.0,
                     r_s,
                     0,
@@ -885,13 +849,8 @@ fn generate_score<'a>(
                 String::new(),
             ));
         }
-
-        //let duration = start.elapsed();
-        //println!("time to generate score for read: {:?}", duration);
     }
 
-    //let duration = score_start.elapsed();
-    //println!("time to generate score for UMI: {:?}", duration);
     (score_map, read_matches, debug_info)
 }
 
@@ -925,14 +884,34 @@ fn filter_pair(
 
 // Return matches that match in all of the given classes; if soft intersection is enabled, fall back to best read if one of the reads is empty
 fn get_intersecting_reads(
-    seq_score: &mut Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
-    rev_seq_score: &mut Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
+    seq_score: Option<(
+        PairState,
+        Option<(Vec<u32>, f64)>,
+        Option<(Vec<u32>, f64)>,
+        BamData,
+        BamData,
+    )>,
+    rev_seq_score: Option<(
+        PairState,
+        Option<(Vec<u32>, f64)>,
+        Option<(Vec<u32>, f64)>,
+        BamData,
+        BamData,
+    )>,
     fallback_on_intersect_fail: bool,
     debug_info: &mut AlignDebugInfo,
-) -> Vec<u32> {
-    let (seq_class, _) = match seq_score {
-        Some((_, Some((ref mut f, fs)), Some((ref mut r, rs)))) => {
-            f.append(r);
+) -> (Vec<u32>, BamData, BamData) {
+    let (seq_class, _, seq_f_data, seq_r_data) = match seq_score {
+        Some((
+            _,
+            Some((ref f_unowned, ref fs)),
+            Some((ref r_unowned, ref rs)),
+            ref f_data,
+            ref r_data,
+        )) => {
+            let mut f = f_unowned.clone();
+            let mut r = r_unowned.clone();
+            f.append(&mut r);
             (
                 f.to_owned(),
                 if fs > rs {
@@ -940,16 +919,24 @@ fn get_intersecting_reads(
                 } else {
                     rs.to_owned()
                 },
+                f_data.clone(),
+                r_data.clone(),
             )
         }
-        Some((_, None, Some((r, rs)))) => (r.to_owned(), rs.to_owned()),
-        Some((_, Some((f, fs)), None)) => (f.to_owned(), fs.to_owned()),
-        _ => (Vec::new(), 0.0),
+        Some((_, None, Some((ref r, ref rs)), ref f_data, ref r_data)) => {
+            (r.to_owned(), rs.to_owned(), f_data.clone(), r_data.clone())
+        }
+        Some((_, Some((ref f, ref fs)), None, ref f_data, ref r_data)) => {
+            (f.to_owned(), fs.to_owned(), f_data.clone(), r_data.clone())
+        }
+        _ => (Vec::new(), 0.0, BamData::default(), BamData::default()),
     };
 
-    let (r_seq_class, _) = match rev_seq_score {
-        Some((_, Some((ref mut f, fs)), Some((ref mut r, rs)))) => {
-            f.append(r);
+    let (r_seq_class, _, _, _) = match rev_seq_score {
+        Some((_, Some((ref f_unowned, fs)), Some((ref r_unowned, rs)), ref f_data, ref r_data)) => {
+            let mut f = f_unowned.clone();
+            let mut r = r_unowned.clone();
+            f.append(&mut r);
             (
                 f.to_owned(),
                 if fs > rs {
@@ -957,11 +944,17 @@ fn get_intersecting_reads(
                 } else {
                     rs.to_owned()
                 },
+                f_data.clone(),
+                r_data.clone(),
             )
         }
-        Some((_, None, Some((r, rs)))) => (r.to_owned(), rs.to_owned()),
-        Some((_, Some((f, fs)), None)) => (f.to_owned(), fs.to_owned()),
-        _ => (Vec::new(), 0.0),
+        Some((_, None, Some((ref r, ref rs)), ref f_data, ref r_data)) => {
+            (r.to_owned(), rs.to_owned(), f_data.clone(), r_data.clone())
+        }
+        Some((_, Some((ref f, ref fs)), None, ref f_data, ref r_data)) => {
+            (f.to_owned(), fs.to_owned(), f_data.clone(), r_data.clone())
+        }
+        _ => (Vec::new(), 0.0, BamData::default(), BamData::default()),
     };
 
     let class = seq_class.intersect(r_seq_class);
@@ -969,21 +962,35 @@ fn get_intersecting_reads(
     if class.len() == 0 && fallback_on_intersect_fail {
         get_all_reads(seq_score, rev_seq_score)
     } else if class.len() != 0 {
-        class
+        (class, seq_f_data, seq_r_data)
     } else {
         debug_info.update(Some((FilterReason::ForceIntersectFailure, 0.0, 0)));
-        Vec::new()
+        (Vec::new(), seq_f_data, seq_r_data)
     }
 }
 
 // Return best equivalence class out of the given classes
 fn get_all_reads(
-    seq_score: &mut Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
-    rev_seq_score: &mut Option<(PairState, Option<(Vec<u32>, f64)>, Option<(Vec<u32>, f64)>)>,
-) -> Vec<u32> {
-    let (mut seq_class, _) = match seq_score {
-        Some((_, Some((ref mut f, fs)), Some((ref mut r, rs)))) => {
-            f.append(r);
+    seq_score: Option<(
+        PairState,
+        Option<(Vec<u32>, f64)>,
+        Option<(Vec<u32>, f64)>,
+        BamData,
+        BamData,
+    )>,
+    rev_seq_score: Option<(
+        PairState,
+        Option<(Vec<u32>, f64)>,
+        Option<(Vec<u32>, f64)>,
+        BamData,
+        BamData,
+    )>,
+) -> (Vec<u32>, BamData, BamData) {
+    let (mut seq_class, _, seq_f_data, seq_r_data) = match seq_score {
+        Some((_, Some((ref f_unowned, fs)), Some((ref r_unowned, rs)), f_data, r_data)) => {
+            let mut f = f_unowned.clone();
+            let mut r = r_unowned.clone();
+            f.append(&mut r);
             (
                 f.to_owned(),
                 if fs > rs {
@@ -991,16 +998,25 @@ fn get_all_reads(
                 } else {
                     rs.to_owned()
                 },
+                f_data,
+                r_data,
             )
         }
-        Some((_, None, Some((r, rs)))) => (r.to_owned(), rs.to_owned()),
-        Some((_, Some((f, fs)), None)) => (f.to_owned(), fs.to_owned()),
-        _ => (Vec::new(), 0.0),
+        Some((_, None, Some((r, rs)), f_data, r_data)) => {
+            (r.to_owned(), rs.to_owned(), f_data, r_data)
+        }
+        Some((_, Some((f, fs)), None, f_data, r_data)) => {
+            (f.to_owned(), fs.to_owned(), f_data, r_data)
+        }
+        Some((_, None, None, f_data, r_data)) => (Vec::new(), 0.0, f_data, r_data),
+        _ => (Vec::new(), 0.0, BamData::default(), BamData::default()),
     };
 
-    let (mut r_seq_class, _) = match rev_seq_score {
-        Some((_, Some((ref mut f, fs)), Some((ref mut r, rs)))) => {
-            f.append(r);
+    let (mut r_seq_class, _, _, _) = match rev_seq_score {
+        Some((_, Some((ref f_unowned, fs)), Some((ref r_unowned, rs)), f_data, r_data)) => {
+            let mut f = f_unowned.clone();
+            let mut r = r_unowned.clone();
+            f.append(&mut r);
             (
                 f.to_owned(),
                 if fs > rs {
@@ -1008,15 +1024,24 @@ fn get_all_reads(
                 } else {
                     rs.to_owned()
                 },
+                f_data,
+                r_data,
             )
         }
-        Some((_, None, Some((r, rs)))) => (r.to_owned(), rs.to_owned()),
-        Some((_, Some((f, fs)), None)) => (f.to_owned(), fs.to_owned()),
-        _ => (Vec::new(), 0.0),
+        Some((_, None, Some((r, rs)), f_data, r_data)) => {
+            (r.to_owned(), rs.to_owned(), f_data, r_data)
+        }
+        Some((_, Some((f, fs)), None, f_data, r_data)) => {
+            (f.to_owned(), fs.to_owned(), f_data, r_data)
+        }
+        Some((_, None, None, f_data, r_data)) => (Vec::new(), 0.0, f_data, r_data),
+        _ => (Vec::new(), 0.0, BamData::default(), BamData::default()),
     };
 
     seq_class.append(&mut r_seq_class);
-    seq_class.unique()
+    seq_class.unique();
+
+    (seq_class, seq_f_data, seq_r_data)
 }
 
 /* Takes a equivalence class and returns a list of strings. If we're processing allele-level data, the strings will be

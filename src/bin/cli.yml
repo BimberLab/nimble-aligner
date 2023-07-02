@@ -4,16 +4,25 @@ author: Sebastian B. <benjamse@ohsu.edu>
 about: Configurable RNA-seq aligner against arbitrary reference genomes
 args:
   - reference:
+      short: r
+      long: reference
       help: File(s) defining the reference library/ies that will be used for alignment, in nimble .json format
       required: true
+      takes_value: true
       multiple: true
   - output:
+      short: o
+      long: output
       help: Output TSV file name(s)
       required: true
+      takes_value: true
       multiple: true
   - input:
+      short: i
+      long: input
       help: Single fastq.gz/fastq file(s), or two if you need to do paired-end alignment
       required: true
+      takes_value: true
       multiple: true
   - num_cores:
       short: c

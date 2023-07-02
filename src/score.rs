@@ -1,4 +1,5 @@
 use crate::align;
+use crate::align::BamData;
 use crate::reference_library;
 use crate::utils;
 use reference_library::ReferenceMetadata;
@@ -31,13 +32,13 @@ pub fn score<'a>(
         String,
         String,
     )>,
+
     reference_index: &(align::PseudoAligner, align::PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     align_config: &align::AlignFilterConfig,
     debug_info: Option<&mut align::AlignDebugInfo>,
-    output_path: &str,
 ) -> (
-    Vec<(Vec<String>, i32)>,
+    Vec<(Vec<String>, (i32, BamData, BamData))>,
     Vec<(Vec<String>, String, f64, usize, String)>,
 ) {
     // Perform filtered pseudoalignment
@@ -49,7 +50,6 @@ pub fn score<'a>(
         reference_metadata,
         align_config,
         debug_info,
-        output_path,
     );
 
     (

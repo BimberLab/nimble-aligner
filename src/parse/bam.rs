@@ -1,7 +1,6 @@
 use super::sorted_bam_reader::SortedBamReader;
 use debruijn::dna_string::DnaString;
-use rust_htslib::bam::record::{Aux, Record};
-use std::time::{Duration, Instant};
+use rust_htslib::bam::record::Aux;
 
 const READ_BLOCK_REPORT_SIZE: usize = 1000000;
 const MAX_RECORD_ERROR_REPORT_SIZE: usize = 100;

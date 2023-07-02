@@ -1,4 +1,5 @@
 use crate::align::AlignDebugInfo;
+use crate::align::BamData;
 use crate::reference_library::ReferenceMetadata;
 use csv::Reader;
 use debruijn::dna_string::DnaString;
@@ -132,7 +133,9 @@ pub fn write_to_tsv(
 }
 
 // Take a score vector produced by utils::convert_scores_to_percentage() and sort them by name
-pub fn sort_score_vector(mut scores: Vec<(Vec<String>, i32)>) -> Vec<(Vec<String>, i32)> {
+pub fn sort_score_vector(
+    mut scores: Vec<(Vec<String>, (i32, BamData, BamData))>,
+) -> Vec<(Vec<String>, (i32, BamData, BamData))> {
     scores.sort_by(|a, b| a.0.cmp(&b.0));
     scores
 }
