@@ -556,6 +556,7 @@ pub fn score<'a>(
 
 #[derive(Default, Clone)]
 pub struct BamData {
+    pub sequence: String,
     pub mapq: u8,
     pub orientation: String,
     pub pair: String,
@@ -623,46 +624,11 @@ fn generate_score<'a>(
         let forward_metadata_raw = metadata_iter.next().unwrap();
         let reverse_metadata_raw = metadata_iter.next().unwrap();
 
-        let forward_metadata = BamData {
-            mapq: forward_metadata_raw.0.clone(),
-            orientation: forward_metadata_raw.1.clone(),
-            pair: forward_metadata_raw.2.clone(),
-            rev_comp: forward_metadata_raw.3.clone(),
-            hit: forward_metadata_raw.4.clone(),
-            qname: String::from_utf8(forward_metadata_raw.5.clone()).unwrap_or_else(|e| {
-                eprintln!("Error: {}", e);
-                String::new()
-            }),
-            qual: forward_metadata_raw.6.clone(),
-            tx: forward_metadata_raw.7.clone(),
-            umi: forward_metadata_raw.8.clone(),
-            cb: forward_metadata_raw.9.clone(),
-            an: forward_metadata_raw.10.clone(),
-        };
-
-        let reverse_metadata = BamData {
-            mapq: reverse_metadata_raw.0.clone(),
-            orientation: reverse_metadata_raw.1.clone(),
-            pair: reverse_metadata_raw.2.clone(),
-            rev_comp: reverse_metadata_raw.3.clone(),
-            hit: reverse_metadata_raw.4.clone(),
-            qname: String::from_utf8(reverse_metadata_raw.5.clone()).unwrap_or_else(|e| {
-                eprintln!("Error: {}", e);
-                String::new()
-            }),
-            qual: reverse_metadata_raw.6.clone(),
-            tx: reverse_metadata_raw.7.clone(),
-            umi: reverse_metadata_raw.8.clone(),
-            cb: reverse_metadata_raw.9.clone(),
-            an: reverse_metadata_raw.10.clone(),
-        };
-
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
-        let mut read_rev = None;
+        let mut read_rev: Option<DnaString> = None;
 
         /* Generate score and equivalence class for this read by aligning the sequence against
          * the current reference, if there is a match.*/
-        //let pseudo_start = Instant::now();
         let (seq_score, forward_filter_reason) = pseudoalign(&read, index, &config);
 
         // If there's a reversed sequence, do the paired-end alignment
@@ -680,6 +646,42 @@ fn generate_score<'a>(
             read_rev = Some(reverse_read);
             rev_filter_reason = reason;
         }
+
+        let forward_metadata = BamData {
+            sequence: read.clone().to_string(),
+            mapq: forward_metadata_raw.0.clone(),
+            orientation: forward_metadata_raw.1.clone(),
+            pair: forward_metadata_raw.2.clone(),
+            rev_comp: forward_metadata_raw.3.clone(),
+            hit: forward_metadata_raw.4.clone(),
+            qname: String::from_utf8(forward_metadata_raw.5.clone()).unwrap_or_else(|e| {
+                eprintln!("Error: {}", e);
+                String::new()
+            }),
+            qual: forward_metadata_raw.6.clone(),
+            tx: forward_metadata_raw.7.clone(),
+            umi: forward_metadata_raw.8.clone(),
+            cb: forward_metadata_raw.9.clone(),
+            an: forward_metadata_raw.10.clone(),
+        };
+
+        let reverse_metadata = BamData {
+            sequence: if read_rev.is_none() { String::new() } else { read_rev.clone().unwrap().to_string() },
+            mapq: reverse_metadata_raw.0.clone(),
+            orientation: reverse_metadata_raw.1.clone(),
+            pair: reverse_metadata_raw.2.clone(),
+            rev_comp: reverse_metadata_raw.3.clone(),
+            hit: reverse_metadata_raw.4.clone(),
+            qname: String::from_utf8(reverse_metadata_raw.5.clone()).unwrap_or_else(|e| {
+                eprintln!("Error: {}", e);
+                String::new()
+            }),
+            qual: reverse_metadata_raw.6.clone(),
+            tx: reverse_metadata_raw.7.clone(),
+            umi: reverse_metadata_raw.8.clone(),
+            cb: reverse_metadata_raw.9.clone(),
+            an: reverse_metadata_raw.10.clone(),
+        };
 
         let mut seq_score_names = Vec::new();
         let mut rev_seq_score_names = Vec::new();

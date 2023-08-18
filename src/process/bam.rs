@@ -15,6 +15,39 @@ use std::io::{Error, Write};
 
 const MAX_UMIS_IN_CHANNEL: usize = 100;
 
+fn bam_data_values(bam_data: &BamData) -> String {
+    format!(
+        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        bam_data.sequence,
+        bam_data.mapq,
+        bam_data.orientation,
+        bam_data.pair,
+        bam_data.rev_comp,
+        bam_data.hit,
+        bam_data.qname,
+        //bam_data.qual.iter().map(|&q| q as char).collect::<String>(),
+        bam_data.tx,
+        bam_data.umi,
+        bam_data.cb,
+        bam_data.an
+    )
+}
+
+fn bam_data_header(prefix: &str) -> String {
+    format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        format!("{}_sequence", prefix),
+        format!("{}_mapq", prefix),
+        format!("{}_orientation", prefix),
+        format!("{}_pair", prefix),
+        format!("{}_rev_comp", prefix),
+        format!("{}_hit", prefix),
+        format!("{}_qname", prefix),
+        format!("{}_tx", prefix),
+        format!("{}_umi", prefix),
+        format!("{}_cb", prefix),
+        format!("{}_an", prefix))
+}
+
 pub fn process(
     input_files: Vec<String>,
     reference_indices: Vec<(PseudoAligner, PseudoAligner)>,
@@ -44,19 +77,25 @@ pub fn process(
             match log_receiver.recv() {
                 Ok((msg, index)) => {
                     let file_handle: &mut File = &mut log_files[index];
-
+            
                     if first_write[index] {
-                        write!(file_handle, "features\tscore\tumi\tcb\n").unwrap();
+                        write!(
+                            file_handle,
+                            "features\tscore\t{}\t{}\n",
+                            bam_data_header("r1"),
+                            bam_data_header("r2")
+                        )
+                        .unwrap();
                         first_write[index] = false;
                     }
-
+            
                     write!(
                         file_handle,
                         "{}\t{}\t{}\t{}\n",
                         msg.0.join(","),
                         msg.1 .0,
-                        msg.1 .1.umi,
-                        msg.1 .1.cb
+                        bam_data_values(&msg.1 .2), // r1
+                        bam_data_values(&msg.1 .1) // r2
                     )
                     .unwrap();
                 }

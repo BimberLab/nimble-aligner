@@ -117,7 +117,6 @@ impl UMIReader {
                 Err(rust_htslib::tpool::Error::BamTruncatedRecord) => {
                     if self.number_error_reports < MAX_RECORD_ERROR_REPORT_SIZE {
                         panic!("{}: Found truncated record", self.number_error_reports);
-                        //self.number_error_reports += 1;
                     }
                     Err(rust_htslib::tpool::Error::BamTruncatedRecord)
                 }
@@ -154,9 +153,7 @@ impl UMIReader {
             let current_cell_barcode = if let Ok(Aux::String(corrected)) = record.aux(b"CB") {
                 (&corrected[0..corrected.len() - 2]).to_owned()
             } else {
-                //self.number_cr_skipped += 1;
                 panic!("Error Read without cell barcode, cannot excise read-mate.");
-                //continue;
             };
 
             let current_iteration_key = read_umi.clone() + current_cell_barcode.as_str();
@@ -228,9 +225,6 @@ impl UMIReader {
                 self.current_cell_barcode = current_cell_barcode.clone();
 
                 self.current_iteration_key = current_iteration_key;
-
-                //let duration = start.elapsed();
-                //println!("time to push read to readlist: {:?}", duration);
             } else {
                 self.next_umi_group.push(seq);
                 self.next_metadata_group.push((
