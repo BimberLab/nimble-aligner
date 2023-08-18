@@ -236,11 +236,6 @@ impl AlignmentDirection {
                 let dir =
                     AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state, debug_info);
                 if AlignmentDirection::filter_read(dir, &config.strand_filter) {
-                    println!(
-                        "filtered read-pair: {:?}, due to alignment dir {:?}",
-                        &key, dir
-                    );
-
                     if debug {
                         replace_key_with_strand_dir(key, matched_sequences, dir);
                     }
@@ -251,11 +246,6 @@ impl AlignmentDirection {
             let dir =
                 AlignmentDirection::get_alignment_dir(f_pair_state, PairState::None, debug_info);
             if AlignmentDirection::filter_read(dir, &config.strand_filter) {
-                println!(
-                    "filtered read-pair: {:?}, due to alignment dir {:?}",
-                    &key, dir
-                );
-
                 if debug {
                     replace_key_with_strand_dir(key, matched_sequences, dir);
                 }
@@ -265,11 +255,6 @@ impl AlignmentDirection {
             let dir =
                 AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state, debug_info);
             if AlignmentDirection::filter_read(dir, &config.strand_filter) {
-                println!(
-                    "filtered read-pair: {:?}, due to alignment dir {:?}",
-                    &key, dir
-                );
-
                 if debug {
                     replace_key_with_strand_dir(key, matched_sequences, dir);
                 }
@@ -554,7 +539,7 @@ pub fn score<'a>(
     (ret, forward_matched_sequences)
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub struct BamData {
     pub sequence: String,
     pub mapq: u8,
@@ -941,7 +926,7 @@ fn get_intersecting_reads(
         _ => (Vec::new(), 0.0, BamData::default(), BamData::default()),
     };
 
-    let (r_seq_class, _, _, _) = match rev_seq_score {
+    let (r_seq_class, _, rev_seq_f_data, rev_seq_r_data) = match rev_seq_score {
         Some((_, Some((ref f_unowned, fs)), Some((ref r_unowned, rs)), ref f_data, ref r_data)) => {
             let mut f = f_unowned.clone();
             let mut r = r_unowned.clone();
@@ -971,7 +956,11 @@ fn get_intersecting_reads(
     if class.len() == 0 && fallback_on_intersect_fail {
         get_all_reads(seq_score, rev_seq_score)
     } else if class.len() != 0 {
-        (class, seq_f_data, seq_r_data)
+        if seq_f_data == BamData::default() && seq_r_data == BamData::default() {
+            (class, rev_seq_f_data, rev_seq_r_data)
+        } else {
+            (class, seq_f_data, seq_r_data)
+        }
     } else {
         debug_info.update(Some((FilterReason::ForceIntersectFailure, 0.0, 0)));
         (Vec::new(), seq_f_data, seq_r_data)
@@ -1021,7 +1010,7 @@ fn get_all_reads(
         _ => (Vec::new(), 0.0, BamData::default(), BamData::default()),
     };
 
-    let (mut r_seq_class, _, _, _) = match rev_seq_score {
+    let (mut r_seq_class, _, rev_seq_f_data, rev_seq_r_data) = match rev_seq_score {
         Some((_, Some((ref f_unowned, fs)), Some((ref r_unowned, rs)), f_data, r_data)) => {
             let mut f = f_unowned.clone();
             let mut r = r_unowned.clone();
@@ -1050,7 +1039,11 @@ fn get_all_reads(
     seq_class.append(&mut r_seq_class);
     seq_class.unique();
 
-    (seq_class, seq_f_data, seq_r_data)
+    if seq_f_data == BamData::default() && seq_r_data == BamData::default() {
+        (seq_class, rev_seq_f_data, rev_seq_r_data)
+    } else {
+        (seq_class, seq_f_data, seq_r_data)
+    }
 }
 
 /* Takes a equivalence class and returns a list of strings. If we're processing allele-level data, the strings will be
