@@ -523,6 +523,31 @@ fn switch_base(c: char) -> char {
     }
 }
 
+pub fn shannon_entropy(dna: &str) -> f64 {
+    let total_length = dna.len() as f64;
+
+    let mut frequencies = [0.0; 4]; // A, T, C, G
+
+    for char in dna.chars() {
+        match char {
+            'A' => frequencies[0] += 1.0,
+            'T' => frequencies[1] += 1.0,
+            'C' => frequencies[2] += 1.0,
+            'G' => frequencies[3] += 1.0,
+            _ => (),
+        }
+    }
+
+    frequencies.iter_mut().for_each(|f| *f /= total_length);
+
+    let entropy: f64 = frequencies.iter()
+                                  .filter(|&&f| f > 0.0) // Exclude zero frequencies to avoid NaN
+                                  .map(|&f| f * f.log2())
+                                  .sum();
+
+    -entropy
+}
+
 fn is_dna(dna: char) -> bool {
     match dna {
         'A' | 'a' | 'C' | 'c' | 'G' | 'g' | 'T' | 't' | 'U' | 'u' | 'N' | 'n' => true,

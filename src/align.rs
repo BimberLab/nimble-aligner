@@ -1,5 +1,6 @@
 use crate::filter;
 use crate::reference_library;
+use crate::utils::{shannon_entropy};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -19,6 +20,7 @@ use lexical_sort::{natural_lexical_cmp, StringSort};
 use reference_library::ReferenceMetadata;
 
 const MIN_READ_LENGTH: usize = 12;
+const MIN_ENTROPY: f64 = 1.75;
 
 pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<debruijn::kmer::Kmer30>;
 
@@ -41,6 +43,7 @@ pub enum FilterReason {
     ForceIntersectFailure,
     ShortRead,
     MaxHitsExceeded,
+    LowEntropy
 }
 
 impl Display for FilterReason {
@@ -58,6 +61,7 @@ impl Display for FilterReason {
             FilterReason::ForceIntersectFailure => write!(f, "Force Intersect Failure"),
             FilterReason::ShortRead => write!(f, "Short Read"),
             FilterReason::MaxHitsExceeded => write!(f, "Max Hits Exceeded"),
+            FilterReason::LowEntropy => write!(f, "Low Entropy"),
         }
     }
 }
@@ -100,6 +104,7 @@ pub struct AlignDebugInfo {
     pub force_intersect_failure: usize,
     pub short_read: usize,
     pub max_hits_exceeded: usize,
+    pub low_entropy: f64,
     pub ff_reported: usize,
     pub rr_reported: usize,
     pub uu_reported: usize,
@@ -387,6 +392,7 @@ impl AlignDebugInfo {
             Some((FilterReason::ForceIntersectFailure, _, _)) => self.force_intersect_failure += 1,
             Some((FilterReason::ShortRead, _, _)) => self.short_read += 1,
             Some((FilterReason::MaxHitsExceeded, _, _)) => self.max_hits_exceeded += 1,
+            Some((FilterReason::LowEntropy, _, _)) => self.low_entropy += 1.0,
             None => (),
         };
 
@@ -408,6 +414,7 @@ impl AlignDebugInfo {
         self.not_matching_pair += info.not_matching_pair;
         self.force_intersect_failure += info.force_intersect_failure;
         self.short_read += info.short_read;
+        self.low_entropy += info.low_entropy;
         self.ff_reported += info.ff_reported;
         self.rr_reported += info.rr_reported;
         self.uu_reported += info.uu_reported;
@@ -836,7 +843,7 @@ fn generate_score<'a>(
                 }
                 PairState::None => (),
             };
-
+            
             score_map.insert(read_key, v);
             debug_info.read_units_aligned += 1;
         } else {
@@ -1101,6 +1108,11 @@ fn pseudoalign(
         return (None, Some((FilterReason::ShortRead, 0.0, 0)));
     };
 
+    // Filter high-entropy
+    if shannon_entropy(&sequence.to_string()) < MIN_ENTROPY {
+        return (None, Some((FilterReason::LowEntropy, 0.0, 0)))
+    }
+
     // Perform alignment
     match reference_index.map_read_with_mismatch(&sequence, config.num_mismatches) {
         Some((equiv_class, score, mismatches)) => {
@@ -1119,7 +1131,7 @@ fn pseudoalign(
                 config.score_threshold,
                 config.score_percent,
                 equiv_class,
-                config.discard_multiple_matches,
+                config.discard_multiple_matches
             )
         }
         None => (None, Some((FilterReason::NoMatch, 0.0, 0))),
