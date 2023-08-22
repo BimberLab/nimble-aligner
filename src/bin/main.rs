@@ -8,8 +8,6 @@ use nimble::utils;
 use clap::{load_yaml, App};
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::thread;
 
 fn main() {
     let yaml = load_yaml!("cli.yml");
@@ -67,110 +65,54 @@ fn main() {
         .map(|v| v.to_string())
         .collect();
 
-    // Thread-safe collections to store setup data
-    let reference_indices = Arc::new(Mutex::new(Vec::new()));
-    let reference_metadata = Arc::new(Mutex::new(Vec::new()));
-    let align_config = Arc::new(Mutex::new(Vec::new()));
-    let reference_seqs = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
-    let reference_names = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
-
-    let mut handles = vec![];
+    let mut reference_indices = Vec::new();
+    let mut reference_metadata = Vec::new();
+    let mut align_config = Vec::new();
+    let mut reference_seqs = Vec::<Vec<String>>::new();
+    let mut reference_names = Vec::<Vec<String>>::new();
 
     for reference_json_path in reference_json_paths {
-        // Clone Arcs to move into the thread
-        let reference_indices = Arc::clone(&reference_indices);
-        let reference_metadata = Arc::clone(&reference_metadata);
-        let align_config = Arc::clone(&align_config);
-        let reference_seqs = Arc::clone(&reference_seqs);
-        let reference_names = Arc::clone(&reference_names);
+        println!(
+            "Loading and preprocessing reference data for {}",
+            reference_json_path
+        );
 
-        let strand_filter = strand_filter.clone();
-
-        let handle = thread::spawn(move || {
-            println!(
-                "Loading and preprocessing reference data for {}",
-                reference_json_path
+        let (align_config_thread, reference_metadata_thread) =
+            reference_library::get_reference_library(
+                Path::new(&reference_json_path),
+                strand_filter,
             );
 
-            // Read library alignment config info, reference library metadata, and sequences from library json
-            let (align_config_thread, reference_metadata_thread) =
-                reference_library::get_reference_library(
-                    Path::new(&reference_json_path),
-                    strand_filter,
-                );
+        let (reference_seqs_thread, reference_seqs_rev_thread, reference_names_thread) =
+            utils::validate_reference_pairs(&reference_metadata_thread);
 
-            // Generate error-checked vectors of seqs and names for the debruijn index
-            let (reference_seqs_thread, reference_seqs_rev_thread, reference_names_thread) =
-                utils::validate_reference_pairs(&reference_metadata_thread);
-
-            // Create debruijn index of the reference library
-            let reference_index_forward =
-                debruijn_mapping::build_index::build_index::<debruijn::kmer::Kmer30>(
-                    &reference_seqs_thread,
-                    &reference_names_thread,
-                    &HashMap::new(),
-                    num_cores,
-                )
-                .expect("Error -- could not create pseudoaligner index of the reference library");
-
-            // Create debruijn index of the reverse-comp of the reference library
-            let reference_index_reverse = debruijn_mapping::build_index::build_index::<
-                debruijn::kmer::Kmer30,
-            >(
-                &reference_seqs_rev_thread,
+        let reference_index_forward =
+            debruijn_mapping::build_index::build_index::<debruijn::kmer::Kmer30>(
+                &reference_seqs_thread,
                 &reference_names_thread,
                 &HashMap::new(),
                 num_cores,
             )
-            .expect(
-                "Error -- could not create reverse pseudoaligner index of the reference library",
-            );
+            .expect("Error -- could not create pseudoaligner index of the reference library");
 
-            // Update the shared data
-            let mut reference_indices_lock = reference_indices.lock().unwrap();
-            reference_indices_lock.push((reference_index_forward, reference_index_reverse));
-            drop(reference_indices_lock);
+        let reference_index_reverse = debruijn_mapping::build_index::build_index::<
+            debruijn::kmer::Kmer30,
+        >(
+            &reference_seqs_rev_thread,
+            &reference_names_thread,
+            &HashMap::new(),
+            num_cores,
+        )
+        .expect("Error -- could not create reverse pseudoaligner index of the reference library");
 
-            let mut reference_metadata_lock = reference_metadata.lock().unwrap();
-            reference_metadata_lock.push(reference_metadata_thread);
-            drop(reference_metadata_lock);
-
-            let mut align_config_lock = align_config.lock().unwrap();
-            align_config_lock.push(align_config_thread);
-            drop(align_config_lock);
-
-            let mut reference_seqs_lock = reference_seqs.lock().unwrap();
-            reference_seqs_lock.push(
-                reference_seqs_thread
-                    .into_iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-            );
-            drop(reference_seqs_lock);
-
-            let mut reference_names_lock = reference_names.lock().unwrap();
-            reference_names_lock.push(reference_names_thread);
-            drop(reference_names_lock);
-        });
-
-        handles.push(handle);
-    }
-
-    for handle in handles {
-        handle.join().unwrap();
+        reference_indices.push((reference_index_forward, reference_index_reverse));
+        reference_metadata.push(reference_metadata_thread);
+        align_config.push(align_config_thread);
+        reference_seqs.push(reference_seqs_thread.into_iter().map(|s| s.to_string()).collect());
+        reference_names.push(reference_names_thread);
     }
 
     println!("Loading read sequences and aligning");
-
-    let reference_indices = Arc::try_unwrap(reference_indices)
-        .unwrap()
-        .into_inner()
-        .unwrap();
-    let reference_metadata = Arc::try_unwrap(reference_metadata)
-        .unwrap()
-        .into_inner()
-        .unwrap();
-    let align_config = Arc::try_unwrap(align_config).unwrap().into_inner().unwrap();
 
     bam::process(
         input_files,
