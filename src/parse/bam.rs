@@ -92,16 +92,12 @@ impl UMIReader {
         self.next_iteration_key.clear();
 
         loop {
-            //let start = Instant::now();
             let r = self.reader.next();
-            //let duration = start.elapsed();
-            //println!("time to load read read/sort UMI from disk: {:?}", duration);
 
             if r.is_err() {
                 return None;
             }
 
-            //let start = Instant::now();
             self.read_counter = self.read_counter + 1;
 
             if self.read_counter % READ_BLOCK_REPORT_SIZE == 0 && self.read_counter != 0 {

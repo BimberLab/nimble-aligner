@@ -69,68 +69,32 @@ pub fn append_match_percent(
         .collect()
 }
 
-// Write the given vector of scores to a TSV file
 pub fn write_to_tsv(
     results: &Vec<(Vec<String>, i32)>,
-    group_row: Option<Vec<String>>,
-    write_header: bool,
-    output_path: &str,
-    in_error_state: bool,
+    output_path: String
 ) {
-    let mut str_rep = String::new();
-
-    // Add the headers to the top of the string representation of the tsv file
-    if write_header {
-        str_rep += "ambiguity class\tscore";
-
-        match group_row {
-            Some(ref _s) => {
-                str_rep += "\t";
-                str_rep += "cell barcode";
-            }
-            None => (),
-        }
-
-        str_rep += "\n";
-    }
-
-    let group_row_iter = match group_row {
-        Some(ref vec) => vec.clone(),
-        None => Vec::new(),
-    };
-    let mut group_row_iter = group_row_iter.iter();
-
-    // Append the results to the tsv string
-    for (group, score) in results {
-        str_rep += &group.join(",");
-        str_rep += "\t";
-        str_rep += &score.to_string();
-
-        match group_row {
-            Some(ref _vec) => {
-                str_rep += "\t";
-                str_rep += group_row_iter.next().unwrap();
-            }
-            None => (),
-        }
-
-        str_rep += "\n";
-    }
-
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
-        .append(false)
-        .open(output_path)
-        .expect("Error -- could not create results file");
+        .append(true)
+        .open(&output_path)
+        .expect("Unable to open file");
 
-    file.write_all(str_rep.as_bytes())
-        .expect("Error -- could not write results to file");
+    // Check if the file is empty to decide whether to write the header
+    if file.metadata().expect("Unable to read file metadata").len() == 0 {
+        // Write the header if the file is empty
+        writeln!(file, "feature\tscore").expect("Unable to write header");
+    }
 
-    if in_error_state {
-        panic!("Error: nimble in error state, see log");
+    // Iterate over the results and write each as a TSV row
+    for (features, score) in results {
+        // Join all the features with a tab character
+        let feature_str = features.join("\t");
+        // Write the row to the file
+        writeln!(file, "{}\t{}", feature_str, score).expect("Unable to write row");
     }
 }
+
 
 // Take a score vector produced by utils::convert_scores_to_percentage() and sort them by name
 pub fn sort_score_vector(
