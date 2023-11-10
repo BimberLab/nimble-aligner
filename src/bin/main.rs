@@ -66,11 +66,18 @@ fn main() {
         .collect();
 
     let first_input_file = &input_files[0];
-    let file_extension = Path::new(first_input_file)
+    let file_path = Path::new(first_input_file);
+    let file_extension_sequence = file_path
         .extension()
         .and_then(std::ffi::OsStr::to_str)
-        .unwrap_or("");
+        .unwrap_or("")
+        .to_lowercase();
 
+    let is_fastq_gz = file_path
+        .file_name()
+        .and_then(std::ffi::OsStr::to_str)
+        .map(|name| name.ends_with(".fastq.gz"))
+        .unwrap_or(false);
 
     let mut reference_indices = Vec::new();
     let mut reference_metadata = Vec::new();
@@ -121,31 +128,29 @@ fn main() {
 
     println!("Loading read sequences and aligning");
 
-    match file_extension {
-        "fastq" => {
-            println!("Processing as FASTQ file");
-            fastq::process(
-                input_files,
-                reference_indices,
-                reference_metadata,
-                align_config,
-                output_paths,
-                num_cores,
-            );
-        },
-        "bam" => {
-            println!("Processing as BAM file");
-            bam::process(
-                input_files,
-                reference_indices,
-                reference_metadata,
-                align_config,
-                output_paths,
-                num_cores,
-            );
-        },
-        _ => panic!("Unsupported file format: {}", file_extension),
-    } 
+    if is_fastq_gz || file_extension_sequence == "fastq" {
+        println!("Processing as FASTQ file");
+        fastq::process(
+            input_files,
+            reference_indices,
+            reference_metadata,
+            align_config,
+            output_paths,
+            num_cores,
+        );
+    } else if file_extension_sequence == "bam" {
+        println!("Processing as BAM file");
+        bam::process(
+            input_files,
+            reference_indices,
+            reference_metadata,
+            align_config,
+            output_paths,
+            num_cores,
+        );
+    } else {
+        panic!("Unsupported file format: {}", file_extension_sequence);
+    }
 
     println!("Alignment successful, terminating.")
 }

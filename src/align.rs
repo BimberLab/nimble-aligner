@@ -603,11 +603,25 @@ fn generate_score<'a>(
     let mut debug_info: AlignDebugInfo = Default::default();
     let mut read_matches: Vec<(Vec<String>, String, f64, usize, String)> = Vec::new();
 
+    let default_metadata = (
+        0u8,
+        String::new(),
+        String::new(),
+        false,
+        String::new(),
+        Vec::new(),
+        Vec::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+    );
+
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
     let mut metadata_iter = current_metadata_group.iter();
     for read in sequences {
-        let forward_metadata_raw = metadata_iter.next().unwrap();
-        let reverse_metadata_raw = metadata_iter.next().unwrap();
+        let forward_metadata_raw = metadata_iter.next().unwrap_or(&default_metadata);
+        let reverse_metadata_raw = metadata_iter.next().unwrap_or(&default_metadata);
 
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
         let mut read_rev: Option<DnaString> = None;
