@@ -1,7 +1,7 @@
 extern crate nimble;
 
 use nimble::align::StrandFilter;
-use nimble::process::bam;
+use nimble::process::{bam, fastq};
 use nimble::reference_library;
 use nimble::utils;
 
@@ -65,6 +65,13 @@ fn main() {
         .map(|v| v.to_string())
         .collect();
 
+    let first_input_file = &input_files[0];
+    let file_extension = Path::new(first_input_file)
+        .extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .unwrap_or("");
+
+
     let mut reference_indices = Vec::new();
     let mut reference_metadata = Vec::new();
     let mut align_config = Vec::new();
@@ -114,14 +121,31 @@ fn main() {
 
     println!("Loading read sequences and aligning");
 
-    bam::process(
-        input_files,
-        reference_indices,
-        reference_metadata,
-        align_config,
-        output_paths,
-        num_cores,
-    );
+    match file_extension {
+        "fastq" => {
+            println!("Processing as FASTQ file");
+            fastq::process(
+                input_files,
+                reference_indices,
+                reference_metadata,
+                align_config,
+                output_paths,
+                num_cores,
+            );
+        },
+        "bam" => {
+            println!("Processing as BAM file");
+            bam::process(
+                input_files,
+                reference_indices,
+                reference_metadata,
+                align_config,
+                output_paths,
+                num_cores,
+            );
+        },
+        _ => panic!("Unsupported file format: {}", file_extension),
+    } 
 
     println!("Alignment successful, terminating.")
 }
