@@ -9,17 +9,10 @@ use nimble::utils;
 use clap::{load_yaml, App};
 use std::collections::HashMap;
 use std::path::Path;
-use std::alloc::{Layout, set_alloc_error_hook};
 
 use nimble::ALLOCATOR;
 
-fn alloc_error_callback(layout: Layout) {
-   panic!("memory allocation of {} bytes failed\nallocation layout: {:?}\ncurrent allocated bytes: {}", layout.size(), layout, ALLOCATOR.allocated());
-}
-
 fn main() {
-    // Callback for responding to infallable memory allocation aborts
-    set_alloc_error_hook(alloc_error_callback);
 
     let yaml = load_yaml!("cli.yml");
 
