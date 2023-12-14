@@ -99,6 +99,7 @@ fn main() {
     // Set memory allocator hard limit if it was passed
     if hard_memory_limit > 0 {
         ALLOCATOR.set_limit(hard_memory_limit * 1024 * 1024).unwrap();
+        println!("Set memory allocator hard limit to {}MB", hard_memory_limit * 1024 * 1024);
     }
 
     let mut reference_indices = Vec::new();
