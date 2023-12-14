@@ -1,4 +1,3 @@
-#![feature(alloc_error_hook)]
 extern crate nimble;
 
 use nimble::align::StrandFilter;
