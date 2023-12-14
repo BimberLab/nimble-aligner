@@ -54,3 +54,10 @@ args:
       help: How to filter paired-read data based on strandedness. Possible values are "unstranded" (default), "fiveprime", "threeprime", and "none"
       takes_value: true
       default_value: "unstranded"
+  - hard_memory_limit:
+      short: m
+      long: hard_memory_limit
+      value_name: HARD_MEMORY_LIMIT
+      help: Number of megabytes to set as a memory allocation limit. nimble will attempt to stay below this limit when performing alignments, and terminate otherwise
+      takes_value: true
+      default_value: "0"

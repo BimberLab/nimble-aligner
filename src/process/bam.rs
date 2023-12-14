@@ -1,10 +1,12 @@
 use crate::align::BamData;
+use crate::ALLOCATOR;
 use crate::align::{AlignDebugInfo, AlignFilterConfig, PseudoAligner};
 use crate::parse::bam::UMIReader;
 use crate::reference_library::ReferenceMetadata;
 use crate::score::score;
 use crate::utils::revcomp;
 use debruijn::dna_string::DnaString;
+use std::time::Duration;
 
 use std::sync::mpsc::{self};
 use std::sync::{Arc, Mutex};
@@ -12,8 +14,12 @@ use std::thread;
 
 use std::fs::{File, OpenOptions};
 use std::io::{Error, Write};
+use std::time::Instant;
 
 const MAX_UMIS_IN_CHANNEL: usize = 100;
+const SAFETY_BUFFER: f64 = 1.20;
+const WAIT_TIMEOUT: Duration = Duration::from_secs(5);
+const SLEEP_DURATION: Duration = Duration::from_millis(50);
 
 fn bam_data_values(bam_data: &BamData) -> String {
     format!(
@@ -156,6 +162,9 @@ pub fn process(
 
         let handle = thread::spawn(move || loop {
             let data = receiver_clone.lock().unwrap().recv();
+
+            let _safe_to_allocate = block_on_memory_headroom(num_consumers);
+
             match data {
                 Ok((umi, current_metadata_group)) => {
                     let results = align_umi_to_libraries(
@@ -319,4 +328,25 @@ fn check_reverse_comp(rec: (&DnaString, &bool)) -> DnaString {
     } else {
         seq.to_owned()
     }
+}
+
+fn block_on_memory_headroom(num_consumers: usize) -> bool {
+    let start_time = Instant::now();
+    let total_memory = ALLOCATOR.limit();
+
+    while start_time.elapsed() < WAIT_TIMEOUT {
+        let current_memory = ALLOCATOR.allocated();
+        let average_memory_per_thread = current_memory / num_consumers;
+        let remaining_headroom = total_memory - current_memory;
+        let predicted_memory_use = (average_memory_per_thread as f64) * SAFETY_BUFFER;
+
+        if (remaining_headroom as f64) > predicted_memory_use {
+            return true; // Hopefully safe to proceed
+        }
+
+        // Sleep for a short duration to prevent busy waiting
+        thread::sleep(SLEEP_DURATION);
+    }
+
+    false // Timeout reached, moving forward may cause an OOM abort
 }

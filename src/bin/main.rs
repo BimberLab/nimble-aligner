@@ -1,3 +1,4 @@
+#![feature(alloc_error_hook)]
 extern crate nimble;
 
 use nimble::align::StrandFilter;
@@ -8,8 +9,18 @@ use nimble::utils;
 use clap::{load_yaml, App};
 use std::collections::HashMap;
 use std::path::Path;
+use std::alloc::{Layout, set_alloc_error_hook};
+
+use nimble::ALLOCATOR;
+
+fn alloc_error_callback(layout: Layout) {
+   panic!("memory allocation of {} bytes failed\nallocation layout: {:?}\ncurrent allocated bytes: {}", layout.size(), layout, ALLOCATOR.allocated());
+}
 
 fn main() {
+    // Callback for responding to infallable memory allocation aborts
+    set_alloc_error_hook(alloc_error_callback);
+
     let yaml = load_yaml!("cli.yml");
 
     // Parse command line arguments based on the yaml schema
@@ -50,6 +61,12 @@ fn main() {
         .parse::<usize>()
         .expect("Error -- please provide an integer value for the number of cores");
 
+    let hard_memory_limit = matches
+        .value_of("hard_memory_limit")
+        .unwrap_or("0")
+        .parse::<usize>()
+        .expect("Error -- please provide a positive integer for the hard memory limit");
+
     let strand_filter = matches.value_of("strand_filter").unwrap_or("unstranded");
     let strand_filter = match strand_filter {
         "unstranded" => StrandFilter::Unstranded,
@@ -78,6 +95,12 @@ fn main() {
         .and_then(std::ffi::OsStr::to_str)
         .map(|name| name.ends_with(".fastq.gz"))
         .unwrap_or(false);
+
+    // Set memory allocator hard limit if it was passed
+    if hard_memory_limit > 0 {
+        ALLOCATOR.set_limit(hard_memory_limit * 1024 * 1024).unwrap();
+        println!("Set memory allocator hard limit to {} bytes", hard_memory_limit * 1024 * 1024);
+    }
 
     let mut reference_indices = Vec::new();
     let mut reference_metadata = Vec::new();
