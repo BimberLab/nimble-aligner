@@ -334,9 +334,15 @@ fn block_on_memory_headroom(num_consumers: usize) -> bool {
     let start_time = Instant::now();
     let total_memory = ALLOCATOR.limit();
 
+    let num_cores_for_avg = if num_consumers > 1 {
+        num_consumers - 1
+    } else {
+        num_consumers
+    };
+
     while start_time.elapsed() < WAIT_TIMEOUT {
         let current_memory = ALLOCATOR.allocated();
-        let average_memory_per_thread = current_memory / (num_consumers - 1);
+        let average_memory_per_thread = current_memory / num_cores_for_avg;
         let remaining_headroom = total_memory - current_memory;
         let predicted_memory_use = (average_memory_per_thread as f64) * SAFETY_BUFFER;
 
