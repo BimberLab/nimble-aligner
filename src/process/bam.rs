@@ -336,7 +336,7 @@ fn block_on_memory_headroom(num_consumers: usize) -> bool {
 
     while start_time.elapsed() < WAIT_TIMEOUT {
         let current_memory = ALLOCATOR.allocated();
-        let average_memory_per_thread = current_memory / num_consumers;
+        let average_memory_per_thread = current_memory / (num_consumers - 1);
         let remaining_headroom = total_memory - current_memory;
         let predicted_memory_use = (average_memory_per_thread as f64) * SAFETY_BUFFER;
 
