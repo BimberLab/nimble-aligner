@@ -16,7 +16,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{Error, Write};
 use std::time::Instant;
 
-const MAX_UMIS_IN_CHANNEL: usize = 100;
+const MAX_UMIS_IN_CHANNEL: usize = 20;
 const SAFETY_BUFFER: f64 = 1.20;
 const WAIT_TIMEOUT: Duration = Duration::from_secs(5);
 const SLEEP_DURATION: Duration = Duration::from_millis(50);
