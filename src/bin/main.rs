@@ -9,7 +9,7 @@ use clap::{load_yaml, App};
 use std::collections::HashMap;
 use std::path::Path;
 
-use nimble::ALLOCATOR;
+//use nimble::ALLOCATOR;
 
 fn main() {
 
@@ -90,8 +90,8 @@ fn main() {
 
     // Set memory allocator hard limit if it was passed
     if hard_memory_limit > 0 {
-        ALLOCATOR.set_limit(hard_memory_limit * 1024 * 1024).unwrap();
-        println!("Set memory allocator hard limit to {} bytes", hard_memory_limit * 1024 * 1024);
+        //ALLOCATOR.set_limit(hard_memory_limit * 1024 * 1024).unwrap();
+        //println!("Set memory allocator hard limit to {} bytes", hard_memory_limit * 1024 * 1024);
     }
 
     let mut reference_indices = Vec::new();

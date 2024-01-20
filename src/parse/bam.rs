@@ -1,7 +1,7 @@
 use super::sorted_bam_reader::SortedBamReader;
 use debruijn::dna_string::DnaString;
 use rust_htslib::bam::record::Aux;
-use crate::ALLOCATOR;
+//use crate::ALLOCATOR;
 
 const READ_BLOCK_REPORT_SIZE: usize = 1000000;
 const MAX_RECORD_ERROR_REPORT_SIZE: usize = 100;
@@ -108,10 +108,10 @@ impl UMIReader {
                     self.read_counter
                 );
 
-                println!(
+                /*println!(
                     "Current allocated bytes: {}",
                     ALLOCATOR.allocated()
-                );
+                );*/
             }
 
             let record = match r {

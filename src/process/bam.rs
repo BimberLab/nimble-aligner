@@ -1,5 +1,5 @@
 use crate::align::BamData;
-use crate::ALLOCATOR;
+//use crate::ALLOCATOR;
 use crate::align::{AlignDebugInfo, AlignFilterConfig, PseudoAligner};
 use crate::parse::bam::UMIReader;
 use crate::reference_library::ReferenceMetadata;
@@ -233,7 +233,7 @@ pub fn process(
         let handle = thread::spawn(move || loop {
             let data = receiver_clone.lock().unwrap().recv();
 
-            let _safe_to_allocate = block_on_memory_headroom(num_consumers);
+            //let _safe_to_allocate = block_on_memory_headroom(num_consumers);
 
             match data {
                 Ok((umi, owned_metadata_group)) => {
@@ -406,7 +406,7 @@ fn check_reverse_comp(rec: (&DnaString, &bool)) -> DnaString {
 }
 
 fn block_on_memory_headroom(num_consumers: usize) -> bool {
-    let start_time = Instant::now();
+    /*let start_time = Instant::now();
     let total_memory = ALLOCATOR.limit();
 
     let num_cores_for_avg = if num_consumers > 1 {
@@ -427,7 +427,7 @@ fn block_on_memory_headroom(num_consumers: usize) -> bool {
 
         // Sleep for a short duration to prevent busy waiting
         thread::sleep(SLEEP_DURATION);
-    }
+    }*/
 
     false // Timeout reached, moving forward may cause an OOM abort
 }
