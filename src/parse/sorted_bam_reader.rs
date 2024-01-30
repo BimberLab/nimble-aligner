@@ -59,9 +59,9 @@ impl SortedBamReader {
                 }
             };
 
-            if read_umi == "AAAAAAAAAA" {
+            /*if read_umi == "AAAAAAAAAA" {
                 continue;
-            }
+            }*/
 
             if self.current_umi == "" {
                 self.current_umi = read_umi.clone();
