@@ -1,9 +1,12 @@
 use rust_htslib::{bam, bam::record::Aux, bam::Read, bam::Reader, bam::Record};
+use std::str;
 
 pub struct SortedBamReader {
     reader: bam::Reader,
     current_umi: String,
+    current_cell_barcode: String,
     next_umi: String,
+    next_cell_barcode: String,
     dna_sorted_buffer: Vec<bam::record::Record>,
     next_records: Vec<bam::record::Record>,
 }
@@ -13,8 +16,10 @@ impl SortedBamReader {
         SortedBamReader {
             reader: Reader::from_path(file_path).unwrap(),
             current_umi: String::new(),
+            current_cell_barcode: String::new(),
             dna_sorted_buffer: Vec::new(),
             next_umi: String::new(),
+            next_cell_barcode: String::new(),
             next_records: Vec::new(),
         }
     }
@@ -23,6 +28,7 @@ impl SortedBamReader {
         self.dna_sorted_buffer.clear();
         self.dna_sorted_buffer.append(&mut self.next_records);
         self.current_umi = self.next_umi.clone();
+        //self.current_cell_barcode = self.next_cell_barcode.clone();
 
         for r in self.reader.records() {
             let record = match r {
@@ -53,11 +59,25 @@ impl SortedBamReader {
                 }
             };
 
+            if read_umi == "AAAAAAAAAA" {
+                continue;
+            }
+
             if self.current_umi == "" {
                 self.current_umi = read_umi.clone();
             }
 
-            if self.current_umi != read_umi {
+            /*let read_cell_barcode = if let Ok(Aux::String(corrected)) = record.aux(b"CB") {
+                (&corrected[0..corrected.len() - 2]).to_owned()
+            } else {
+                panic!("Error Read without cell barcode, cannot excise read-mate.");
+            };
+
+            if self.current_cell_barcode == "" {
+                self.current_cell_barcode = read_cell_barcode.clone();
+            }*/
+
+            if self.current_umi != read_umi {//|| self.current_cell_barcode != read_cell_barcode {
                 self.dna_sorted_buffer.sort_by(|a, b| {
                     let cb_a = match a.aux(b"CB") {
                         Ok(Aux::String(cb)) => cb,
@@ -74,6 +94,7 @@ impl SortedBamReader {
 
                 self.next_records.push(record);
                 self.next_umi = read_umi;
+                //self.next_cell_barcode = read_cell_barcode;
                 return;
             } else {
                 self.dna_sorted_buffer.push(record);
