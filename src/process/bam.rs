@@ -253,7 +253,7 @@ fn align_umi_to_libraries(
     let mut results = vec![];
 
     for (i, reference_index) in reference_indices.iter().enumerate() {
-        let (s, _) = get_score(
+        let (mut s, _) = get_score(
             &umi,
             &current_metadata_group,
             reference_index,
@@ -274,6 +274,28 @@ fn align_umi_to_libraries(
         if s.len() == 0 {
             results.push(vec![]);
         } else {
+            let mut non_matching_reads: Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))> = Vec::new();
+            let mut scored_qnames = Vec::new();
+
+            for score in &s {
+                let qname = score.1.1[0].clone();
+                scored_qnames.push(qname);
+            }
+
+            for i in (0..current_metadata_group.len()).step_by(2) {
+                if i + 1 < current_metadata_group.len() {
+                    let pair = (current_metadata_group[i].clone(), current_metadata_group[i + 1].clone());
+                    let qname = &pair.1[0];
+
+                    if scored_qnames.contains(qname) {
+                        continue;
+                    }
+
+                    non_matching_reads.push((vec![], (0, pair.0, pair.1)));
+                }
+            }
+
+            s.extend(non_matching_reads);
             results.push(s);
         }
     }
