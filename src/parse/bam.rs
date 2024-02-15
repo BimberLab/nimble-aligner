@@ -1,45 +1,61 @@
 use super::sorted_bam_reader::SortedBamReader;
 use debruijn::dna_string::DnaString;
 use rust_htslib::bam::record::Aux;
-//use crate::ALLOCATOR;
 
 const READ_BLOCK_REPORT_SIZE: usize = 1000000;
 const MAX_RECORD_ERROR_REPORT_SIZE: usize = 100;
 const CLIP_LENGTH: usize = 13;
 
+pub const BAM_FIELDS_TO_REPORT: [&'static str; 37] = [
+    "QNAME",
+    "QUAL",
+    "REVERSE",
+    "MATE_REVERSE",
+    "PAIRED",
+    "PROPER_PAIRED",
+    "PAIR_ORIENTATION",
+    "UNMAPPED",
+    "MATE_UNMAPPED",
+    "FIRST_IN_TEMPLATE",
+    "LAST_IN_TEMPLATE",
+    "STRAND",
+    "MAPQ",
+    "POS",
+    "MATE_POS",
+    //"SEQ",
+    "SEQ_LEN",
+    "INSERT_SIZE",
+    "CIGAR",
+    "QUALITY_FAILED",
+    "SECONDARY",
+    "DUPLICATE",
+    "SUPPLEMENTARY",
+    "NH",
+    "HI",
+    "AS",
+    "GN",
+    "TX",
+    "AN",
+    "nM",
+    "fx",
+    "RE",
+    "CR",
+    "CY",
+    "CB",
+    "UR",
+    "UY",
+    "UB"
+];
+
 pub struct UMIReader {
     reader: SortedBamReader,
     read_counter: usize,
     pub current_umi_group: Vec<DnaString>,
-    pub current_metadata_group: Vec<(
-        u8,
-        String,
-        String,
-        bool,
-        String,
-        Vec<u8>,
-        Vec<u8>,
-        String,
-        String,
-        String,
-        String,
-    )>,
+    pub current_metadata_group: Vec<Vec<String>>,
     pub current_umi: String,
     pub current_cell_barcode: String,
     pub next_umi_group: Vec<DnaString>,
-    pub next_metadata_group: Vec<(
-        u8,
-        String,
-        String,
-        bool,
-        String,
-        Vec<u8>,
-        Vec<u8>,
-        String,
-        String,
-        String,
-        String,
-    )>,
+    pub next_metadata_group: Vec<Vec<String>>,
     next_umi: String,
     next_cell_barcode: String,
     terminate_on_error: bool,
@@ -170,84 +186,66 @@ impl UMIReader {
 
             let seq =
                 UMIReader::strip_nonbio_regions(&record.seq().as_bytes()[..], record.is_reverse());
-            let mapq = record.mapq();
-            let orientation = String::from(record.strand().strand_symbol());
-            let pair = match record.is_secondary() {
-                true => String::from("T"),
-                false => String::from("F"),
-            };
-            let qname = record.qname().to_vec();
 
-            match self.current_metadata_group.last() {
-                Some(record) => {
-                    if !(self.current_metadata_group.len() % 2 == 0) {
-                        if qname != record.5 {
-                            panic!("Error -- QNAME mismatch, mangled read-pair due to incorrect assumptions about sorted order.");
-                        }
+            let mut record_fields = Vec::new();
+            for field in BAM_FIELDS_TO_REPORT {
+                let field_value = if let Ok(Aux::String(s)) = record.aux(field.as_bytes()) {
+                    s.to_owned()
+                } else {
+                    match field {
+                        "TID" => record.tid().to_string(),
+                        "MATE_TID" => record.mtid().to_string(),
+                        "QNAME" => String::from_utf8(record.qname().to_vec()).unwrap_or_else(|e| {
+                            eprintln!("Error: {}", e);
+                            String::new()
+                        }),
+                        "QUAL" => String::from_utf8(record.qual().to_vec()).unwrap_or_else(|e| {
+                            eprintln!("Error: {}", e);
+                            String::new()
+                        }),
+                        "REVERSE" => record.is_reverse().to_string(),
+                        "MATE_REVERSE" => record.is_mate_reverse().to_string(),
+                        "PAIRED" => record.is_paired().to_string(),
+                        "PROPER_PAIRED" => record.is_proper_pair().to_string(),
+                        "PAIR_ORIENTATION" => record.read_pair_orientation().to_string(),
+                        "UNMAPPED" => record.is_unmapped().to_string(),
+                        "MATE_UNMAPPED" => record.is_mate_unmapped().to_string(),
+                        "FIRST_IN_TEMPLATE" => record.is_first_in_template().to_string(),
+                        "LAST_IN_TEMPLATE" => record.is_last_in_template().to_string(),
+                        "STRAND" => record.strand().strand_symbol().to_owned(),
+                        "MAPQ" => record.mapq().to_string(),
+                        "POS" => record.pos().to_string(),
+                        "MATE_POS" => record.mpos().to_string(),
+                        "SEQ" => String::from_utf8(record.seq().as_bytes()).unwrap_or_else(|e| {
+                            eprintln!("Error: {}", e);
+                            String::new()
+                        }),
+                        "SEQ_LEN" => record.seq_len().to_string(),
+                        "INSERT_SIZE" => record.insert_size().to_string(),
+                        "CIGAR" => record.cigar().to_string(),
+                        "QUALITY_FAILED" => record.is_quality_check_failed().to_string(),
+                        "SECONDARY" => record.is_secondary().to_string(),
+                        "DUPLICATE" => record.is_duplicate().to_string(),
+                        "SUPPLEMENTARY" => record.is_supplementary().to_string(),
+                        _ => { String::new() }
                     }
-                }
-                None => {}
+                };
+
+                record_fields.push(field_value);
             }
-
-            let qual = record.qual().to_vec();
-            let rev_comp = record.is_reverse();
-            let hit = if let Ok(Aux::String(s)) = record.aux(b"GN") {
-                s.to_owned()
-            } else {
-                String::new()
-            };
-
-            let tx = if let Ok(Aux::String(s)) = record.aux(b"TX") {
-                s.to_owned()
-            } else {
-                String::new()
-            };
-
-            let an = if let Ok(Aux::String(s)) = record.aux(b"TX") {
-                s.to_owned()
-            } else {
-                String::new()
-            };
 
             if self.current_iteration_key == current_iteration_key {
                 self.current_umi_group.push(seq);
-                self.current_metadata_group.push((
-                    mapq,
-                    orientation,
-                    pair,
-                    rev_comp,
-                    hit,
-                    qname,
-                    qual,
-                    tx,
-                    read_umi.clone(),
-                    current_cell_barcode.clone(),
-                    an,
-                ));
+                self.current_metadata_group.push(record_fields);
                 self.current_cell_barcode = current_cell_barcode.clone();
-
                 self.current_iteration_key = current_iteration_key;
             } else {
                 self.next_umi_group.push(seq);
-                self.next_metadata_group.push((
-                    mapq,
-                    orientation,
-                    pair,
-                    rev_comp,
-                    hit,
-                    qname,
-                    qual,
-                    tx,
-                    read_umi.clone(),
-                    current_cell_barcode.clone(),
-                    an,
-                ));
+                self.next_metadata_group.push(record_fields);
                 self.next_umi = read_umi.clone();
                 self.next_cell_barcode = current_cell_barcode;
                 self.next_iteration_key = current_iteration_key;
 
-                //let duration = start.elapsed();
-                //println!("time to push read to NEXT readlist: {:?}", duration);
                 return Some(true);
             }
         }
@@ -257,59 +255,6 @@ impl UMIReader {
     // https://assets.ctfassets.net/an68im79xiti/6yYLKUTpokvZvs4pVwnd0a/c40790cd90b7d57bc4e457e670ae3561/CG000207_ChromiumNextGEMSingleCellV_D_J_ReagentKits_v1.1_UG_RevF.pdf,
     // page 76, figure 3.1
     fn strip_nonbio_regions(seq: &[u8], rev_comp: bool) -> DnaString {
-        // Convert seq to string for easy search operations
-        //let seq = String::from_utf8(seq.to_owned()).unwrap();
-
-        // Find TSO if it exists
-        /*let mut tso_idx = seq.find("TTTCTTATATGGG"); // forward case
-
-        if tso_idx.is_none() {
-            tso_idx = seq.find("AAAGAATATACCC"); // reverse case
-        };
-
-        // If the TSO exists, strip the front of the sequence, removing the forward primer and any
-        // UMI/Cell Barcode metadata, as well as the TSO itself, which has length 13.
-        // If it doesn't exist, then there can't be any metadata, so we don't process the pre-cDna
-        // portion of the sequence.
-        let seq = if tso_idx.is_some() {
-            String::from_utf8(seq.as_bytes()[tso_idx.unwrap()+13..].to_vec()).unwrap()
-        } else {
-            seq
-        };*/
-
-        // Remove the poly-T/poly-A tail if it exists
-        /*let mut poly_tail_idx = seq.find("TTTTTTTTTTTTTTTTTTT");
-
-        if poly_tail_idx.is_none() {
-            poly_tail_idx = seq.find("AAAAAAAAAAAAAAAAAAA");
-        };
-
-        let seq = if poly_tail_idx.is_some() {
-            println!("before: {}", seq);
-            let after =
-                String::from_utf8(seq.as_bytes()[..poly_tail_idx.unwrap()].to_vec()).unwrap();
-            println!("after: {}", after);
-            after
-        } else {
-            seq
-        };*/
-
-        // Find the reverse primer if it exists
-        /*let mut reverse_primer_idx = seq.find("GTACTCTGCGTTGATACCACTGCTT"); // forward case
-
-        if reverse_primer_idx.is_none() {
-            reverse_primer_idx = seq.find("CATGAGACGCAACTATGGTGACGAA"); // reverse case
-        };
-
-        // If the reverse primer exists, remove it
-        let seq = if reverse_primer_idx.is_some() {
-            String::from_utf8(seq.as_bytes()[..reverse_primer_idx.unwrap()].to_vec()).unwrap()
-        } else {
-            seq
-        };*/
-
-        //return DnaString::from_acgt_bytes(&seq);
-
         if seq.len() == 124 {
             if rev_comp {
                 DnaString::from_acgt_bytes(&seq[0..seq.len() - CLIP_LENGTH])
@@ -317,11 +262,6 @@ impl UMIReader {
                 DnaString::from_acgt_bytes(&seq[CLIP_LENGTH..])
             }
         } else {
-            /*if rev_comp {
-                DnaString::from_acgt_bytes(&bio::alphabets::dna::revcomp(seq))
-            } else {
-                DnaString::from_acgt_bytes(seq)
-            }*/
             return DnaString::from_acgt_bytes(&seq);
         }
     }

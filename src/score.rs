@@ -1,5 +1,4 @@
 use crate::align;
-use crate::align::BamData;
 use crate::reference_library;
 use crate::utils;
 use reference_library::ReferenceMetadata;
@@ -19,26 +18,13 @@ pub fn score<'a>(
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     )>,
-    current_metadata_group: &'a Vec<(
-        u8,
-        String,
-        String,
-        bool,
-        String,
-        Vec<u8>,
-        Vec<u8>,
-        String,
-        String,
-        String,
-        String,
-    )>,
-
+    current_metadata_group: &'a Vec<Vec<String>>,
     reference_index: &(align::PseudoAligner, align::PseudoAligner),
     reference_metadata: &ReferenceMetadata,
     align_config: &align::AlignFilterConfig,
     debug_info: Option<&mut align::AlignDebugInfo>,
 ) -> (
-    Vec<(Vec<String>, (i32, BamData, BamData))>,
+    Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>,
     Vec<(Vec<String>, String, f64, usize, String)>,
 ) {
     // Perform filtered pseudoalignment

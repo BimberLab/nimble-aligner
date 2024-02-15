@@ -1,6 +1,8 @@
 use rust_htslib::{bam, bam::record::Aux, bam::Read, bam::Reader, bam::Record};
 use std::str;
 
+const TAG_WHITELIST: [&'static str; 1] = ["AAAAAAAAAA"];
+
 pub struct SortedBamReader {
     reader: bam::Reader,
     current_umi: String,
