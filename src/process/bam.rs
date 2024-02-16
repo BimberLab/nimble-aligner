@@ -19,13 +19,21 @@ use std::io::{BufWriter, Error, Write};
 const MAX_UMIS_IN_CHANNEL: usize = 50;
 
 fn bam_data_values(bam_data: &Vec<String>) -> String {
-    bam_data.join("\t")
+    bam_data
+        .iter()
+        .enumerate() 
+        .filter(|&(index, _)| index != 15) 
+        .map(|(_, value)| value.as_str())
+        .collect::<Vec<&str>>()
+        .join("\t")
 }
 
 fn bam_data_header(prefix: &str) -> String {
     BAM_FIELDS_TO_REPORT
         .iter()
-        .map(|&field| format!("{}_{}", prefix, field))
+        .enumerate() 
+        .filter(|&(index, _)| index != 15) 
+        .map(|(_, &field)| format!("{}_{}", prefix, field))
         .collect::<Vec<String>>()
         .join("\t")
 }
