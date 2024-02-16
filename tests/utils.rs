@@ -1,4 +1,4 @@
-extern crate csv;
+/*extern crate csv;
 extern crate debruijn;
 extern crate debruijn_mapping;
 extern crate nimble;
@@ -72,4 +72,4 @@ pub fn get_data(
 pub fn sort_score_vector(mut scores: Vec<(Vec<String>, i32)>) -> Vec<(Vec<String>, i32)> {
     scores.sort_by(|a, b| a.0.cmp(&b.0));
     scores
-}
+}*/

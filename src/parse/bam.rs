@@ -22,10 +22,10 @@ pub const BAM_FIELDS_TO_REPORT: [&'static str; 37] = [
     "MAPQ",
     "POS",
     "MATE_POS",
-    //"SEQ",
+    "SEQ", // This gets filtered out before getting written to disk in the bam processingm it's just used for associating reads to filter info
     "SEQ_LEN",
     "INSERT_SIZE",
-    "CIGAR",
+    //"CIGAR",
     "QUALITY_FAILED",
     "SECONDARY",
     "DUPLICATE",
@@ -216,10 +216,7 @@ impl UMIReader {
                         "MAPQ" => record.mapq().to_string(),
                         "POS" => record.pos().to_string(),
                         "MATE_POS" => record.mpos().to_string(),
-                        "SEQ" => String::from_utf8(record.seq().as_bytes()).unwrap_or_else(|e| {
-                            eprintln!("Error: {}", e);
-                            String::new()
-                        }),
+                        "SEQ" => seq.to_string(),
                         "SEQ_LEN" => record.seq_len().to_string(),
                         "INSERT_SIZE" => record.insert_size().to_string(),
                         "CIGAR" => record.cigar().to_string(),

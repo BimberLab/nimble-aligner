@@ -1,4 +1,4 @@
-use crate::align::{AlignDebugInfo, AlignFilterConfig, PseudoAligner};
+use crate::align::{AlignDebugInfo, AlignFilterConfig, PseudoAligner, FilterReason, AlignmentDirection};
 use crate::parse::bam::BAM_FIELDS_TO_REPORT;
 use crate::parse::bam::UMIReader;
 use crate::reference_library::ReferenceMetadata;
@@ -8,6 +8,7 @@ use debruijn::dna_string::DnaString;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 
+use std::collections::HashMap;
 use std::sync::mpsc::{self};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -37,8 +38,9 @@ pub fn process(
     output_paths: Vec<String>,
     num_cores: usize,
 ) {
+    // associated with r2, r1, r2 forward, r1 forward, r2 reverse, r1 reverse, both
     let (log_sender, log_receiver) =
-        mpsc::channel::<((Vec<String>, (i32, Vec<String>, Vec<String>)), usize)>();
+        mpsc::channel::<((Vec<String>, (i32, Vec<String>, Vec<String>, FilterReason, FilterReason, FilterReason, FilterReason, FilterReason, AlignmentDirection)), usize)>();
 
     let log_thread = thread::spawn(move || {
         println!("Spawning logging thread.");
@@ -64,9 +66,10 @@ pub fn process(
                     if first_write[index] {
                         writeln!(
                             file_handle,
-                            "nimble_features\tnimble_score\t{}\t{}",
+                            "nimble_features\tnimble_score\t{}\t{}\t{}",
                             bam_data_header("r1"),
-                            bam_data_header("r2")
+                            bam_data_header("r2"),
+                            "r1_filter_forward\tr1_filter_reverse\tr2_filter_forward\tr2_filter_reverse\t",
                         )
                         .unwrap();
                         first_write[index] = false;
@@ -74,11 +77,17 @@ pub fn process(
     
                     writeln!(
                         file_handle,
-                        "{}\t{}\t{}\t{}",
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                         msg.0.join(","),
                         msg.1 .0,
                         bam_data_values(&msg.1 .2), // r1
-                        bam_data_values(&msg.1 .1) // r2
+                        bam_data_values(&msg.1 .1), // r2. these are reversed from the order they take in the data structures, hence the weird numbering
+                        &msg.1.4,
+                        &msg.1.6,
+                        &msg.1.3,
+                        &msg.1.5,
+                        //&msg.1.7,
+                        //&msg.1.8,
                     )
                     .unwrap();
                 }
@@ -193,6 +202,7 @@ fn get_score<'a>(
 ) -> (
     Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>,
     Vec<(Vec<String>, String, f64, usize, String)>,
+    HashMap<String, (FilterReason, FilterReason, FilterReason, FilterReason, FilterReason, AlignmentDirection)>
 ) {
     let sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
         current_umi_group
@@ -249,11 +259,11 @@ fn align_umi_to_libraries(
     reference_metadata: &Vec<ReferenceMetadata>,
     align_configs: &Vec<AlignFilterConfig>,
     _thread_num: usize,
-) -> Vec<Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>> {
+) -> Vec<Vec<(Vec<String>, (i32, Vec<String>, Vec<String>, FilterReason, FilterReason, FilterReason, FilterReason, FilterReason, AlignmentDirection))>> {
     let mut results = vec![];
 
     for (i, reference_index) in reference_indices.iter().enumerate() {
-        let (mut s, _) = get_score(
+        let (mut s, _, filter_reasons) = get_score(
             &umi,
             &current_metadata_group,
             reference_index,
@@ -263,11 +273,7 @@ fn align_umi_to_libraries(
             &current_metadata_group
                 .clone()
                 .into_iter()
-                .map(|v| match v[3].as_str() {
-                    "true" => true,
-                    "false" => false,
-                    _ => panic!("Could not parse revcomp field \"{}\" as boolean", v[3])
-                })
+                .map(|v| parse_str_as_bool(&v[3]))
                 .collect::<Vec<bool>>(),
         );
 
@@ -296,6 +302,52 @@ fn align_umi_to_libraries(
             }
 
             s.extend(non_matching_reads);
+
+            let mut transformed_scores = Vec::new();
+            for score in s.into_iter() {
+                let r1_key_part = check_reverse_comp((&DnaString::from_dna_string(&score.1.1[15]), &parse_str_as_bool(&score.1.1[3]))).to_string();
+                let r2_key_part = check_reverse_comp((&DnaString::from_dna_string(&score.1.2[15]), &parse_str_as_bool(&score.1.2[3]))).to_string();
+                let filter_result = filter_reasons.get(&(r1_key_part.clone() + &r2_key_part));
+
+                let new_score = match filter_result {
+                    Some(v) => {
+                        (
+                            score.0,
+                            (
+                                score.1.0,
+                                score.1.1,
+                                score.1.2,
+                                v.0,
+                                v.1,
+                                v.2,
+                                v.3,
+                                v.4,
+                                v.5,
+                            ),
+                        )
+                    },
+                    None => {
+                        (
+                            score.0,
+                            (
+                                score.1.0,
+                                score.1.1,
+                                score.1.2,
+                                FilterReason::None,
+                                FilterReason::None,
+                                FilterReason::None,
+                                FilterReason::None,
+                                FilterReason::None,
+                                AlignmentDirection::None,
+                            ),
+                        )
+                    },
+                };
+                transformed_scores.push(new_score);
+            }
+
+            let s = transformed_scores;
+
             results.push(s);
         }
     }
@@ -310,5 +362,13 @@ fn check_reverse_comp(rec: (&DnaString, &bool)) -> DnaString {
         DnaString::from_dna_string(&revcomp(&seq.to_string())).to_owned()
     } else {
         seq.to_owned()
+    }
+}
+
+fn parse_str_as_bool(v: &str) -> bool {
+    match v {
+        "true" => true,
+        "false" => false,
+        _ => panic!("Could not parse revcomp field \"{}\" as boolean", v)
     }
 }

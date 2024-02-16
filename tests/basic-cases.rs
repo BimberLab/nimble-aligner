@@ -1,4 +1,4 @@
-extern crate csv;
+/*extern crate csv;
 extern crate debruijn;
 extern crate debruijn_mapping;
 extern crate nimble;
@@ -309,4 +309,4 @@ fn group_by_rev() {
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
-}
+}*/

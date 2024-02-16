@@ -13,7 +13,7 @@ pub fn process(
     _num_cores: usize,
 ) {
     for (i, index) in reference_indices.into_iter().enumerate() {
-        let (results, _alignment_metadata) = score(
+        let (results, _alignment_metadata, _) = score(
             get_error_checked_fastq_readers(input_files[0].clone()),
             if input_files.len() > 1 { Some(get_error_checked_fastq_readers(input_files[1].clone())) } else { None },
             &Vec::new(),

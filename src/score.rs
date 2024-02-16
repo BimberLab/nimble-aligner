@@ -1,9 +1,11 @@
 use crate::align;
+use crate::align::{FilterReason, AlignmentDirection};
 use crate::reference_library;
 use crate::utils;
 use reference_library::ReferenceMetadata;
 
 use debruijn::dna_string::DnaString;
+use std::collections::HashMap;
 use std::io::Error;
 
 /* Takes a list of sequences and optionally reverse sequences, a reference library index, reference library metadata,
@@ -26,9 +28,10 @@ pub fn score<'a>(
 ) -> (
     Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>,
     Vec<(Vec<String>, String, f64, usize, String)>,
+    HashMap<String, (FilterReason, FilterReason, FilterReason, FilterReason, FilterReason, AlignmentDirection)>
 ) {
     // Perform filtered pseudoalignment
-    let (reference_scores, alignment_metadata) = align::score(
+    let (reference_scores, alignment_metadata, filter_reasons) = align::score(
         sequences,
         reverse_sequences,
         current_metadata_group,
@@ -41,5 +44,6 @@ pub fn score<'a>(
     (
         utils::sort_score_vector(reference_scores),
         alignment_metadata,
+        filter_reasons
     )
 }

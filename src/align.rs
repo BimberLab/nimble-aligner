@@ -40,7 +40,11 @@ pub enum FilterReason {
     ForceIntersectFailure,
     ShortRead,
     MaxHitsExceeded,
-    LowEntropy
+    HighEntropy,
+    SuccessfulMatch,
+    StrandWasWrong,
+    TriageEmptyEquivalenceClass,
+    None,
 }
 
 impl Display for FilterReason {
@@ -54,11 +58,15 @@ impl Display for FilterReason {
                 write!(f, "No Match and Score Below Threshold")
             }
             FilterReason::DifferentFilterReasons => write!(f, "Different Filter Reasons"),
-            FilterReason::NotMatchingPair => write!(f, "Not Matching Pair"),
+            FilterReason::NotMatchingPair => write!(f, "Required Valid Pair Not Matching"),
             FilterReason::ForceIntersectFailure => write!(f, "Force Intersect Failure"),
             FilterReason::ShortRead => write!(f, "Short Read"),
             FilterReason::MaxHitsExceeded => write!(f, "Max Hits Exceeded"),
-            FilterReason::LowEntropy => write!(f, "Low Entropy"),
+            FilterReason::HighEntropy => write!(f, "Low Entropy"),
+            FilterReason::SuccessfulMatch => write!(f, "Successful Match"),
+            FilterReason::StrandWasWrong => write!(f, "Strandedness Filtered"),
+            FilterReason::TriageEmptyEquivalenceClass => write!(f, "Equivalence Class Empty After Filters"),
+            FilterReason::None => write!(f, "None"),
         }
     }
 }
@@ -125,6 +133,7 @@ pub enum AlignmentDirection {
     RU,
     UF,
     UR,
+    None
 }
 impl fmt::Display for AlignmentDirection {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -138,6 +147,7 @@ impl fmt::Display for AlignmentDirection {
             AlignmentDirection::RU => write!(f, "RU"),
             AlignmentDirection::UF => write!(f, "UF"),
             AlignmentDirection::UR => write!(f, "UR"),
+            AlignmentDirection::None => write!(f, "None"),
         }
     }
 }
@@ -180,26 +190,6 @@ impl AlignmentDirection {
             (PairState::Both, PairState::None) => AlignmentDirection::UU,
             (PairState::None, PairState::Both) => AlignmentDirection::UU,
             (PairState::None, PairState::None) => AlignmentDirection::UU,
-            /*(PairState::Both, PairState::First) => AlignmentDirection::FF,
-            (PairState::First, PairState::Both) => AlignmentDirection::FF,
-            (PairState::Both, PairState::Second) => AlignmentDirection::RR,
-            (PairState::Second, PairState::Both) => AlignmentDirection::RR,
-            (PairState::Both, PairState::Both) => AlignmentDirection::FR,
-            (PairState::Both, PairState::None) => AlignmentDirection::FU,
-            (PairState::None, PairState::Both) => AlignmentDirection::UF,
-            (PairState::None, PairState::None) => AlignmentDirection::UU,*/
-        };
-
-        match dir {
-            AlignmentDirection::FF => debug_info.ff_reported += 1,
-            AlignmentDirection::RR => debug_info.rr_reported += 1,
-            AlignmentDirection::UU => debug_info.uu_reported += 1,
-            AlignmentDirection::FR => debug_info.fr_reported += 1,
-            AlignmentDirection::FU => debug_info.fu_reported += 1,
-            AlignmentDirection::RF => debug_info.rf_reported += 1,
-            AlignmentDirection::RU => debug_info.ru_reported += 1,
-            AlignmentDirection::UF => debug_info.uf_reported += 1,
-            AlignmentDirection::UR => debug_info.ur_reported += 1,
         };
 
         dir
@@ -225,17 +215,16 @@ impl AlignmentDirection {
         config: &AlignFilterConfig,
         debug_info: &mut AlignDebugInfo,
         matched_sequences: &mut Vec<(Vec<String>, String, f64, usize, String)>,
-        key: String,
+        map_key: String,
         debug: bool,
+        mut filtered_keys: &mut HashMap<String, (FilterReason, AlignmentDirection)>
     ) {
         if let Some((f_pair_state, _, _, _, _)) = forward_hits {
             if let Some((r_pair_state, _, _, _, _)) = reverse_hits {
                 let dir =
                     AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state, debug_info);
                 if AlignmentDirection::filter_read(dir, &config.strand_filter) {
-                    if debug {
-                        replace_key_with_strand_dir(key, matched_sequences, dir);
-                    }
+                    filtered_keys.insert(map_key.clone(), (FilterReason::StrandWasWrong, dir));
                     return;
                 }
             }
@@ -243,18 +232,14 @@ impl AlignmentDirection {
             let dir =
                 AlignmentDirection::get_alignment_dir(f_pair_state, PairState::None, debug_info);
             if AlignmentDirection::filter_read(dir, &config.strand_filter) {
-                if debug {
-                    replace_key_with_strand_dir(key, matched_sequences, dir);
-                }
+                filtered_keys.insert(map_key.clone(), (FilterReason::StrandWasWrong, dir));
                 return;
             }
         } else if let Some((r_pair_state, _, _, _, _)) = reverse_hits {
             let dir =
                 AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state, debug_info);
             if AlignmentDirection::filter_read(dir, &config.strand_filter) {
-                if debug {
-                    replace_key_with_strand_dir(key, matched_sequences, dir);
-                }
+                filtered_keys.insert(map_key.clone(), (FilterReason::StrandWasWrong, dir));
                 return;
             }
         }
@@ -263,10 +248,10 @@ impl AlignmentDirection {
         let (match_eqv_class, f_bam_data, r_bam_data) = match config.intersect_level {
             IntersectLevel::NoIntersect => get_all_reads(forward_hits, reverse_hits),
             IntersectLevel::IntersectWithFallback => {
-                get_intersecting_reads(forward_hits, reverse_hits, true, debug_info)
+                get_intersecting_reads(forward_hits, reverse_hits, true, debug_info, map_key.clone(), &mut filtered_keys)
             }
             IntersectLevel::ForceIntersect => {
-                get_intersecting_reads(forward_hits, reverse_hits, false, debug_info)
+                get_intersecting_reads(forward_hits, reverse_hits, false, debug_info, map_key.clone(), &mut filtered_keys)
             }
         };
 
@@ -275,12 +260,13 @@ impl AlignmentDirection {
 
         // Max hits filter
         if key.len() > config.max_hits_to_report {
-            debug_info.update(Some((FilterReason::MaxHitsExceeded, 0.0, 0)));
+            filtered_keys.insert(map_key.clone(), (FilterReason::MaxHitsExceeded, AlignmentDirection::None));
             return;
         }
 
         // Ensure we don't add empty keys, if any got to this point
         if key.len() == 0 {
+            filtered_keys.insert(map_key.clone(), (FilterReason::TriageEmptyEquivalenceClass, AlignmentDirection::None));
             return;
         }
 
@@ -313,6 +299,7 @@ impl AlignmentDirection {
             AlignmentDirection::RU => false,
             AlignmentDirection::UF => false,
             AlignmentDirection::UR => false,
+            AlignmentDirection::None => true,
         }
     }
 
@@ -327,6 +314,7 @@ impl AlignmentDirection {
             AlignmentDirection::RU => false,
             AlignmentDirection::UF => false,
             AlignmentDirection::UR => false,
+            AlignmentDirection::None => true,
         }
     }
 
@@ -341,6 +329,7 @@ impl AlignmentDirection {
             AlignmentDirection::RU => false,
             AlignmentDirection::UF => false,
             AlignmentDirection::UR => false,
+            AlignmentDirection::None => true,
         }
     }
 }
@@ -351,75 +340,6 @@ pub enum PairState {
     Second,
     Both,
     None,
-}
-
-impl AlignDebugInfo {
-    fn update(&mut self, reason: Option<(FilterReason, f64, usize)>) -> (f64, usize) {
-        match reason {
-            Some((FilterReason::ScoreBelowThreshold, _, _)) => self.score_below_threshold += 1,
-            Some((FilterReason::DiscardedMultipleMatch, _, _)) => {
-                self.discarded_multiple_match += 1
-            }
-            Some((FilterReason::DiscardedNonzeroMismatch, _, _)) => {
-                self.discarded_nonzero_mismatch += 1
-            }
-            Some((FilterReason::NoMatch, _, _)) => self.no_match += 1,
-            Some((FilterReason::NoMatchAndScoreBelowThreshold, _, _)) => {
-                self.no_match_and_score_below_threshold += 1
-            }
-            Some((FilterReason::DifferentFilterReasons, _, _)) => {
-                self.different_filter_reasons += 1
-            }
-            Some((FilterReason::NotMatchingPair, _, _)) => self.not_matching_pair += 1,
-            Some((FilterReason::ForceIntersectFailure, _, _)) => self.force_intersect_failure += 1,
-            Some((FilterReason::ShortRead, _, _)) => self.short_read += 1,
-            Some((FilterReason::MaxHitsExceeded, _, _)) => self.max_hits_exceeded += 1,
-            Some((FilterReason::LowEntropy, _, _)) => self.low_entropy += 1.0,
-            None => (),
-        };
-
-        if let Some((_, s, ns)) = reason {
-            (s, ns)
-        } else {
-            (0.0, 0)
-        }
-    }
-
-    fn merge(&mut self, info: AlignDebugInfo) {
-        self.read_units_aligned += info.read_units_aligned;
-        self.score_below_threshold += info.score_below_threshold;
-        self.discarded_multiple_match += info.discarded_multiple_match;
-        self.discarded_nonzero_mismatch += info.discarded_nonzero_mismatch;
-        self.no_match += info.no_match;
-        self.no_match_and_score_below_threshold += info.no_match_and_score_below_threshold;
-        self.different_filter_reasons += info.different_filter_reasons;
-        self.not_matching_pair += info.not_matching_pair;
-        self.force_intersect_failure += info.force_intersect_failure;
-        self.short_read += info.short_read;
-        self.low_entropy += info.low_entropy;
-        self.ff_reported += info.ff_reported;
-        self.rr_reported += info.rr_reported;
-        self.uu_reported += info.uu_reported;
-        self.fr_reported += info.fr_reported;
-        self.fu_reported += info.fu_reported;
-        self.rf_reported += info.rf_reported;
-        self.ru_reported += info.ru_reported;
-        self.uf_reported += info.uf_reported;
-        self.ur_reported += info.ur_reported;
-    }
-
-    pub fn get_total_attempted_reads(&self) -> usize {
-        return self.read_units_aligned
-            + self.score_below_threshold
-            + self.discarded_multiple_match
-            + self.discarded_nonzero_mismatch
-            + self.no_match
-            + self.no_match_and_score_below_threshold
-            + self.different_filter_reasons
-            + self.not_matching_pair
-            + self.force_intersect_failure
-            + self.short_read;
-    }
 }
 
 /* Takes a set of sequences and optionally, reverse sequences, a debrujin map index of the reference
@@ -444,7 +364,13 @@ pub fn score<'a>(
 ) -> (
     Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>,
     Vec<(Vec<String>, String, f64, usize, String)>,
+    HashMap<String, (FilterReason, FilterReason, FilterReason, FilterReason, FilterReason, AlignmentDirection)>
 ) {
+    let mut filter_reasons: HashMap<String, (FilterReason, FilterReason, FilterReason, FilterReason, FilterReason, AlignmentDirection)> = HashMap::new();
+    let mut filter_reasons_forward: HashMap<String, (FilterReason, FilterReason)> = HashMap::new();
+    let mut filter_reasons_reverse: HashMap<String, (FilterReason, FilterReason)> = HashMap::new();
+    let mut post_triaged_keys: HashMap<String, (FilterReason, AlignmentDirection)> = HashMap::new();
+
     let (index_forward, index_backward) = index_pair;
     let (sequences, sequences_2) = sequence_iter_pair;
     let (reverse_sequences, reverse_sequences_2) = match reverse_sequence_iter_pair {
@@ -461,6 +387,7 @@ pub fn score<'a>(
             reference_metadata,
             config,
             String::from("forward"),
+            &mut filter_reasons_forward
         );
     let (mut backward_score, mut backward_matched_sequences, backward_align_debug_info) =
         generate_score(
@@ -471,11 +398,11 @@ pub fn score<'a>(
             reference_metadata,
             config,
             String::from("reverse"),
+            &mut filter_reasons_reverse
         );
 
     forward_matched_sequences.append(&mut backward_matched_sequences);
 
-    forward_align_debug_info.merge(backward_align_debug_info);
     let mut results: HashMap<Vec<String>, (i32, Vec<String>, Vec<String>)> = HashMap::new();
 
     for (key, f) in forward_score.into_iter() {
@@ -494,6 +421,7 @@ pub fn score<'a>(
             &mut forward_matched_sequences,
             key,
             debug_info.is_some(),
+            &mut post_triaged_keys
         );
     }
 
@@ -508,20 +436,24 @@ pub fn score<'a>(
             &mut forward_matched_sequences,
             key,
             debug_info.is_some(),
+            &mut post_triaged_keys
         );
     }
 
-    // Update the results map
+    for (key, value) in filter_reasons_forward.into_iter() {
+        let reverse_value = filter_reasons_reverse.get(&key).unwrap();
+        match post_triaged_keys.get(&key) {
+            Some(triage) => filter_reasons.insert(key, (value.0, value.1, reverse_value.0, reverse_value.1, triage.0, triage.1)),
+            None => filter_reasons.insert(key, (value.0, value.1, reverse_value.0, reverse_value.1, FilterReason::None, AlignmentDirection::None))
+        };
+    }
+
     let mut ret = Vec::new();
     for (key, value) in results.into_iter() {
         ret.push((key, value));
     }
 
-    if let Some(debug_info) = debug_info {
-        debug_info.merge(forward_align_debug_info);
-    }
-
-    (ret, forward_matched_sequences)
+    (ret, forward_matched_sequences, filter_reasons)
 }
 
 fn generate_score<'a>(
@@ -532,6 +464,7 @@ fn generate_score<'a>(
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
     reference_orientation: String,
+    filter_reasons: &mut HashMap<String, (FilterReason, FilterReason)>
 ) -> (
     HashMap<
         String,
@@ -563,8 +496,8 @@ fn generate_score<'a>(
     // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
     let mut metadata_iter = current_metadata_group.iter();
     for read in sequences {
-        let forward_metadata = metadata_iter.next().unwrap_or(&Vec::new()).clone();
-        let reverse_metadata = metadata_iter.next().unwrap_or(&Vec::new()).clone();
+        let forward_metadata = metadata_iter.next().unwrap_or(&Vec::new()).clone(); //r2
+        let reverse_metadata = metadata_iter.next().unwrap_or(&Vec::new()).clone(); //r1
 
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
         let mut read_rev: Option<DnaString> = None;
@@ -583,11 +516,17 @@ fn generate_score<'a>(
                 .expect("Error -- read and reverse read files do not have matching lengths: ")
                 .expect("Error -- could not parse reverse read. Input R2 data malformed.");
             let (score, reason) = pseudoalign(&reverse_read, index, &config);
+
             reverse_read_t = reverse_read.clone();
             rev_seq_score = Some(score);
             read_rev = Some(reverse_read);
             rev_filter_reason = reason;
         }
+        
+        let read_key = match &read_rev {
+            Some(rev) => read.to_string() + &rev.to_string(),
+            None => read.to_string(),
+        };
 
         let mut seq_score_names = Vec::new();
         let mut rev_seq_score_names = Vec::new();
@@ -622,30 +561,37 @@ fn generate_score<'a>(
             match (forward_filter_reason, rev_filter_reason) {
                 (Some((fr, s, ns)), Some((rr, r, nr))) => {
                     if fr == rr {
-                        debug_info.update(Some((fr, s, ns)))
+                        (s, ns)
+                        //debug_info.update(Some((fr, s, ns)))
                     } else if (fr == FilterReason::NoMatch
                         && rr == FilterReason::ScoreBelowThreshold)
                         || (rr == FilterReason::NoMatch && fr == FilterReason::ScoreBelowThreshold)
                     {
                         let (s, ns) = if s > r { (s, ns) } else { (r, nr) };
 
-                        debug_info.update(Some((
+                        /*debug_info.update(Some((
                             FilterReason::NoMatchAndScoreBelowThreshold,
                             s,
                             ns,
-                        )))
+                        )))*/
+                        (s, ns)
                     } else {
                         let (s, ns) = if s > r { (s, ns) } else { (r, nr) };
 
-                        debug_info.update(Some((FilterReason::DifferentFilterReasons, s, ns)))
+                        (s, ns)
+                        //debug_info.update(Some((FilterReason::DifferentFilterReasons, s, ns)))
                     }
                 }
-                (None, Some((rr, r, nr))) => debug_info.update(Some((rr, r, nr))),
-                (Some((fr, s, ns)), None) => debug_info.update(Some((fr, s, ns))),
+                (None, Some((rr, r, nr))) => (r, nr),//debug_info.update(Some((rr, r, nr))),
+                (Some((fr, s, ns)), None) => (s, ns),//debug_info.update(Some((fr, s, ns))),
                 (None, None) => (0.0, 0),
             }
         } else {
-            debug_info.update(forward_filter_reason)
+            //debug_info.update(forward_filter_reason)
+            match forward_filter_reason {
+                Some(r) => (r.1, r.2),
+                None => (0.0, 0)
+            } 
         };
 
         // If there are no reverse sequences, ignore the require_valid_pair filter
@@ -653,8 +599,19 @@ fn generate_score<'a>(
             && config.require_valid_pair
             && filter_pair(&seq_score, &rev_seq_score)
         {
-            debug_info.update(Some((FilterReason::NotMatchingPair, 0.0, 0)));
+            filter_reasons.insert(read_key.clone(), (FilterReason::NotMatchingPair, FilterReason::NotMatchingPair));
             continue;
+        } else {
+            filter_reasons.insert(read_key.clone(), (
+                match forward_filter_reason {
+                    Some((reason, _, _)) => reason,
+                    None => FilterReason::SuccessfulMatch
+                },
+                match rev_filter_reason {
+                    Some((reason, _, _)) => reason,
+                    None => FilterReason::SuccessfulMatch
+                }
+            ));
         }
 
         let (eqv_class, s, n_s) = if let Some((eqv_class, s, n_s)) = &seq_score {
@@ -725,11 +682,6 @@ fn generate_score<'a>(
                 )
             } else {
                 continue;
-            };
-
-            let read_key = match &read_rev {
-                Some(rev) => read.to_string() + &rev.to_string(),
-                None => read.to_string(),
             };
 
             match v.0 {
@@ -815,6 +767,8 @@ fn get_intersecting_reads(
     )>,
     fallback_on_intersect_fail: bool,
     debug_info: &mut AlignDebugInfo,
+    map_key: String,
+    filtered_keys: &mut HashMap<String, (FilterReason, AlignmentDirection)>
 ) -> (Vec<u32>, Vec<String>, Vec<String>) {
     let (seq_class, _, seq_f_data, seq_r_data) = match seq_score {
         Some((
@@ -883,7 +837,7 @@ fn get_intersecting_reads(
             (class, seq_f_data, seq_r_data)
         }
     } else {
-        debug_info.update(Some((FilterReason::ForceIntersectFailure, 0.0, 0)));
+        filtered_keys.insert(map_key, (FilterReason::ForceIntersectFailure, AlignmentDirection::None));
         (Vec::new(), seq_f_data, seq_r_data)
     }
 }
@@ -1014,7 +968,7 @@ fn get_score_map_key(
 fn pseudoalign(
     sequence: &DnaString,
     reference_index: &PseudoAligner,
-    config: &AlignFilterConfig,
+    config: &AlignFilterConfig
 ) -> (
     Option<(Vec<u32>, f64, usize)>,
     Option<(FilterReason, f64, usize)>,
@@ -1026,7 +980,7 @@ fn pseudoalign(
 
     // Filter high-entropy
     if shannon_entropy(&sequence.to_string()) < MIN_ENTROPY {
-        return (None, Some((FilterReason::LowEntropy, 0.0, 0)))
+        return (None, Some((FilterReason::HighEntropy, 0.0, 0)))
     }
 
     // Perform alignment
@@ -1047,7 +1001,7 @@ fn pseudoalign(
                 config.score_threshold,
                 config.score_percent,
                 equiv_class,
-                config.discard_multiple_matches
+                config.discard_multiple_matches,
             )
         }
         None => (None, Some((FilterReason::NoMatch, 0.0, 0))),
