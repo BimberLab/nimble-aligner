@@ -364,11 +364,11 @@ pub fn score<'a>(
 ) -> (
     Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>,
     Vec<(Vec<String>, String, f64, usize, String)>,
-    HashMap<String, (FilterReason, FilterReason, FilterReason, FilterReason, FilterReason, AlignmentDirection)>
+    HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection)>
 ) {
-    let mut filter_reasons: HashMap<String, (FilterReason, FilterReason, FilterReason, FilterReason, FilterReason, AlignmentDirection)> = HashMap::new();
-    let mut filter_reasons_forward: HashMap<String, (FilterReason, FilterReason)> = HashMap::new();
-    let mut filter_reasons_reverse: HashMap<String, (FilterReason, FilterReason)> = HashMap::new();
+    let mut filter_reasons: HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection)> = HashMap::new();
+    let mut filter_reasons_forward: HashMap<String, ((FilterReason, usize), (FilterReason, usize))> = HashMap::new();
+    let mut filter_reasons_reverse: HashMap<String, ((FilterReason, usize), (FilterReason, usize))> = HashMap::new();
     let mut post_triaged_keys: HashMap<String, (FilterReason, AlignmentDirection)> = HashMap::new();
 
     let (index_forward, index_backward) = index_pair;
@@ -464,7 +464,7 @@ fn generate_score<'a>(
     reference_metadata: &ReferenceMetadata,
     config: &AlignFilterConfig,
     reference_orientation: String,
-    filter_reasons: &mut HashMap<String, (FilterReason, FilterReason)>
+    filter_reasons: &mut HashMap<String, ((FilterReason, usize), (FilterReason, usize))>
 ) -> (
     HashMap<
         String,
@@ -594,26 +594,6 @@ fn generate_score<'a>(
             } 
         };
 
-        // If there are no reverse sequences, ignore the require_valid_pair filter
-        if reverse_sequences.is_some()
-            && config.require_valid_pair
-            && filter_pair(&seq_score, &rev_seq_score)
-        {
-            filter_reasons.insert(read_key.clone(), (FilterReason::NotMatchingPair, FilterReason::NotMatchingPair));
-            continue;
-        } else {
-            filter_reasons.insert(read_key.clone(), (
-                match forward_filter_reason {
-                    Some((reason, _, _)) => reason,
-                    None => FilterReason::SuccessfulMatch
-                },
-                match rev_filter_reason {
-                    Some((reason, _, _)) => reason,
-                    None => FilterReason::SuccessfulMatch
-                }
-            ));
-        }
-
         let (eqv_class, s, n_s) = if let Some((eqv_class, s, n_s)) = &seq_score {
             ((*eqv_class).clone(), *s, *n_s)
         } else {
@@ -626,6 +606,28 @@ fn generate_score<'a>(
         } else {
             (Vec::new(), 0.0, 0)
         };
+
+
+        // If there are no reverse sequences, ignore the require_valid_pair filter
+        if reverse_sequences.is_some()
+            && config.require_valid_pair
+            && filter_pair(&seq_score, &rev_seq_score)
+        {
+            filter_reasons.insert(read_key.clone(), ((FilterReason::NotMatchingPair, n_s), (FilterReason::NotMatchingPair, r_n_s)));
+            continue;
+        } else {
+            filter_reasons.insert(read_key.clone(), (
+                match forward_filter_reason {
+                    Some((reason, _, _)) => (reason, n_s),
+                    None => (FilterReason::SuccessfulMatch, n_s)
+                },
+                match rev_filter_reason {
+                    Some((reason, _, _)) => (reason, r_n_s),
+                    None => (FilterReason::SuccessfulMatch, r_n_s)
+                }
+            ));
+        }
+
 
         if !eqv_class.is_empty() || !r_eqv_class.is_empty() {
             let mut key = if !eqv_class.is_empty() {

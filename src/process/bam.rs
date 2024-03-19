@@ -48,7 +48,7 @@ pub fn process(
 ) {
     // associated with r2, r1, r2 forward, r1 forward, r2 reverse, r1 reverse, both
     let (log_sender, log_receiver) =
-        mpsc::channel::<((Vec<String>, (i32, Vec<String>, Vec<String>, FilterReason, FilterReason, FilterReason, FilterReason, FilterReason, AlignmentDirection)), usize)>();
+        mpsc::channel::<((Vec<String>, (i32, Vec<String>, Vec<String>, (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection)), usize)>();
 
     let log_thread = thread::spawn(move || {
         println!("Spawning logging thread.");
@@ -77,7 +77,7 @@ pub fn process(
                             "nimble_features\tnimble_score\t{}\t{}\t{}",
                             bam_data_header("r1"),
                             bam_data_header("r2"),
-                            "r1_filter_forward\tr1_filter_reverse\tr2_filter_forward\tr2_filter_reverse\t",
+                            "r1_filter_forward\tr1_forward_score\tr1_filter_reverse\tr1_reverse_score\tr2_filter_forward\tr2_forward_score\tr2_filter_reverse\tr2_reverse_score\ttriage_reason\taligndirection",
                         )
                         .unwrap();
                         first_write[index] = false;
@@ -85,17 +85,21 @@ pub fn process(
     
                     writeln!(
                         file_handle,
-                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                         msg.0.join(","),
                         msg.1 .0,
                         bam_data_values(&msg.1 .2), // r1
                         bam_data_values(&msg.1 .1), // r2. these are reversed from the order they take in the data structures, hence the weird numbering
-                        &msg.1.4,
-                        &msg.1.6,
-                        &msg.1.3,
-                        &msg.1.5,
-                        //&msg.1.7,
-                        //&msg.1.8,
+                        &msg.1.4.0,
+                        &msg.1.4.1,
+                        &msg.1.6.0,
+                        &msg.1.6.1,
+                        &msg.1.3.0,
+                        &msg.1.3.1,
+                        &msg.1.5.0,
+                        &msg.1.5.1,
+                        &msg.1.7,
+                        &msg.1.8,
                     )
                     .unwrap();
                 }
@@ -210,7 +214,7 @@ fn get_score<'a>(
 ) -> (
     Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>,
     Vec<(Vec<String>, String, f64, usize, String)>,
-    HashMap<String, (FilterReason, FilterReason, FilterReason, FilterReason, FilterReason, AlignmentDirection)>
+    HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection)>
 ) {
     let sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a> = Box::new(
         current_umi_group
@@ -267,7 +271,7 @@ fn align_umi_to_libraries(
     reference_metadata: &Vec<ReferenceMetadata>,
     align_configs: &Vec<AlignFilterConfig>,
     _thread_num: usize,
-) -> Vec<Vec<(Vec<String>, (i32, Vec<String>, Vec<String>, FilterReason, FilterReason, FilterReason, FilterReason, FilterReason, AlignmentDirection))>> {
+) -> Vec<Vec<(Vec<String>, (i32, Vec<String>, Vec<String>, (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection))>> {
     let mut results = vec![];
 
     for (i, reference_index) in reference_indices.iter().enumerate() {
@@ -341,10 +345,10 @@ fn align_umi_to_libraries(
                                 score.1.0,
                                 score.1.1,
                                 score.1.2,
-                                FilterReason::None,
-                                FilterReason::None,
-                                FilterReason::None,
-                                FilterReason::None,
+                                (FilterReason::None, 0),
+                                (FilterReason::None, 0),
+                                (FilterReason::None, 0),
+                                (FilterReason::None, 0),
                                 FilterReason::None,
                                 AlignmentDirection::None,
                             ),
