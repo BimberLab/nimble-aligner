@@ -14,14 +14,14 @@ use array_tool::vec::Intersect;
 use array_tool::vec::Uniq;
 use debruijn::dna_string::DnaString;
 use lexical_sort::{natural_lexical_cmp, StringSort};
-use reference_library::ReferenceMetadata;
+use reference_library::Reference;
 
 const MIN_READ_LENGTH: usize = 12;
 const MIN_ENTROPY: f64 = 1.75;
 
 pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<debruijn::kmer::Kmer30>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum IntersectLevel {
     NoIntersect,
     IntersectWithFallback,
@@ -211,7 +211,7 @@ impl AlignmentDirection {
             Vec<String>,
         )>,
         results: &mut HashMap<Vec<String>, (i32, Vec<String>, Vec<String>)>,
-        reference_metadata: &ReferenceMetadata,
+        reference_metadata: &Reference,
         config: &AlignFilterConfig,
         debug_info: &mut AlignDebugInfo,
         matched_sequences: &mut Vec<(Vec<String>, String, f64, usize, String)>,
@@ -358,7 +358,7 @@ pub fn score<'a>(
     )>,
     current_metadata_group: &Vec<Vec<String>>,
     index_pair: &(PseudoAligner, PseudoAligner),
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &Reference,
     config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>,
 ) -> (
@@ -461,7 +461,7 @@ fn generate_score<'a>(
     mut reverse_sequences: Option<Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>>,
     current_metadata_group: &Vec<Vec<String>>,
     index: &PseudoAligner,
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &Reference,
     config: &AlignFilterConfig,
     reference_orientation: String,
     filter_reasons: &mut HashMap<String, ((FilterReason, usize), (FilterReason, usize))>
@@ -929,7 +929,7 @@ fn get_all_reads(
  * (e.g. lineage name) will be returned. */
 fn get_score_map_key(
     equiv_class: &Vec<u32>,
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &Reference,
     config: &AlignFilterConfig,
 ) -> Vec<String> {
     if reference_metadata.headers[reference_metadata.group_on] == "nt_sequence" {

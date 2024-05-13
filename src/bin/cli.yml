@@ -1,12 +1,12 @@
 name: nimble
-version: "0.1.0"
+version: "0.8.0"
 author: Sebastian B. <benjamse@ohsu.edu>
-about: Configurable RNA-seq aligner against arbitrary reference genomes
+about: Fast, configurable sequence alignment tool on arbitrary reference libraries
 args:
   - reference:
       short: r
       long: reference
-      help: File(s) defining the reference library/ies that will be used for alignment, in nimble .json format
+      help: File(s) defining the reference libraries that will be used for alignment, in nimble .json format
       required: true
       takes_value: true
       multiple: true
@@ -20,7 +20,7 @@ args:
   - input:
       short: i
       long: input
-      help: Single fastq.gz/fastq file(s), or two if you need to do paired-end alignment
+      help: .fastq.gz/fastq file(s), or a single .bam file
       required: true
       takes_value: true
       multiple: true
@@ -31,22 +31,6 @@ args:
       help: The number of cores to use during alignment
       takes_value: true
       default_value: "1"
-  - log:
-      short: l
-      long: log
-      help: Path(s) to a file(s) which will log alignment information
-      takes_value: true
-      multiple: true
-      value_name: LOG_PATH
-      default_value: ""
-  - alignment:
-      short: a
-      long: alignment
-      value_name: ALIGNMENT_PATH
-      help: Path(s) to a gzipped file(s) that will log reference name and sequence for every alignment (note -- can be very large)
-      takes_value: true
-      multiple: true
-      default_value: ""
   - strand_filter:
       short: f
       long: strand_filter
@@ -54,10 +38,3 @@ args:
       help: How to filter paired-read data based on strandedness. Possible values are "unstranded" (default), "fiveprime", "threeprime", and "none"
       takes_value: true
       default_value: "unstranded"
-  - hard_memory_limit:
-      short: m
-      long: hard_memory_limit
-      value_name: HARD_MEMORY_LIMIT
-      help: Number of megabytes to set as a memory allocation limit. nimble will attempt to stay below this limit when performing alignments, and terminate otherwise
-      takes_value: true
-      default_value: "0"

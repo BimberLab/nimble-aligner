@@ -2,7 +2,7 @@ use crate::align;
 use crate::align::{FilterReason, AlignmentDirection};
 use crate::reference_library;
 use crate::utils;
-use reference_library::ReferenceMetadata;
+use reference_library::Reference;
 
 use debruijn::dna_string::DnaString;
 use std::collections::HashMap;
@@ -22,7 +22,7 @@ pub fn score<'a>(
     )>,
     current_metadata_group: &'a Vec<Vec<String>>,
     reference_index: &(align::PseudoAligner, align::PseudoAligner),
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &Reference,
     align_config: &align::AlignFilterConfig,
     debug_info: Option<&mut align::AlignDebugInfo>,
 ) -> (

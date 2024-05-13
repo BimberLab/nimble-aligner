@@ -1,7 +1,7 @@
 use crate::align::{AlignDebugInfo, AlignFilterConfig, PseudoAligner, FilterReason, AlignmentDirection};
 use crate::parse::bam::BAM_FIELDS_TO_REPORT;
 use crate::parse::bam::UMIReader;
-use crate::reference_library::ReferenceMetadata;
+use crate::reference_library::Reference;
 use crate::score::score;
 use crate::utils::revcomp;
 use debruijn::dna_string::DnaString;
@@ -41,7 +41,7 @@ fn bam_data_header(prefix: &str) -> String {
 pub fn process(
     input_files: Vec<String>,
     reference_indices: Vec<(PseudoAligner, PseudoAligner)>,
-    reference_metadata: Vec<ReferenceMetadata>,
+    reference_metadata: Vec<Reference>,
     align_configs: Vec<AlignFilterConfig>,
     output_paths: Vec<String>,
     num_cores: usize,
@@ -207,7 +207,7 @@ fn get_score<'a>(
     current_umi_group: &'a Vec<DnaString>,
     current_metadata_group: &'a Vec<Vec<String>>,
     reference_index: &(PseudoAligner, PseudoAligner),
-    reference_metadata: &ReferenceMetadata,
+    reference_metadata: &Reference,
     align_config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>,
     reverse_comp_read: &'a Vec<bool>,
@@ -268,7 +268,7 @@ fn align_umi_to_libraries(
     umi: Vec<DnaString>,
     current_metadata_group: Vec<Vec<String>>,
     reference_indices: &Vec<(PseudoAligner, PseudoAligner)>,
-    reference_metadata: &Vec<ReferenceMetadata>,
+    reference_metadata: &Vec<Reference>,
     align_configs: &Vec<AlignFilterConfig>,
     _thread_num: usize,
 ) -> Vec<Vec<(Vec<String>, (i32, Vec<String>, Vec<String>, (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection))>> {

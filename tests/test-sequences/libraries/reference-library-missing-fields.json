@@ -1,0 +1,12 @@
+[
+    {
+        "score_filter": 200,
+        "score_threshold": 300
+    },
+    {
+        "headers": ["id", "feature_id", "sequence"],
+        "columns": [
+            ["1", "fid1", "ATGC"]
+        ]
+    }
+]

@@ -1,5 +1,5 @@
 use crate::align::AlignDebugInfo;
-use crate::reference_library::ReferenceMetadata;
+use crate::reference_library::Reference;
 use csv::Reader;
 use debruijn::dna_string::DnaString;
 use flate2::{Compression, GzBuilder};
@@ -25,7 +25,7 @@ pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
  * Produces 3 vectors of sequence-name pairs. Panics if there is a reference sequence that cannot be read.
  * If they can be read, converts the given sequence to a DnaString and get the associated name. */
 pub fn validate_reference_pairs(
-    reference: &ReferenceMetadata,
+    reference: &Reference,
 ) -> (Vec<DnaString>, Vec<DnaString>, Vec<String>) {
     let reference_genome = reference.columns[reference.sequence_idx].iter();
     let mut reference_library = reference.columns[reference.sequence_name_idx].iter();
@@ -33,14 +33,6 @@ pub fn validate_reference_pairs(
     let mut reference_seqs: Vec<DnaString> = Vec::new();
     let mut reference_seqs_rev: Vec<DnaString> = Vec::new();
     let mut reference_names: Vec<String> = Vec::new();
-
-    let revcomp = match reference.data_type.as_str() {
-        "DNA" => revcomp,
-        "RNA" => revcomp,
-        _ => panic!(
-            "Error -- cannot determine revcomp method to use -- ensure data_type is a valid type"
-        ),
-    };
 
     for (i, reference) in reference_genome.enumerate() {
         reference_seqs.push(DnaString::from_acgt_bytes(reference.as_bytes()));
