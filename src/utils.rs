@@ -50,6 +50,7 @@ pub fn append_match_percent(
         .collect()
 }
 
+// Given a set of results from score() pipeline, write a TSV of the data to the given file
 pub fn write_to_tsv(
     results: &Vec<(Vec<String>, i32)>,
     output_path: String
@@ -83,20 +84,6 @@ pub fn sort_score_vector(
 ) -> Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))> {
     scores.sort_by(|a, b| a.0.cmp(&b.0));
     scores
-}
-
-// Determine if a file is a .bam or a .fasta based on file extension
-pub fn is_fastq(file: &str) -> bool {
-    let mut is_fasta = true;
-    let components = file.split(".").skip(1);
-
-    for component in components {
-        if component == "bam" {
-            is_fasta = false;
-        }
-    }
-
-    is_fasta
 }
 
 pub fn filter_scores(
@@ -267,6 +254,10 @@ pub fn shannon_entropy(dna: &str) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::{self, File};
+    use std::io::{BufRead, BufReader, Write};
+    use tempfile::NamedTempFile;
+    use std::vec::Vec;
 
     #[test]
     fn test_get_reference_sequence_data() {
@@ -381,30 +372,47 @@ mod tests {
     }
 
     #[test]
-    fn is_fasta_short() {
-        let expected_results = true;
-        let results = super::is_fastq("reference.fastq");
-        assert_eq!(results, expected_results);
+    fn test_write_to_tsv_with_header() {
+        let results = vec![
+            (vec!["feature1".to_string(), "feature2".to_string()], 10),
+            (vec!["feature3".to_string(), "feature4".to_string()], 20)
+        ];
+
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path().to_str().unwrap().to_string();
+
+        write_to_tsv(&results, temp_path.clone());
+
+        let file = File::open(&temp_path).unwrap();
+        let reader = BufReader::new(file);
+        let lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
+
+        assert_eq!(lines[0], "feature\tscore");
+        assert_eq!(lines[1], "feature1\tfeature2\t10");
+        assert_eq!(lines[2], "feature3\tfeature4\t20");
     }
 
     #[test]
-    fn is_fasta_long() {
-        let expected_results = true;
-        let results = super::is_fastq("reference.bin.fastq.gz");
-        assert_eq!(results, expected_results);
-    }
+    fn test_write_to_tsv_without_header() {
+        let results = vec![
+            (vec!["feature5".to_string(), "feature6".to_string()], 30)
+        ];
 
-    #[test]
-    fn is_bam_short() {
-        let expected_results = false;
-        let results = super::is_fastq("reference.bam.gz");
-        assert_eq!(results, expected_results);
-    }
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path().to_str().unwrap().to_string();
 
-    #[test]
-    fn is_bam_long() {
-        let expected_results = false;
-        let results = super::is_fastq("reference.bin.bam.zip");
-        assert_eq!(results, expected_results);
+        {
+            let mut file = File::create(&temp_path).unwrap();
+            writeln!(file, "feature\tscore").unwrap();
+        }
+
+        write_to_tsv(&results, temp_path.clone());
+
+        let file = File::open(&temp_path).unwrap();
+        let reader = BufReader::new(file);
+        let lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
+
+        assert_eq!(lines[0], "feature\tscore");
+        assert_eq!(lines[1], "feature5\tfeature6\t30");
     }
 }

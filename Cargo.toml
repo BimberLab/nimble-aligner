@@ -12,6 +12,9 @@ path = "src/lib.rs"
 name = "nimble"
 path = "src/bin/main.rs"
 
+[dev-dependencies]
+tempfile = "3.10.1"
+
 [dependencies]
 bio = "*"
 clap = { version = "2.33.1", features = ["yaml"] }
@@ -28,3 +31,4 @@ lexical-sort = "0.3.1"
 rayon = "1.7.0"
 rand = "0.8.5"
 tikv-jemallocator = "0.5.4"
+

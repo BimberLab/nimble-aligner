@@ -124,8 +124,7 @@ fn main() {
             reference_indices,
             references,
             aligner_configs,
-            output_paths,
-            num_cores,
+            output_paths
         );
     } else if file_extension_sequence == "bam" {
         println!("Processing as BAM file");
