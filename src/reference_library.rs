@@ -160,7 +160,6 @@ fn to_string_vec(v: &Value, array_name: &str) -> Vec<String> {
 mod tests {
     use super::*;
     use serde_json::json;
-    use std::path::Path;
 
     // Test for valid conversion of JSON array to Vec<String>
     #[test]

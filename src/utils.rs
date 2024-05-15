@@ -254,10 +254,9 @@ pub fn shannon_entropy(dna: &str) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::{self, File};
-    use std::io::{BufRead, BufReader, Write};
+    use std::fs::File;
+    use std::io::{BufRead, BufReader};
     use tempfile::NamedTempFile;
-    use std::vec::Vec;
 
     #[test]
     fn test_get_reference_sequence_data() {
