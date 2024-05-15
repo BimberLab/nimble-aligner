@@ -17,7 +17,7 @@ use lexical_sort::{natural_lexical_cmp, StringSort};
 use reference_library::Reference;
 
 const MIN_READ_LENGTH: usize = 12;
-const MIN_ENTROPY: f64 = 1.75;
+const MIN_ENTROPY_SCORE: f64 = 1.75; // Higher score = lower entropy
 
 pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<debruijn::kmer::Kmer30>;
 
@@ -342,24 +342,25 @@ pub enum PairState {
     None,
 }
 
-/* Takes a set of sequences and optionally, reverse sequences, a debrujin map index of the reference
- * genome, the reference library metadata object, and the aligner configuration, and performs a
- * debrujin-graph based pseduoalignment, returning a score for each readable reference in the reference
+/* Takes a set of sequences and optionally, mate sequences, associated sequence metadata,
+ * debrujin indices of the reference library of interest,
+ * the associated reference library metadata, and the aligner configuration, and performs a
+ * debrujin-graph based pseduoalignment, returning a score for each reference in the reference
  * genome.
- * This function does some alignment-time filtration based on the provided configuration. */
+ * The score set is filtered based on the provided aligner configuration. */
 pub fn get_calls<'a>(
-    sequence_iter_pair: (
+    sequence_iterators: (
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     ),
-    reverse_sequence_iter_pair: Option<(
+    mate_sequence_iterators: Option<(
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     )>,
-    current_metadata_group: &Vec<Vec<String>>,
-    index_pair: &(PseudoAligner, PseudoAligner),
-    reference_metadata: &Reference,
-    config: &AlignFilterConfig,
+    sequence_metadata: &Vec<Vec<String>>,
+    indices: &(PseudoAligner, PseudoAligner),
+    reference: &Reference,
+    aligner_config: &AlignFilterConfig,
     debug_info: Option<&mut AlignDebugInfo>,
 ) -> (
     Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>,
@@ -371,33 +372,36 @@ pub fn get_calls<'a>(
     let mut filter_reasons_reverse: HashMap<String, ((FilterReason, usize), (FilterReason, usize))> = HashMap::new();
     let mut post_triaged_keys: HashMap<String, (FilterReason, AlignmentDirection)> = HashMap::new();
 
-    let (index_forward, index_backward) = index_pair;
-    let (sequences, sequences_2) = sequence_iter_pair;
-    let (reverse_sequences, reverse_sequences_2) = match reverse_sequence_iter_pair {
+    // Unpack the index and sequence pairs
+    let (index, index_revcomp) = indices;
+    let (sequences, sequences_clone) = sequence_iterators;
+    let (mate_sequences, mate_sequences_clone) = match mate_sequence_iterators {
         Some((l, r)) => (Some(l), Some(r)),
         None => (None, None),
     };
 
+    
+
+    // TODO renames the score results and refactor below
+    // Generate a score for the sequences (mate sequences optional), for both the normal and reverse complemented versions of the reference
     let (forward_score, mut forward_matched_sequences, mut forward_align_debug_info) =
-        generate_score(
+        score_sequences(
             sequences,
-            reverse_sequences,
-            current_metadata_group,
-            index_forward,
-            reference_metadata,
-            config,
-            String::from("forward"),
+            mate_sequences,
+            sequence_metadata,
+            index,
+            reference,
+            aligner_config,
             &mut filter_reasons_forward
         );
     let (mut backward_score, mut backward_matched_sequences, backward_align_debug_info) =
-        generate_score(
-            sequences_2,
-            reverse_sequences_2,
-            current_metadata_group,
-            index_backward,
-            reference_metadata,
-            config,
-            String::from("reverse"),
+        score_sequences(
+            sequences_clone,
+            mate_sequences_clone,
+            sequence_metadata,
+            index_revcomp,
+            reference,
+            aligner_config,
             &mut filter_reasons_reverse
         );
 
@@ -415,8 +419,8 @@ pub fn get_calls<'a>(
             Some(f),
             r,
             &mut results,
-            reference_metadata,
-            config,
+            reference,
+            aligner_config,
             &mut forward_align_debug_info,
             &mut forward_matched_sequences,
             key,
@@ -430,8 +434,8 @@ pub fn get_calls<'a>(
             None,
             Some(r),
             &mut results,
-            reference_metadata,
-            config,
+            reference,
+            aligner_config,
             &mut forward_align_debug_info,
             &mut forward_matched_sequences,
             key,
@@ -456,14 +460,19 @@ pub fn get_calls<'a>(
     (ret, forward_matched_sequences, filter_reasons)
 }
 
-fn generate_score<'a>(
+
+/* 
+  * The core alignment function.
+  * Takes a list of sequences, and optionally reverse sequences, and produces a map of those reads/read-pairs and their feature calls
+  * based on a given reference library and aligner configuration
+  */
+fn score_sequences<'a>(
     sequences: Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
-    mut reverse_sequences: Option<Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>>,
-    current_metadata_group: &Vec<Vec<String>>,
+    mut mate_sequences: Option<Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>>,
+    sequence_metadata: &Vec<Vec<String>>,
     index: &PseudoAligner,
-    reference_metadata: &Reference,
-    config: &AlignFilterConfig,
-    reference_orientation: String,
+    reference: &Reference,
+    aligner_config: &AlignFilterConfig,
     filter_reasons: &mut HashMap<String, ((FilterReason, usize), (FilterReason, usize))>
 ) -> (
     HashMap<
@@ -479,7 +488,6 @@ fn generate_score<'a>(
     Vec<(Vec<String>, String, f64, usize, String)>,
     AlignDebugInfo,
 ) {
-    // HashMap of the alignment results. The keys are either strong hits or equivalence classes of hits
     let mut score_map: HashMap<
         String,
         (
@@ -492,30 +500,38 @@ fn generate_score<'a>(
     > = HashMap::new();
     let mut debug_info: AlignDebugInfo = Default::default();
     let mut read_matches: Vec<(Vec<String>, String, f64, usize, String)> = Vec::new();
+    let mut metadata_iter = sequence_metadata.iter();
 
-    // Iterate over every read/reverse read pair and align it, incrementing scores for the matching references/equivalence classes
-    let mut metadata_iter = current_metadata_group.iter();
+    // Iterate over every read/read pair and align it, adding the results to a hashmap of feature calls
     for read in sequences {
-        let forward_metadata = metadata_iter.next().unwrap_or(&Vec::new()).clone(); //r2
-        let reverse_metadata = metadata_iter.next().unwrap_or(&Vec::new()).clone(); //r1
+
+        // For each sequence, get the according metadata object
+        // The fastq pipeline cannot pass a metadata object, so we assume paired-end organization for the metadata iterator
+        let sequence_metadata = metadata_iter.next().unwrap_or(&Vec::new()).clone();
+        let mate_sequence_metadata = metadata_iter.next().unwrap_or(&Vec::new()).clone();
 
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
         let mut read_rev: Option<DnaString> = None;
 
-        /* Generate score and equivalence class for this read by aligning the sequence against
-         * the current reference, if there is a match.*/
-        let (seq_score, forward_filter_reason) = pseudoalign(&read, index, &config);
+
+
+
+
+
+
+        // Generate score and equivalence class for this read by aligning the sequence against the reference.
+        let (seq_score, forward_filter_reason) = pseudoalign(&read, index, &aligner_config);
 
         // If there's a reversed sequence, do the paired-end alignment
         let mut rev_seq_score = None;
         let mut rev_filter_reason: Option<(FilterReason, f64, usize)> = None;
         let mut reverse_read_t = DnaString::blank(0);
-        if let Some(itr) = &mut reverse_sequences {
+        if let Some(itr) = &mut mate_sequences {
             let reverse_read = itr
                 .next()
                 .expect("Error -- read and reverse read files do not have matching lengths: ")
                 .expect("Error -- could not parse reverse read. Input R2 data malformed.");
-            let (score, reason) = pseudoalign(&reverse_read, index, &config);
+            let (score, reason) = pseudoalign(&reverse_read, index, &aligner_config);
 
             reverse_read_t = reverse_read.clone();
             rev_seq_score = Some(score);
@@ -537,14 +553,14 @@ fn generate_score<'a>(
 
         if seq_score.is_some() {
             let t: &(Vec<u32>, f64, usize) = seq_score.as_ref().unwrap();
-            seq_score_names = get_score_map_key(&t.0, reference_metadata, &config);
+            seq_score_names = get_score_map_key(&t.0, reference, &aligner_config);
             seq_score_weighted = t.1;
         }
 
         if rev_seq_score.is_some() {
             if rev_seq_score.as_ref().unwrap().is_some() {
                 let t: &(Vec<u32>, f64, usize) = rev_seq_score.as_ref().unwrap().as_ref().unwrap();
-                rev_seq_score_names = get_score_map_key(&t.0, reference_metadata, &config);
+                rev_seq_score_names = get_score_map_key(&t.0, reference, &aligner_config);
                 rev_seq_score_weighted = t.1;
             }
         }
@@ -557,7 +573,7 @@ fn generate_score<'a>(
             rev_filter_reason_unwrapped = Some(rev_filter_reason.as_ref().unwrap().0);
         }
 
-        let (failed_score, failed_raw_score) = if reverse_sequences.is_some() {
+        let (failed_score, failed_raw_score) = if mate_sequences.is_some() {
             match (forward_filter_reason, rev_filter_reason) {
                 (Some((fr, s, ns)), Some((rr, r, nr))) => {
                     if fr == rr {
@@ -609,8 +625,8 @@ fn generate_score<'a>(
 
 
         // If there are no reverse sequences, ignore the require_valid_pair filter
-        if reverse_sequences.is_some()
-            && config.require_valid_pair
+        if mate_sequences.is_some()
+            && aligner_config.require_valid_pair
             && filter_pair(&seq_score, &rev_seq_score)
         {
             filter_reasons.insert(read_key.clone(), ((FilterReason::NotMatchingPair, n_s), (FilterReason::NotMatchingPair, r_n_s)));
@@ -631,9 +647,9 @@ fn generate_score<'a>(
 
         if !eqv_class.is_empty() || !r_eqv_class.is_empty() {
             let mut key = if !eqv_class.is_empty() {
-                get_score_map_key(&eqv_class, reference_metadata, &config) // Process the equivalence class into a score key
+                get_score_map_key(&eqv_class, reference, &aligner_config) // Process the equivalence class into a score key
             } else if !r_eqv_class.is_empty() {
-                get_score_map_key(&r_eqv_class, reference_metadata, &config)
+                get_score_map_key(&r_eqv_class, reference, &aligner_config)
             } else {
                 Vec::new()
             };
@@ -646,8 +662,8 @@ fn generate_score<'a>(
                         PairState::Both,
                         Some((eqv_class, s)),
                         Some((r_eqv_class, r_s)),
-                        forward_metadata,
-                        reverse_metadata,
+                        sequence_metadata,
+                        mate_sequence_metadata,
                     ),
                     s,
                     r_s,
@@ -660,8 +676,8 @@ fn generate_score<'a>(
                         PairState::First,
                         Some((eqv_class, s)),
                         None,
-                        forward_metadata,
-                        reverse_metadata,
+                        sequence_metadata,
+                        mate_sequence_metadata,
                     ),
                     s,
                     0.0,
@@ -674,8 +690,8 @@ fn generate_score<'a>(
                         PairState::Second,
                         None,
                         Some((r_eqv_class, r_s)),
-                        forward_metadata,
-                        reverse_metadata,
+                        sequence_metadata,
+                        mate_sequence_metadata,
                     ),
                     0.0,
                     r_s,
@@ -966,7 +982,7 @@ fn get_score_map_key(
     }
 }
 
-// Align the given sequence against the given reference with a score threshold
+// Align a sequence against the reference library, with settings specified by the aligner configuration
 fn pseudoalign(
     sequence: &DnaString,
     reference_index: &PseudoAligner,
@@ -975,19 +991,20 @@ fn pseudoalign(
     Option<(Vec<u32>, f64, usize)>,
     Option<(FilterReason, f64, usize)>,
 ) {
-    // Filter short reads
-    if sequence.to_string().len() < MIN_READ_LENGTH {
+    // Ensure all reads are above a minimum length
+    if sequence.len() < MIN_READ_LENGTH {
         return (None, Some((FilterReason::ShortRead, 0.0, 0)));
     };
 
-    // Filter high-entropy
-    if shannon_entropy(&sequence.to_string()) < MIN_ENTROPY {
+    // Remove reads that do not pass an entropy threshold 
+    if shannon_entropy(&sequence.to_string()) < MIN_ENTROPY_SCORE {
         return (None, Some((FilterReason::HighEntropy, 0.0, 0)))
     }
 
-    // Perform alignment
+    // Perform the alignment of the sequence to the reference debruijn graph. Pass the number of allowed mismatches
     match reference_index.map_read_with_mismatch(&sequence, config.num_mismatches) {
-        Some((equiv_class, score, mismatches)) => {
+        Some((equivalence_class, score, mismatches)) => {
+
             // Normalize score by read length
             let normalized_score = score as f64 / sequence.len() as f64;
 
@@ -996,16 +1013,105 @@ fn pseudoalign(
                 return (None, Some((FilterReason::DiscardedNonzeroMismatch, 0.0, 0)));
             }
 
-            // Filter by score and match threshold
+            // Filter by score thresholds 
             filter::align::filter_alignment_by_metrics(
+                equivalence_class,
                 score,
                 normalized_score,
                 config.score_threshold,
                 config.score_percent,
-                equiv_class,
                 config.discard_multiple_matches,
             )
         }
         None => (None, Some((FilterReason::NoMatch, 0.0, 0))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use debruijn::kmer::Kmer30;
+
+    fn setup_pseudoaligner() -> PseudoAligner {
+        let reference_sequences = vec![
+            DnaString::from_dna_string("ACGTACGTACGTACGTACGTACGTACGTACGT"),
+            DnaString::from_dna_string("TGCATGCATGCATGCATGCATGCATGCATGCA"),
+        ];
+        let reference_feature_names = vec![
+            String::from("Gene1"),
+            String::from("Gene2"),
+        ];
+
+        debruijn_mapping::build_index::build_index::<Kmer30>(
+            &reference_sequences,
+            &reference_feature_names,
+            &HashMap::new(),
+            1
+        ).expect("Failed to build index")
+    }
+
+    fn default_config() -> AlignFilterConfig {
+        AlignFilterConfig {
+            reference_genome_size: 1000,
+            score_percent: 0.1,
+            score_threshold: 50,
+            num_mismatches: 3,
+            discard_nonzero_mismatch: false,
+            discard_multiple_matches: false,
+            score_filter: 10,
+            intersect_level: IntersectLevel::IntersectWithFallback,
+            require_valid_pair: false,
+            discard_multi_hits: 1,
+            max_hits_to_report: 5,
+            strand_filter: StrandFilter::FivePrime,
+        }
+    }
+
+    #[test]
+    fn test_short_read() {
+        let sequence = DnaString::from_dna_string("ACG");
+        let config = default_config();
+        let reference_index = setup_pseudoaligner();
+        let result = pseudoalign(&sequence, &reference_index, &config);
+        assert_eq!(result.1, Some((FilterReason::ShortRead, 0.0, 0)));
+    }
+
+    #[test]
+    fn test_high_entropy_read() {
+        let sequence = DnaString::from_dna_string("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+        let config = default_config();
+        let reference_index = setup_pseudoaligner();
+        let result = pseudoalign(&sequence, &reference_index, &config);
+        assert_eq!(result.1, Some((FilterReason::HighEntropy, 0.0, 0)));
+    }
+
+    #[test]
+    fn test_no_alignment_match() {
+        let sequence = DnaString::from_dna_string("CCTGAGATTTCGAGCTCGTAACGTGACCTACGGACAC");
+        let config = default_config();
+        let reference_index = setup_pseudoaligner();
+        let result = pseudoalign(&sequence, &reference_index, &config);
+        assert_eq!(result.1, Some((FilterReason::NoMatch, 0.0, 0)));
+    }
+
+    #[test]
+    fn test_valid_alignment() {
+        let sequence = DnaString::from_dna_string("TGCATGCATGCATGCATGCATGCATGCATGCA");
+        let mut config = default_config();
+        let reference_index = setup_pseudoaligner();
+        config.score_threshold = 32;
+        let result = pseudoalign(&sequence, &reference_index, &config);
+        assert_eq!(result.0, Some((vec![1], 1.0, 32)));
+        assert_eq!(result.1, None);
+    }
+
+    #[test]
+    fn test_score_and_match_threshold_filtering() {
+        let sequence = DnaString::from_dna_string("TGCATGCATGCATGCATGCATGCATGCATGCA");
+        let mut config = default_config();
+        config.score_threshold = 1000;
+        let reference_index = setup_pseudoaligner();
+        let result = pseudoalign(&sequence, &reference_index, &config);
+        assert_eq!(result.1, Some((FilterReason::ScoreBelowThreshold, 1.0, 32)));
     }
 }

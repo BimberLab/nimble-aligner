@@ -1,20 +1,19 @@
 use crate::align::FilterReason;
 
-/* Takes a given alignment and returns it if it's above the given match threshold and
- * has an equivalence class. Can be configured to discard alignments with more than one match. */
+// Takes the results of an alignment and returns it if it passes various thresholds, otherwise filtering it.
 pub fn filter_alignment_by_metrics(
+    equivalence_class: Vec<u32>,
     score: usize,
     normalized_score: f64,
     score_threshold: usize,
-    score_percent: f64,
-    equiv_class: Vec<u32>,
+    normalized_score_threshold: f64,
     discard_multiple_matches: bool,
 ) -> (
     Option<(Vec<u32>, f64, usize)>,
     Option<(FilterReason, f64, usize)>,
 ) {
-    if score >= score_threshold && normalized_score >= score_percent && !equiv_class.is_empty() {
-        if discard_multiple_matches && equiv_class.len() > 1 {
+    if score >= score_threshold && normalized_score >= normalized_score_threshold && !equivalence_class.is_empty() {
+        if discard_multiple_matches && equivalence_class.len() > 1 {
             (
                 None,
                 Some((
@@ -24,7 +23,7 @@ pub fn filter_alignment_by_metrics(
                 )),
             )
         } else {
-            (Some((equiv_class, normalized_score, score)), None)
+            (Some((equivalence_class, normalized_score, score)), None)
         }
     } else {
         (
@@ -47,11 +46,11 @@ mod tests {
         let equiv_class = vec![1, 2];
 
         let (results, _) = super::filter_alignment_by_metrics(
+            equiv_class,
             score,
             normalized_score,
             score_threshold,
             score_percent,
-            equiv_class,
             false,
         );
         let expected_results = Some((vec![1, 2], 1.0, 50));
@@ -69,11 +68,11 @@ mod tests {
         let equiv_class = vec![1, 2];
 
         let (_, results) = super::filter_alignment_by_metrics(
+            equiv_class,
             score,
             normalized_score,
             score_threshold,
             score_percent,
-            equiv_class,
             false,
         );
         let expected_results = Some((super::FilterReason::ScoreBelowThreshold, 0.10, 10));
@@ -92,11 +91,11 @@ mod tests {
         let equiv_class = vec![1, 2];
 
         let (_, results) = super::filter_alignment_by_metrics(
+            equiv_class,
             score,
             normalized_score,
             score_threshold,
             score_percent,
-            equiv_class,
             true,
         );
 
