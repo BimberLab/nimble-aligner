@@ -415,4 +415,23 @@ mod tests {
         assert_eq!(lines[0], "feature\tscore");
         assert_eq!(lines[1], "feature5\tfeature6\t30");
     }
+
+    #[test]
+    fn test_sort_score_vector() {
+        let scores = vec![
+            (vec!["Charlie".to_string()], (90, vec!["A".to_string()], vec!["Fail".to_string()])),
+            (vec!["Alice".to_string()], (95, vec!["A".to_string()], vec!["Pass".to_string()])),
+            (vec!["Bob".to_string()], (85, vec!["B".to_string()], vec!["Pass".to_string()])),
+        ];
+
+        let sorted_scores = sort_score_vector(scores);
+
+        assert_eq!(sorted_scores[0].0[0], "Alice");
+        assert_eq!(sorted_scores[1].0[0], "Bob");
+        assert_eq!(sorted_scores[2].0[0], "Charlie");
+
+        assert_eq!(sorted_scores[0].1 .0, 95);
+        assert_eq!(sorted_scores[1].1 .0, 85);
+        assert_eq!(sorted_scores[2].1 .0, 90);
+    }
 }

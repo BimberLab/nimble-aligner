@@ -2,7 +2,7 @@ use crate::align::{AlignDebugInfo, AlignFilterConfig, PseudoAligner, FilterReaso
 use crate::parse::bam::BAM_FIELDS_TO_REPORT;
 use crate::parse::bam::UMIReader;
 use crate::reference_library::Reference;
-use crate::score::score;
+use crate::score::call;
 use crate::utils::revcomp;
 use debruijn::dna_string::DnaString;
 use flate2::write::GzEncoder;
@@ -272,7 +272,7 @@ fn get_calls<'a>(
     );
 
     // Using the set of sequences and their mates, alongside the UMI's metadata, the library index and library data, and the aligner configuration, produce a set of calls
-    score(
+    call(
         (sequences, sequences_clone),
         Some((mate_sequences, mate_sequences_clone)),
         umi_metadata,

@@ -1,7 +1,7 @@
 use crate::align::{AlignFilterConfig, PseudoAligner};
 use crate::parse::fastq::get_error_checked_fastq_readers;
 use crate::reference_library::Reference;
-use crate::score::score;
+use crate::score::call;
 use crate::utils::write_to_tsv;
 
 pub fn process(
@@ -13,7 +13,7 @@ pub fn process(
 ) {
     // For each reference, pass iterators of one or both fastq files to the scoring pipeline. Then, write the fastq results to one TSV per input.
     for (i, index) in reference_indices.into_iter().enumerate() {
-        let (results, _alignment_metadata, _) = score(
+        let (results, _alignment_metadata, _) = call(
             get_error_checked_fastq_readers(input_files[0].clone()),
             if input_files.len() > 1 { Some(get_error_checked_fastq_readers(input_files[1].clone())) } else { None },
             &Vec::new(),

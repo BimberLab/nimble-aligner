@@ -347,7 +347,7 @@ pub enum PairState {
  * debrujin-graph based pseduoalignment, returning a score for each readable reference in the reference
  * genome.
  * This function does some alignment-time filtration based on the provided configuration. */
-pub fn score<'a>(
+pub fn get_calls<'a>(
     sequence_iter_pair: (
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
