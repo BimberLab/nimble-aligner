@@ -1,4 +1,3 @@
-use crate::align::AlignDebugInfo;
 use crate::reference_library::Reference;
 use csv::Reader;
 use debruijn::dna_string::DnaString;
@@ -7,13 +6,6 @@ use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use unwrap::unwrap;
 
-fn truncate(s: &str, max_chars: usize) -> &str {
-    match s.char_indices().nth(max_chars) {
-        None => s,
-        Some((idx, _)) => &s[..idx],
-    }
-}
-
 // Takes a reader and returns a csv reader that wraps it, configures to use tab delimiters
 pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
     csv::ReaderBuilder::new()
@@ -21,26 +13,24 @@ pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
         .from_reader(reader)
 }
 
-/* Takes a reference to the ReferenceMetadata structure.
- * Produces 3 vectors of sequence-name pairs. Panics if there is a reference sequence that cannot be read.
- * If they can be read, converts the given sequence to a DnaString and get the associated name. */
-pub fn validate_reference_pairs(
+/* Using a Reference structure, produce 2 vectors of sequence data (normal and reverse comp), as well as a list of sequence names. */
+pub fn get_reference_sequence_data(
     reference: &Reference,
 ) -> (Vec<DnaString>, Vec<DnaString>, Vec<String>) {
-    let reference_genome = reference.columns[reference.sequence_idx].iter();
-    let mut reference_library = reference.columns[reference.sequence_name_idx].iter();
+    let sequences = reference.columns[reference.sequence_idx].iter();
+    let mut sequence_names = reference.columns[reference.sequence_name_idx].iter();
 
-    let mut reference_seqs: Vec<DnaString> = Vec::new();
-    let mut reference_seqs_rev: Vec<DnaString> = Vec::new();
+    let mut sequence_dnastrings: Vec<DnaString> = Vec::new();
+    let mut sequence_dnastrings_revcomp: Vec<DnaString> = Vec::new();
     let mut reference_names: Vec<String> = Vec::new();
 
-    for (i, reference) in reference_genome.enumerate() {
-        reference_seqs.push(DnaString::from_acgt_bytes(reference.as_bytes()));
-        reference_seqs_rev.push(DnaString::from_dna_string(&revcomp(reference)));
-        reference_names.push(unwrap!(reference_library.next(), "Error -- could not read library name #{} after JSON parse, corrupted internal state.", i).clone());
+    for (i, feature_sequence) in sequences.enumerate() {
+        sequence_dnastrings.push(DnaString::from_acgt_bytes(feature_sequence.as_bytes()));
+        sequence_dnastrings_revcomp.push(DnaString::from_dna_string(&revcomp(feature_sequence)));
+        reference_names.push(unwrap!(sequence_names.next(), "Error -- could not read library name #{} after JSON parse, corrupted internal state.", i).clone());
     }
 
-    (reference_seqs, reference_seqs_rev, reference_names)
+    (sequence_dnastrings, sequence_dnastrings_revcomp, reference_names)
 }
 
 // Takes a result from the filtration pipeline and appends match percentages to the score tuples
@@ -214,23 +204,20 @@ pub fn write_read_list(
         .expect("Could not flush to alignment metadata file buffer.");
 }
 
-pub fn revcomp(dna: &str) -> String {
-    // result vector
-    let mut rdna: String = String::with_capacity(dna.len());
+pub fn revcomp(sequence: &str) -> String {
+    let mut revcomp_sequence_buffer: String = String::with_capacity(sequence.len());
 
-    // iterate through the input &str
-    for c in dna.chars().rev() {
-        // test the input
-        match is_dna(c) {
-            false => panic!("Input sequence base is not DNA: {}", dna),
-            true => rdna.push(switch_base(c)),
+    for bp in sequence.chars().rev() {
+        match is_valid_base_pair(bp) {
+            false => panic!("Input sequence base is not DNA: {}", bp),
+            true => revcomp_sequence_buffer.push(revcomp_base_pair(bp)),
         }
     }
-    rdna
+    revcomp_sequence_buffer
 }
 
-fn switch_base(c: char) -> char {
-    match c {
+fn revcomp_base_pair(bp: char) -> char {
+    match bp {
         'a' => 't',
         'c' => 'g',
         't' => 'a',
@@ -242,6 +229,13 @@ fn switch_base(c: char) -> char {
         'G' => 'C',
         'U' => 'A',
         _ => 'N',
+    }
+}
+
+fn is_valid_base_pair(bp: char) -> bool {
+    match bp {
+        'A' | 'a' | 'C' | 'c' | 'G' | 'g' | 'T' | 't' | 'U' | 'u' | 'N' | 'n' => true,
+        _ => false,
     }
 }
 
@@ -270,15 +264,122 @@ pub fn shannon_entropy(dna: &str) -> f64 {
     -entropy
 }
 
-fn is_dna(dna: char) -> bool {
-    match dna {
-        'A' | 'a' | 'C' | 'c' | 'G' | 'g' | 'T' | 't' | 'U' | 'u' | 'N' | 'n' => true,
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_reference_sequence_data() {
+        let reference = Reference {
+            group_on: 0,
+            headers: vec!["id".to_string(), "sequence_name".to_string(), "sequence".to_string()],
+            columns: vec![
+                vec!["1".to_string(), "2".to_string()],
+                vec!["gene1".to_string(), "gene2".to_string()],
+                vec!["ATGC".to_string(), "CGTA".to_string()]
+            ],
+            sequence_name_idx: 1,
+            sequence_idx: 2,
+        };
+
+        let (dnastrings, dnastrings_revcomp, names) = get_reference_sequence_data(&reference);
+
+        assert_eq!(dnastrings.len(), 2);
+        assert_eq!(dnastrings_revcomp.len(), 2);
+        assert_eq!(names, vec!["gene1", "gene2"]);
+        assert_eq!(dnastrings[0].to_string(), "ATGC");
+        assert_eq!(dnastrings[1].to_string(), "CGTA");
+        assert_eq!(dnastrings_revcomp[0].to_string(), "GCAT");
+        assert_eq!(dnastrings_revcomp[1].to_string(), "TACG");
+    }
+
+    #[test]
+    #[should_panic(expected = "Error -- could not read library name")]
+    fn test_get_reference_sequence_data_panic_on_missing_name() {
+        let reference = Reference {
+            group_on: 0,
+            headers: vec!["id".to_string(), "sequence_name".to_string(), "sequence".to_string()],
+            columns: vec![
+                vec!["1".to_string()],
+                vec!["gene1".to_string()],  // Missing second name
+                vec!["ATGC".to_string(), "CGTA".to_string()]
+            ],
+            sequence_name_idx: 1,
+            sequence_idx: 2,
+        };
+
+        get_reference_sequence_data(&reference);
+    }
+
+    #[test]
+    fn test_revcomp() {
+        assert_eq!(revcomp("ATGC"), "GCAT");
+        assert_eq!(revcomp("CCGGTTAA"), "TTAACCGG");
+    }
+
+    #[test]
+    #[should_panic(expected = "Input sequence base is not DNA")]
+    fn test_revcomp_invalid_input() {
+        revcomp("ATGX");
+    }
+
+    #[test]
+    fn test_revcomp_base_pair() {
+        assert_eq!(revcomp_base_pair('A'), 'T');
+        assert_eq!(revcomp_base_pair('T'), 'A');
+        assert_eq!(revcomp_base_pair('C'), 'G');
+        assert_eq!(revcomp_base_pair('G'), 'C');
+        assert_eq!(revcomp_base_pair('U'), 'A');
+
+        assert_eq!(revcomp_base_pair('a'), 't');
+        assert_eq!(revcomp_base_pair('t'), 'a');
+        assert_eq!(revcomp_base_pair('c'), 'g');
+        assert_eq!(revcomp_base_pair('g'), 'c');
+        assert_eq!(revcomp_base_pair('u'), 'a');
+
+        assert_eq!(revcomp_base_pair('N'), 'N');
+        assert_eq!(revcomp_base_pair('n'), 'N');
+    }
+
+    #[test]
+    fn test_revcomp_base_pair_invalid() {
+        assert_eq!(revcomp_base_pair('X'), 'N');
+        assert_eq!(revcomp_base_pair('Y'), 'N');
+        assert_eq!(revcomp_base_pair('Z'), 'N');
+        assert_eq!(revcomp_base_pair('1'), 'N');
+        assert_eq!(revcomp_base_pair('#'), 'N');
+    }
+
+    #[test]
+    fn test_is_valid_base_pair() {
+        // Valid DNA base pairs
+        assert!(is_valid_base_pair('A'));
+        assert!(is_valid_base_pair('T'));
+        assert!(is_valid_base_pair('C'));
+        assert!(is_valid_base_pair('G'));
+
+        // Valid DNA base pairs, lower case
+        assert!(is_valid_base_pair('a'));
+        assert!(is_valid_base_pair('t'));
+        assert!(is_valid_base_pair('c'));
+        assert!(is_valid_base_pair('g'));
+
+        // Valid RNA base pair
+        assert!(is_valid_base_pair('U'));
+        assert!(is_valid_base_pair('u'));
+
+        // Nucleotide ambiguity code
+        assert!(is_valid_base_pair('N'));
+        assert!(is_valid_base_pair('n'));
+
+        // Invalid characters
+        assert!(!is_valid_base_pair('X'));
+        assert!(!is_valid_base_pair('Y'));
+        assert!(!is_valid_base_pair('Z'));
+        assert!(!is_valid_base_pair('1'));
+        assert!(!is_valid_base_pair('#'));
+    }
+
     #[test]
     fn is_fasta_short() {
         let expected_results = true;

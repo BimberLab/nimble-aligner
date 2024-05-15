@@ -68,10 +68,8 @@ fn main() {
         .unwrap_or(false);
 
     let mut reference_indices = Vec::new();
-    let mut reference_metadata = Vec::new();
-    let mut align_config = Vec::new();
-    let mut reference_seqs = Vec::<Vec<String>>::new();
-    let mut reference_names = Vec::<Vec<String>>::new();
+    let mut references = Vec::new();
+    let mut aligner_configs = Vec::new();
 
     // Produce two debruijn graphs per reference library
     for reference_json_path in reference_json_paths {
@@ -81,41 +79,40 @@ fn main() {
         );
 
         // Load the reference library into memory
-        let (align_config_thread, reference_metadata_thread) =
+        let (aligner_config, reference) =
             reference_library::get_reference_library(
                 Path::new(&reference_json_path),
                 strand_filter,
             );
 
+        // Get sequences and feature names from the reference library for producing indices in both normal and reverse orientations
+        let (reference_sequences, reference_sequences_revcomp, reference_feature_names) =
+            utils::get_reference_sequence_data(&reference);
 
-        // TODO refactor + test all below
-        let (reference_seqs_thread, reference_seqs_rev_thread, reference_names_thread) =
-            utils::validate_reference_pairs(&reference_metadata_thread);
-
-        let reference_index_forward =
+        // Produce two reference indices from the library sequence data: one of the normal sequence of the feature, and one of the revcomped sequence of the
+        // feature. This allows us to align a read-pair against both and catch matches in either F1R2 or R1F2 read orientations.
+        let reference_index =
             debruijn_mapping::build_index::build_index::<debruijn::kmer::Kmer30>(
-                &reference_seqs_thread,
-                &reference_names_thread,
+                &reference_sequences,
+                &reference_feature_names,
                 &HashMap::new(),
                 num_cores,
             )
             .expect("Error -- could not create pseudoaligner index of the reference library");
 
-        let reference_index_reverse = debruijn_mapping::build_index::build_index::<
+        let reference_index_revcomp = debruijn_mapping::build_index::build_index::<
             debruijn::kmer::Kmer30,
         >(
-            &reference_seqs_rev_thread,
-            &reference_names_thread,
+            &reference_sequences_revcomp,
+            &reference_feature_names,
             &HashMap::new(),
             num_cores,
         )
         .expect("Error -- could not create reverse pseudoaligner index of the reference library");
 
-        reference_indices.push((reference_index_forward, reference_index_reverse));
-        reference_metadata.push(reference_metadata_thread);
-        align_config.push(align_config_thread);
-        reference_seqs.push(reference_seqs_thread.into_iter().map(|s| s.to_string()).collect());
-        reference_names.push(reference_names_thread);
+        reference_indices.push((reference_index, reference_index_revcomp));
+        references.push(reference);
+        aligner_configs.push(aligner_config);
     }
 
     println!("Loading read sequences and aligning");
@@ -125,8 +122,8 @@ fn main() {
         fastq::process(
             input_files,
             reference_indices,
-            reference_metadata,
-            align_config,
+            references,
+            aligner_configs,
             output_paths,
             num_cores,
         );
@@ -135,8 +132,8 @@ fn main() {
         bam::process(
             input_files,
             reference_indices,
-            reference_metadata,
-            align_config,
+            references,
+            aligner_configs,
             output_paths,
             num_cores,
         );
