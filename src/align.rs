@@ -20,6 +20,8 @@ const MIN_READ_LENGTH: usize = 12;
 const MIN_ENTROPY_SCORE: f64 = 1.75; // Higher score = lower entropy
 
 pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<debruijn::kmer::Kmer30>;
+pub type AlignmentScore = Option<(Vec<u32>, f64, usize)>;
+pub type Filter = Option<(FilterReason, f64, usize)>;
 
 #[derive(Debug, PartialEq)]
 pub enum IntersectLevel {
@@ -248,15 +250,14 @@ impl AlignmentDirection {
         let (match_eqv_class, f_bam_data, r_bam_data) = match config.intersect_level {
             IntersectLevel::NoIntersect => get_all_reads(forward_hits, reverse_hits),
             IntersectLevel::IntersectWithFallback => {
-                get_intersecting_reads(forward_hits, reverse_hits, true, debug_info, map_key.clone(), &mut filtered_keys)
+                get_intersecting_reads(forward_hits, reverse_hits, true, map_key.clone(), &mut filtered_keys)
             }
             IntersectLevel::ForceIntersect => {
-                get_intersecting_reads(forward_hits, reverse_hits, false, debug_info, map_key.clone(), &mut filtered_keys)
+                get_intersecting_reads(forward_hits, reverse_hits, false, map_key.clone(), &mut filtered_keys)
             }
         };
 
-        let mut key = get_score_map_key(&match_eqv_class, reference_metadata, &config); // Process the equivalence class into a score key
-        key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names
+        let key = process_equivalence_class_to_feature_list(&match_eqv_class, reference_metadata, &config);
 
         // Max hits filter
         if key.len() > config.max_hits_to_report {
@@ -513,202 +514,147 @@ fn score_sequences<'a>(
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
         let mut read_rev: Option<DnaString> = None;
 
-
-
-
-
-
-
         // Generate score and equivalence class for this read by aligning the sequence against the reference.
-        let (seq_score, forward_filter_reason) = pseudoalign(&read, index, &aligner_config);
+        let (sequence_alignment, sequence_filter_reason) = pseudoalign(&read, index, &aligner_config);
 
-        // If there's a reversed sequence, do the paired-end alignment
-        let mut rev_seq_score = None;
-        let mut rev_filter_reason: Option<(FilterReason, f64, usize)> = None;
-        let mut reverse_read_t = DnaString::blank(0);
+        // If there's a mate sequence, also perform the alignment for it
+        let mut mate_sequence_alignment: Option<AlignmentScore> = None;
+        let mut mate_sequence_filter_reason: Filter = None;
+
         if let Some(itr) = &mut mate_sequences {
             let reverse_read = itr
                 .next()
                 .expect("Error -- read and reverse read files do not have matching lengths: ")
                 .expect("Error -- could not parse reverse read. Input R2 data malformed.");
-            let (score, reason) = pseudoalign(&reverse_read, index, &aligner_config);
 
-            reverse_read_t = reverse_read.clone();
-            rev_seq_score = Some(score);
+            let (score, filter_reason) = pseudoalign(&reverse_read, index, &aligner_config);
+
+            mate_sequence_alignment = Some(score);
             read_rev = Some(reverse_read);
-            rev_filter_reason = reason;
+            mate_sequence_filter_reason = filter_reason;
         }
-        
+
+        // Unpack the alignments for each sequence into separate variables
+        let (sequence_equivalence_class, normalized_sequence_score, sequence_score) = if let Some((eqv_class, n_s, s)) = &sequence_alignment {
+            ((*eqv_class).clone(), *n_s, *s)
+        } else {
+            (Vec::new(), 0.0, 0)
+        };
+
+        let (mate_sequence_equivalence_class, normalized_mate_sequence_score, mate_sequence_score) = if let Some(Some((eqv_class, n_s, s))) = &mate_sequence_alignment
+        {
+            ((*eqv_class).clone(), *n_s, *s)
+        } else {
+            (Vec::new(), 0.0, 0)
+        };
+
+        // Create a key for the read-pair using the sequence data, for registration in the output score hashmap
         let read_key = match &read_rev {
             Some(rev) => read.to_string() + &rev.to_string(),
             None => read.to_string(),
         };
 
-        let mut seq_score_names = Vec::new();
-        let mut rev_seq_score_names = Vec::new();
-        let mut seq_score_weighted = -1.0;
-        let mut rev_seq_score_weighted = -1.0;
-        let mut forward_filter_reason_unwrapped = None;
-        let mut rev_filter_reason_unwrapped = None;
-
-        if seq_score.is_some() {
-            let t: &(Vec<u32>, f64, usize) = seq_score.as_ref().unwrap();
-            seq_score_names = get_score_map_key(&t.0, reference, &aligner_config);
-            seq_score_weighted = t.1;
-        }
-
-        if rev_seq_score.is_some() {
-            if rev_seq_score.as_ref().unwrap().is_some() {
-                let t: &(Vec<u32>, f64, usize) = rev_seq_score.as_ref().unwrap().as_ref().unwrap();
-                rev_seq_score_names = get_score_map_key(&t.0, reference, &aligner_config);
-                rev_seq_score_weighted = t.1;
-            }
-        }
-
-        if forward_filter_reason.as_ref().is_some() {
-            forward_filter_reason_unwrapped = Some(forward_filter_reason.as_ref().unwrap().0);
-        }
-
-        if rev_filter_reason.as_ref().is_some() {
-            rev_filter_reason_unwrapped = Some(rev_filter_reason.as_ref().unwrap().0);
-        }
-
-        let (failed_score, failed_raw_score) = if mate_sequences.is_some() {
-            match (forward_filter_reason, rev_filter_reason) {
-                (Some((fr, s, ns)), Some((rr, r, nr))) => {
-                    if fr == rr {
-                        (s, ns)
-                        //debug_info.update(Some((fr, s, ns)))
-                    } else if (fr == FilterReason::NoMatch
-                        && rr == FilterReason::ScoreBelowThreshold)
-                        || (rr == FilterReason::NoMatch && fr == FilterReason::ScoreBelowThreshold)
-                    {
-                        let (s, ns) = if s > r { (s, ns) } else { (r, nr) };
-
-                        /*debug_info.update(Some((
-                            FilterReason::NoMatchAndScoreBelowThreshold,
-                            s,
-                            ns,
-                        )))*/
-                        (s, ns)
-                    } else {
-                        let (s, ns) = if s > r { (s, ns) } else { (r, nr) };
-
-                        (s, ns)
-                        //debug_info.update(Some((FilterReason::DifferentFilterReasons, s, ns)))
-                    }
-                }
-                (None, Some((rr, r, nr))) => (r, nr),//debug_info.update(Some((rr, r, nr))),
-                (Some((fr, s, ns)), None) => (s, ns),//debug_info.update(Some((fr, s, ns))),
-                (None, None) => (0.0, 0),
-            }
-        } else {
-            //debug_info.update(forward_filter_reason)
-            match forward_filter_reason {
-                Some(r) => (r.1, r.2),
-                None => (0.0, 0)
-            } 
-        };
-
-        let (eqv_class, s, n_s) = if let Some((eqv_class, s, n_s)) = &seq_score {
-            ((*eqv_class).clone(), *s, *n_s)
-        } else {
-            (Vec::new(), 0.0, 0)
-        };
-
-        let (r_eqv_class, r_s, r_n_s) = if let Some(Some((r_eqv_class, r_s, n_s))) = &rev_seq_score
-        {
-            ((*r_eqv_class).clone(), *r_s, *n_s)
-        } else {
-            (Vec::new(), 0.0, 0)
-        };
-
-
-        // If there are no reverse sequences, ignore the require_valid_pair filter
+        // Check if there are mate sequences. If there are, and require_valid_pair is enabled, we filter the pair if both alignments are not identical
         if mate_sequences.is_some()
             && aligner_config.require_valid_pair
-            && filter_pair(&seq_score, &rev_seq_score)
+            && filter_pair(&sequence_equivalence_class, &mate_sequence_equivalence_class)
         {
-            filter_reasons.insert(read_key.clone(), ((FilterReason::NotMatchingPair, n_s), (FilterReason::NotMatchingPair, r_n_s)));
+            filter_reasons.insert(read_key.clone(), ((FilterReason::NotMatchingPair, sequence_score), (FilterReason::NotMatchingPair, mate_sequence_score)));
             continue;
         } else {
+            // Otherwise, this was a successful match
             filter_reasons.insert(read_key.clone(), (
-                match forward_filter_reason {
-                    Some((reason, _, _)) => (reason, n_s),
-                    None => (FilterReason::SuccessfulMatch, n_s)
+                match sequence_filter_reason {
+                    Some((reason, _, _)) => (reason, sequence_score),
+                    None => (FilterReason::SuccessfulMatch, sequence_score)
                 },
-                match rev_filter_reason {
-                    Some((reason, _, _)) => (reason, r_n_s),
-                    None => (FilterReason::SuccessfulMatch, r_n_s)
+                match mate_sequence_filter_reason {
+                    Some((reason, _, _)) => (reason, mate_sequence_score),
+                    None => (FilterReason::SuccessfulMatch, mate_sequence_score)
                 }
             ));
         }
 
-
-        if !eqv_class.is_empty() || !r_eqv_class.is_empty() {
-            let mut key = if !eqv_class.is_empty() {
-                get_score_map_key(&eqv_class, reference, &aligner_config) // Process the equivalence class into a score key
-            } else if !r_eqv_class.is_empty() {
-                get_score_map_key(&r_eqv_class, reference, &aligner_config)
+        // At this point, if there are still alignments, we convert the equivalence classes to feature lists by looking them up in the reference
+        // TODO pretty sure this is a bug, we should use both, not just one class
+        if !sequence_equivalence_class.is_empty() || !mate_sequence_equivalence_class.is_empty() {
+            let feature_list = if !sequence_equivalence_class.is_empty() {
+                process_equivalence_class_to_feature_list(&sequence_equivalence_class, reference, &aligner_config)
+            } else if !mate_sequence_equivalence_class.is_empty() {
+                process_equivalence_class_to_feature_list(&mate_sequence_equivalence_class, reference, &aligner_config)
             } else {
                 Vec::new()
             };
 
-            key.string_sort_unstable(natural_lexical_cmp); // Sort for deterministic names
 
-            let (v, s, r_s, n_s, r_n_s) = if !eqv_class.is_empty() && !r_eqv_class.is_empty() {
+
+
+
+
+
+
+
+
+            // TODO refactor below
+            // Package the equivalence classes and scores into a result value for the score map
+            let (pair_score, s, r_s, n_s, r_n_s) = if !sequence_equivalence_class.is_empty() && !mate_sequence_equivalence_class.is_empty() {
                 (
                     (
                         PairState::Both,
-                        Some((eqv_class, s)),
-                        Some((r_eqv_class, r_s)),
+                        Some((sequence_equivalence_class, normalized_sequence_score)),
+                        Some((mate_sequence_equivalence_class, normalized_mate_sequence_score)),
                         sequence_metadata,
                         mate_sequence_metadata,
                     ),
-                    s,
-                    r_s,
-                    n_s,
-                    r_n_s,
+                    normalized_sequence_score,
+                    normalized_mate_sequence_score,
+                    sequence_score,
+                    mate_sequence_score,
                 )
-            } else if !eqv_class.is_empty() {
+            } else if !sequence_equivalence_class.is_empty() {
                 (
                     (
                         PairState::First,
-                        Some((eqv_class, s)),
+                        Some((sequence_equivalence_class, normalized_sequence_score)),
                         None,
                         sequence_metadata,
                         mate_sequence_metadata,
                     ),
-                    s,
+                    normalized_sequence_score,
                     0.0,
-                    n_s,
+                    sequence_score,
                     0,
                 )
-            } else if !r_eqv_class.is_empty() {
+            } else if !mate_sequence_equivalence_class.is_empty() {
                 (
                     (
                         PairState::Second,
                         None,
-                        Some((r_eqv_class, r_s)),
+                        Some((mate_sequence_equivalence_class, normalized_mate_sequence_score)),
                         sequence_metadata,
                         mate_sequence_metadata,
                     ),
                     0.0,
-                    r_s,
+                    normalized_mate_sequence_score,
                     0,
-                    r_n_s,
+                    mate_sequence_score,
                 )
             } else {
                 continue;
             };
 
-            match v.0 {
+
+
+
+
+            // TODO refactor below
+            match pair_score.0 {
                 PairState::First => {
-                    read_matches.push((key.clone(), read.to_string(), s, n_s, read_key.clone()))
+                    read_matches.push((feature_list.clone(), read.to_string(), s, n_s, read_key.clone()))
                 }
                 PairState::Second => match &read_rev {
                     Some(r) => read_matches.push((
-                        key.clone(),
+                        feature_list.clone(),
                         r.to_string(),
                         r_s,
                         r_n_s,
@@ -717,15 +663,44 @@ fn score_sequences<'a>(
                     None => (),
                 },
                 PairState::Both => {
-                    read_matches.push((key.clone(), read.to_string(), s, r_n_s, read_key.clone()))
+                    read_matches.push((feature_list.clone(), read.to_string(), s, r_n_s, read_key.clone()))
                 }
                 PairState::None => (),
             };
             
-            score_map.insert(read_key, v);
+            score_map.insert(read_key, pair_score);
             debug_info.read_units_aligned += 1;
         } else {
             // If both equivalence classes are empty, the attempted alignment has failed, but we still report the failed alignment
+            let (failed_score, failed_raw_score) = if mate_sequences.is_some() {
+                match (sequence_filter_reason, mate_sequence_filter_reason) {
+                    (Some((fr, s, ns)), Some((rr, r, nr))) => {
+                        if fr == rr {
+                            (s, ns)
+                        } else if (fr == FilterReason::NoMatch
+                            && rr == FilterReason::ScoreBelowThreshold)
+                            || (rr == FilterReason::NoMatch && fr == FilterReason::ScoreBelowThreshold)
+                        {
+                            let (s, ns) = if s > r { (s, ns) } else { (r, nr) };
+
+                            (s, ns)
+                        } else {
+                            let (s, ns) = if s > r { (s, ns) } else { (r, nr) };
+
+                            (s, ns)
+                        }
+                    }
+                    (None, Some((_rr, r, nr))) => (r, nr),
+                    (Some((_fr, s, ns)), None) => (s, ns),
+                    (None, None) => (0.0, 0),
+                }
+            } else {
+                match sequence_filter_reason {
+                    Some(r) => (r.1, r.2),
+                    None => (0.0, 0)
+                } 
+            };
+
             read_matches.push((
                 Vec::new(),
                 read.to_string(),
@@ -739,29 +714,32 @@ fn score_sequences<'a>(
     (score_map, read_matches, debug_info)
 }
 
-// Determine whether a given pair of equivalence classes constitute a valid pair
+// Determine whether a given pair of equivalence classes constitute a valid alignment for a read pair
 fn filter_pair(
-    seq_score: &Option<(Vec<u32>, f64, usize)>,
-    rev_seq_score: &Option<Option<(Vec<u32>, f64, usize)>>,
+    sequence_equivalence_class: &Vec<u32>,
+    mate_sequence_equivalence_class: &Vec<u32>,
 ) -> bool {
-    // Unpack the data to check if the pairs have the same eq_class. If they both contain data, do the comparison
-    if let (Some(Some((mut rev_eq_class, _, _))), Some((mut eq_class, _, _))) =
-        ((rev_seq_score).clone(), (seq_score).clone())
+    let mut sequence_equivalence_class = sequence_equivalence_class.clone();
+    let mut mate_sequence_equivalence_class = mate_sequence_equivalence_class.clone();
+
+    // Check if the pairs have identical equivalence classes. If they both contain data, do the comparison
+    if !sequence_equivalence_class.is_empty() && !mate_sequence_equivalence_class.is_empty() 
     {
-        // Sort the vectors and compare them by counting matching elements. If they don't match, don't modify the score for this read
-        rev_eq_class.sort();
-        eq_class.sort();
-        let matching = eq_class
+        // Sort the vectors and compare them by counting matching elements
+        mate_sequence_equivalence_class.sort();
+        sequence_equivalence_class.sort();
+        let matching = sequence_equivalence_class
             .iter()
-            .zip(&rev_eq_class)
+            .zip(&mate_sequence_equivalence_class)
             .filter(|&(classl, classr)| classl == classr)
             .count();
 
-        if matching != eq_class.len() || matching != rev_eq_class.len() {
+        if matching != sequence_equivalence_class.len() || matching != mate_sequence_equivalence_class.len() {
             return true;
         }
     } else {
-        // Otherwise, require_valid_pair is on and rev_score != seq_score, or they're both None. In either case, don't modify score
+        // Since this function is only called when require_valid_pair is on, if one doesn't contain data, the equivalence classes are not identical
+        // and this pair should be filtered. Or, if they both don't contain data, it should be filtered regardless.
         return true;
     }
     false
@@ -784,7 +762,6 @@ fn get_intersecting_reads(
         Vec<String>,
     )>,
     fallback_on_intersect_fail: bool,
-    debug_info: &mut AlignDebugInfo,
     map_key: String,
     filtered_keys: &mut HashMap<String, (FilterReason, AlignmentDirection)>
 ) -> (Vec<u32>, Vec<String>, Vec<String>) {
@@ -939,46 +916,55 @@ fn get_all_reads(
     }
 }
 
-/* Takes a equivalence class and returns a list of strings. If we're processing allele-level data, the strings will be
- * the nt_sequences of the relevant alleles. Otherwise, if we're doing a group_by, the equivalence class will be
+/* Takes an equivalence class and returns a list of strings. If we're processing allele-level data, the strings will be
+ * the sequence name of the relevant feature(s). Otherwise, if we're doing a group_by, the equivalence class will be
  * filtered such that there is only one hit per group_by string (e.g. one hit per lineage) and the corresponding strings
- * (e.g. lineage name) will be returned. */
-fn get_score_map_key(
-    equiv_class: &Vec<u32>,
-    reference_metadata: &Reference,
-    config: &AlignFilterConfig,
+ * (e.g. lineage name) will be returned instead of individual sequence names. */
+fn process_equivalence_class_to_feature_list(
+    equivalence_class: &Vec<u32>,
+    reference: &Reference,
+    aligner_config: &AlignFilterConfig,
 ) -> Vec<String> {
-    if reference_metadata.headers[reference_metadata.group_on] == "nt_sequence" {
-        equiv_class
+    /* If the group_on column is the default, nt_sequence, no feature roll-up occurs. We map over the equivalence class and translate one-to-one from
+     * values in that column. */
+    let mut results = if reference.headers[reference.group_on] == "nt_sequence" {
+        equivalence_class
             .into_iter()
             .map(|ref_idx| {
-                reference_metadata.columns[reference_metadata.group_on][*ref_idx as usize].clone()
+                reference.columns[reference.group_on][*ref_idx as usize].clone()
             })
             .collect()
     } else {
-        let mut results = Vec::new();
+        let mut grouped_feature_list = Vec::new();
 
-        for ref_idx in equiv_class {
+        // Otherwise, we iterate the equivalence class, and grab the value from the group_on column instead
+        for ref_idx in equivalence_class {
             let mut group =
-                &reference_metadata.columns[reference_metadata.group_on][*ref_idx as usize];
+                &reference.columns[reference.group_on][*ref_idx as usize];
 
-            // If the group is an empty string, get the sequence name instead so we don't just return nothing
+            // If the group_on value is empty, we fall back to the feature name column, as if group_on == 'nt_sequence'
             if group.is_empty() {
-                group = &reference_metadata.columns[reference_metadata.sequence_name_idx]
+                group = &reference.columns[reference.sequence_name_idx]
                     [*ref_idx as usize];
             }
 
-            if !results.contains(group) {
-                results.push(group.to_string());
+            /* Then, we push to the results array, and only push unique values. Therefore, features with idential group_on values will only
+             * contribute to the feature list once. */
+            if !grouped_feature_list.contains(group) {
+                grouped_feature_list.push(group.to_string());
             }
         }
 
-        // Filter based on discard_multi_hits
-        if config.discard_multi_hits > 0 && results.len() > config.discard_multi_hits {
-            Vec::new()
-        } else {
-            results
-        }
+        grouped_feature_list 
+    };
+
+    // Finally, if the library has set a discard_multi_hits filter and the resultant feature list is larger, drop this alignment
+    if aligner_config.discard_multi_hits > 0 && results.len() > aligner_config.discard_multi_hits {
+        Vec::new()
+    } else {
+        // Sort for deterministic feature lists
+        results.string_sort_unstable(natural_lexical_cmp);
+        results
     }
 }
 
@@ -988,8 +974,8 @@ fn pseudoalign(
     reference_index: &PseudoAligner,
     config: &AlignFilterConfig
 ) -> (
-    Option<(Vec<u32>, f64, usize)>,
-    Option<(FilterReason, f64, usize)>,
+    AlignmentScore,
+    Filter
 ) {
     // Ensure all reads are above a minimum length
     if sequence.len() < MIN_READ_LENGTH {
@@ -1050,7 +1036,20 @@ mod tests {
         ).expect("Failed to build index")
     }
 
-    fn default_config() -> AlignFilterConfig {
+    fn setup_reference() -> Reference {
+        Reference {
+            group_on: 0,
+            headers: vec!["nt_sequence".to_string(), "gene".to_string()],
+            columns: vec![
+                vec!["seq1".to_string(), "seq2".to_string(), "seq3".to_string()],
+                vec!["geneA".to_string(), "geneB".to_string(), "geneA".to_string()]
+            ],
+            sequence_name_idx: 0,
+            sequence_idx: 0,
+        }
+    }
+
+    fn setup_config() -> AlignFilterConfig {
         AlignFilterConfig {
             reference_genome_size: 1000,
             score_percent: 0.1,
@@ -1061,7 +1060,7 @@ mod tests {
             score_filter: 10,
             intersect_level: IntersectLevel::IntersectWithFallback,
             require_valid_pair: false,
-            discard_multi_hits: 1,
+            discard_multi_hits: 0,
             max_hits_to_report: 5,
             strand_filter: StrandFilter::FivePrime,
         }
@@ -1070,7 +1069,7 @@ mod tests {
     #[test]
     fn test_short_read() {
         let sequence = DnaString::from_dna_string("ACG");
-        let config = default_config();
+        let config = setup_config();
         let reference_index = setup_pseudoaligner();
         let result = pseudoalign(&sequence, &reference_index, &config);
         assert_eq!(result.1, Some((FilterReason::ShortRead, 0.0, 0)));
@@ -1079,7 +1078,7 @@ mod tests {
     #[test]
     fn test_high_entropy_read() {
         let sequence = DnaString::from_dna_string("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-        let config = default_config();
+        let config = setup_config();
         let reference_index = setup_pseudoaligner();
         let result = pseudoalign(&sequence, &reference_index, &config);
         assert_eq!(result.1, Some((FilterReason::HighEntropy, 0.0, 0)));
@@ -1088,7 +1087,7 @@ mod tests {
     #[test]
     fn test_no_alignment_match() {
         let sequence = DnaString::from_dna_string("CCTGAGATTTCGAGCTCGTAACGTGACCTACGGACAC");
-        let config = default_config();
+        let config = setup_config();
         let reference_index = setup_pseudoaligner();
         let result = pseudoalign(&sequence, &reference_index, &config);
         assert_eq!(result.1, Some((FilterReason::NoMatch, 0.0, 0)));
@@ -1097,7 +1096,7 @@ mod tests {
     #[test]
     fn test_valid_alignment() {
         let sequence = DnaString::from_dna_string("TGCATGCATGCATGCATGCATGCATGCATGCA");
-        let mut config = default_config();
+        let mut config = setup_config();
         let reference_index = setup_pseudoaligner();
         config.score_threshold = 32;
         let result = pseudoalign(&sequence, &reference_index, &config);
@@ -1108,10 +1107,121 @@ mod tests {
     #[test]
     fn test_score_and_match_threshold_filtering() {
         let sequence = DnaString::from_dna_string("TGCATGCATGCATGCATGCATGCATGCATGCA");
-        let mut config = default_config();
+        let mut config = setup_config();
         config.score_threshold = 1000;
         let reference_index = setup_pseudoaligner();
         let result = pseudoalign(&sequence, &reference_index, &config);
         assert_eq!(result.1, Some((FilterReason::ScoreBelowThreshold, 1.0, 32)));
+    }
+
+    #[test]
+    fn test_empty_equivalence_classes() {
+        let seq_classes = vec![];
+        let mate_classes = vec![];
+        assert_eq!(filter_pair(&seq_classes, &mate_classes), true);
+    }
+
+    #[test]
+    fn test_one_empty_one_non_empty() {
+        let non_empty_classes = vec![1, 2, 3];
+        let empty_classes = vec![];
+        assert_eq!(filter_pair(&non_empty_classes, &empty_classes), true);
+        assert_eq!(filter_pair(&empty_classes, &non_empty_classes), true);
+    }
+
+    #[test]
+    fn test_different_non_empty_classes() {
+        let seq_classes = vec![1, 2, 3];
+        let mate_classes = vec![4, 5, 6];
+        assert_eq!(filter_pair(&seq_classes, &mate_classes), true);
+    }
+
+    #[test]
+    fn test_identical_non_empty_classes() {
+        let seq_classes = vec![1, 2, 3];
+        let mate_classes = vec![1, 2, 3];
+        assert_eq!(filter_pair(&seq_classes, &mate_classes), false);
+    }
+
+    #[test]
+    fn test_different_lengths_some_matching_elements() {
+        let seq_classes = vec![1, 2, 3, 4];
+        let mate_classes = vec![1, 2, 3];
+        assert_eq!(filter_pair(&seq_classes, &mate_classes), true);
+    }
+
+    #[test]
+    fn test_group_by_nt_sequence() {
+        let ref_data = setup_reference();
+        let config = setup_config();
+        let equivalence_class = vec![0, 1, 2];
+        assert_eq!(
+            process_equivalence_class_to_feature_list(&equivalence_class, &ref_data, &config),
+            vec!["seq1", "seq2", "seq3"]
+        );
+    }
+
+    #[test]
+    fn test_group_by_gene() {
+        let mut ref_data = setup_reference();
+        ref_data.group_on = 1;
+        let config = setup_config();
+        let equivalence_class = vec![0, 1, 2];
+        assert_eq!(
+            process_equivalence_class_to_feature_list(&equivalence_class, &ref_data, &config),
+            vec!["geneA", "geneB"]
+        );
+    }
+
+    #[test]
+    fn test_fallback_to_feature_name() {
+        let mut ref_data = setup_reference();
+        ref_data.columns[1] = vec!["geneA".to_string(), "".to_string(), "geneA".to_string()];
+        ref_data.group_on = 1;
+        let config = setup_config();
+        let equivalence_class = vec![0, 1, 2];
+        assert_eq!(
+            process_equivalence_class_to_feature_list(&equivalence_class, &ref_data, &config),
+            vec!["geneA", "seq2"]
+        );
+    }
+
+    #[test]
+    fn test_discard_multi_hits() {
+        let ref_data = setup_reference();
+        let mut config = setup_config();
+        config.discard_multi_hits = 1;
+        let equivalence_class = vec![0, 1, 2];
+        assert_eq!(
+            process_equivalence_class_to_feature_list(&equivalence_class, &ref_data, &config),
+            Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn test_empty_equivalence_class() {
+        let ref_data = setup_reference();
+        let config = setup_config();
+        let equivalence_class = vec![];
+        assert_eq!(
+            process_equivalence_class_to_feature_list(&equivalence_class, &ref_data, &config),
+            Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn test_list_stability_and_order() {
+        let mut ref_data = setup_reference();
+        ref_data.group_on = 1;
+        let config = setup_config();
+
+        let equivalence_class_1 = vec![2, 0, 1];
+        let equivalence_class_2 = vec![0, 1, 2];
+
+        let result_1 = process_equivalence_class_to_feature_list(&equivalence_class_1, &ref_data, &config);
+        let result_2 = process_equivalence_class_to_feature_list(&equivalence_class_2, &ref_data, &config);
+
+        assert_eq!(result_1, result_2);
+        assert_eq!(result_1, vec!["geneA", "geneB"]);
     }
 }
