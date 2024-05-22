@@ -20,7 +20,6 @@ pub fn process(
             &index,
             &references[i],
             &aligner_configs[i],
-            None,
         );
 
         write_to_tsv(

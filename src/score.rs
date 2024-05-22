@@ -1,5 +1,5 @@
 use crate::align;
-use crate::align::{FilterReason, AlignmentDirection};
+use crate::align::{FilterReason, AlignmentOrientation};
 use crate::reference_library;
 use crate::utils;
 use reference_library::Reference;
@@ -24,11 +24,10 @@ pub fn call<'a>(
     reference_index: &(align::PseudoAligner, align::PseudoAligner),
     reference: &Reference,
     aligner_config: &align::AlignFilterConfig,
-    debug_info: Option<&mut align::AlignDebugInfo>,
 ) -> (
     Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>,
     Vec<(Vec<String>, String, f64, usize, String)>,
-    HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection)>
+    HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentOrientation)>
 ) {
     // Perform filtered pseudoalignment on the given data, and return the scores sorted by name
     let (reference_scores, alignment_metadata, filter_reasons) = align::get_calls(
@@ -38,7 +37,6 @@ pub fn call<'a>(
         reference_index,
         reference,
         aligner_config,
-        debug_info,
     );
 
     (

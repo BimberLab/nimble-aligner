@@ -1,4 +1,4 @@
-use crate::align::{AlignDebugInfo, AlignFilterConfig, PseudoAligner, FilterReason, AlignmentDirection};
+use crate::align::{ AlignFilterConfig, PseudoAligner, FilterReason, AlignmentOrientation };
 use crate::parse::bam::BAM_FIELDS_TO_REPORT;
 use crate::parse::bam::UMIReader;
 use crate::reference_library::Reference;
@@ -49,7 +49,7 @@ pub fn process(
 ) {
     // The logger mpsc channels takes the result of alignments and write them out to the count file
     let (log_sender, log_receiver) =
-        mpsc::channel::<((Vec<String>, (i32, Vec<String>, Vec<String>, (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection)), usize)>();
+        mpsc::channel::<((Vec<String>, (i32, Vec<String>, Vec<String>, (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentOrientation)), usize)>();
 
     // Spawn the logging thread
     let log_thread = thread::spawn(move || {
@@ -227,12 +227,11 @@ fn get_calls<'a>(
     reference_index: &(PseudoAligner, PseudoAligner),
     reference: &Reference,
     aligner_config: &AlignFilterConfig,
-    debug_info: Option<&mut AlignDebugInfo>,
     reverse_comp_read: &'a Vec<bool>,
 ) -> (
     Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>,
     Vec<(Vec<String>, String, f64, usize, String)>,
-    HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection)>
+    HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentOrientation)>
 ) {
     // Get iterators to sequences and their corresponding read-mates from the current UMI 
     // We send 2 iterators per set of r1/r2 sequences
@@ -279,7 +278,6 @@ fn get_calls<'a>(
         reference_index,
         &reference,
         aligner_config,
-        debug_info,
     )
 }
 
@@ -289,7 +287,7 @@ fn align_umi_to_libraries(
     reference_indices: &Vec<(PseudoAligner, PseudoAligner)>,
     references: &Vec<Reference>,
     aligner_configs: &Vec<AlignFilterConfig>,
-) -> Vec<Vec<(Vec<String>, (i32, Vec<String>, Vec<String>, (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection))>> {
+) -> Vec<Vec<(Vec<String>, (i32, Vec<String>, Vec<String>, (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentOrientation))>> {
     let mut results = vec![];
 
     // For each library, send the data into the alignment pipeline for scoring
@@ -300,7 +298,6 @@ fn align_umi_to_libraries(
             reference_index,
             &references[i],
             &aligner_configs[i],
-            None,
             &umi_metadata
                 .clone()
                 .into_iter()
@@ -310,7 +307,7 @@ fn align_umi_to_libraries(
 
         
 
-        // TODO refactor below, reliant on get_score being refactored first, probably. I it's responsible for adding additional rows per-UMI
+        // TODO refactor below, reliant on get_score being refactored first, probably. I think it's responsible for adding additional rows per-UMI
         if s.len() == 0 {
             results.push(vec![]);
         } else {
@@ -372,7 +369,7 @@ fn align_umi_to_libraries(
                                 (FilterReason::None, 0),
                                 (FilterReason::None, 0),
                                 FilterReason::None,
-                                AlignmentDirection::None,
+                                AlignmentOrientation::None,
                             ),
                         )
                     },

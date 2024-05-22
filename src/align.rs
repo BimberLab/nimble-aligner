@@ -6,8 +6,6 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::Error;
 
-use std::default::Default;
-
 use std::fmt::{Display, Formatter};
 
 use array_tool::vec::Intersect;
@@ -97,35 +95,8 @@ pub enum StrandFilter {
     None,
 }
 
-#[derive(Default)]
-pub struct AlignDebugInfo {
-    pub debug_file: String,
-    pub read_units_aligned: usize,
-    pub score_below_threshold: usize,
-    pub discarded_multiple_match: usize,
-    pub discarded_nonzero_mismatch: usize,
-    pub no_match: usize,
-    pub no_match_and_score_below_threshold: usize,
-    pub different_filter_reasons: usize,
-    pub not_matching_pair: usize,
-    pub force_intersect_failure: usize,
-    pub short_read: usize,
-    pub max_hits_exceeded: usize,
-    pub low_entropy: f64,
-    pub ff_reported: usize,
-    pub rr_reported: usize,
-    pub uu_reported: usize,
-    pub fr_reported: usize,
-    pub fu_reported: usize,
-    pub rf_reported: usize,
-    pub ru_reported: usize,
-    pub uf_reported: usize,
-    pub ur_reported: usize,
-    pub number_cr_skipped: usize,
-}
-
 #[derive(Debug, Copy, Clone)]
-pub enum AlignmentDirection {
+pub enum AlignmentOrientation {
     FF,
     RR,
     UU,
@@ -137,75 +108,67 @@ pub enum AlignmentDirection {
     UR,
     None
 }
-impl fmt::Display for AlignmentDirection {
+
+impl fmt::Display for AlignmentOrientation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AlignmentDirection::FF => write!(f, "FF"),
-            AlignmentDirection::RR => write!(f, "RR"),
-            AlignmentDirection::UU => write!(f, "UU"),
-            AlignmentDirection::FR => write!(f, "FR"),
-            AlignmentDirection::FU => write!(f, "FU"),
-            AlignmentDirection::RF => write!(f, "RF"),
-            AlignmentDirection::RU => write!(f, "RU"),
-            AlignmentDirection::UF => write!(f, "UF"),
-            AlignmentDirection::UR => write!(f, "UR"),
-            AlignmentDirection::None => write!(f, "None"),
+            AlignmentOrientation::FF => write!(f, "FF"),
+            AlignmentOrientation::RR => write!(f, "RR"),
+            AlignmentOrientation::UU => write!(f, "UU"),
+            AlignmentOrientation::FR => write!(f, "FR"),
+            AlignmentOrientation::FU => write!(f, "FU"),
+            AlignmentOrientation::RF => write!(f, "RF"),
+            AlignmentOrientation::RU => write!(f, "RU"),
+            AlignmentOrientation::UF => write!(f, "UF"),
+            AlignmentOrientation::UR => write!(f, "UR"),
+            AlignmentOrientation::None => write!(f, "None"),
         }
     }
 }
 
-fn replace_key_with_strand_dir(
-    key: String,
-    matched_seqs: &mut Vec<(Vec<String>, String, f64, usize, String)>,
-    dir: AlignmentDirection,
-) {
-    for elem in matched_seqs {
-        if elem.4 == key {
-            elem.4 = dir.to_string()
-        } else {
-            elem.4 = String::new()
-        }
-    }
-}
-
-impl AlignmentDirection {
-    fn get_alignment_dir(
+impl AlignmentOrientation {
+    fn get_alignment_orientation(
         forward_pair_state: PairState,
         reverse_pair_state: PairState,
-        debug_info: &mut AlignDebugInfo,
-    ) -> AlignmentDirection {
+    ) -> AlignmentOrientation {
         let dir = match (forward_pair_state, reverse_pair_state) {
-            (PairState::First, PairState::First) => AlignmentDirection::FF,
-            (PairState::First, PairState::Second) => AlignmentDirection::FR,
-            (PairState::Second, PairState::First) => AlignmentDirection::RF,
-            (PairState::Second, PairState::Second) => AlignmentDirection::RR,
-            (PairState::First, PairState::None) => AlignmentDirection::FU,
-            (PairState::Second, PairState::None) => AlignmentDirection::RU,
-            (PairState::None, PairState::First) => AlignmentDirection::UF,
-            (PairState::None, PairState::Second) => AlignmentDirection::UR,
+            (PairState::First, PairState::First) => AlignmentOrientation::FF,
+            (PairState::First, PairState::Second) => AlignmentOrientation::FR,
+            (PairState::Second, PairState::First) => AlignmentOrientation::RF,
+            (PairState::Second, PairState::Second) => AlignmentOrientation::RR,
+            (PairState::First, PairState::None) => AlignmentOrientation::FU,
+            (PairState::Second, PairState::None) => AlignmentOrientation::RU,
+            (PairState::None, PairState::First) => AlignmentOrientation::UF,
+            (PairState::None, PairState::Second) => AlignmentOrientation::UR,
 
-            (PairState::Both, PairState::First) => AlignmentDirection::UU,
-            (PairState::First, PairState::Both) => AlignmentDirection::UU,
-            (PairState::Both, PairState::Second) => AlignmentDirection::UU,
-            (PairState::Second, PairState::Both) => AlignmentDirection::UU,
-            (PairState::Both, PairState::Both) => AlignmentDirection::UU,
-            (PairState::Both, PairState::None) => AlignmentDirection::UU,
-            (PairState::None, PairState::Both) => AlignmentDirection::UU,
-            (PairState::None, PairState::None) => AlignmentDirection::UU,
+            (PairState::Both, PairState::First) => AlignmentOrientation::UU,
+            (PairState::First, PairState::Both) => AlignmentOrientation::UU,
+            (PairState::Both, PairState::Second) => AlignmentOrientation::UU,
+            (PairState::Second, PairState::Both) => AlignmentOrientation::UU,
+            (PairState::Both, PairState::Both) => AlignmentOrientation::UU,
+            (PairState::Both, PairState::None) => AlignmentOrientation::UU,
+            (PairState::None, PairState::Both) => AlignmentOrientation::UU,
+            (PairState::None, PairState::None) => AlignmentOrientation::UU,
         };
 
         dir
     }
 
-    fn filter_hits(
-        mut forward_hits: Option<(
+    
+    /* The value in sequence_call contains a pair_state that reports whether one, both, or neither mates in the given read-pair aligned
+     * to the given feature. sequence_call_revcomp_library also contains this information, but for the revcomp version of the feature.
+     * As such, we can compute a "combined orientation" for all 4 alignments (both read-mates for both versions of the feature),
+     * which we use to filter out calls generated by alignments in a "suspect" combined orientation. The specific set of orientations
+     * considered suspect -- i.e., should be filtered, are determined based on the library chemistry flag in the aligner configuration. */
+    fn filter_and_coerce_sequence_call_orientations(
+        sequence_call: Option<(
             PairState,
             Option<(Vec<u32>, f64)>,
             Option<(Vec<u32>, f64)>,
             Vec<String>,
             Vec<String>,
         )>,
-        mut reverse_hits: Option<(
+        sequence_call_revcomp_library: Option<(
             PairState,
             Option<(Vec<u32>, f64)>,
             Option<(Vec<u32>, f64)>,
@@ -215,45 +178,55 @@ impl AlignmentDirection {
         results: &mut HashMap<Vec<String>, (i32, Vec<String>, Vec<String>)>,
         reference_metadata: &Reference,
         config: &AlignFilterConfig,
-        debug_info: &mut AlignDebugInfo,
-        matched_sequences: &mut Vec<(Vec<String>, String, f64, usize, String)>,
-        map_key: String,
-        debug: bool,
-        mut filtered_keys: &mut HashMap<String, (FilterReason, AlignmentDirection)>
+        read_key: String,
+        mut filtered_keys: &mut HashMap<String, (FilterReason, AlignmentOrientation)>
     ) {
-        if let Some((f_pair_state, _, _, _, _)) = forward_hits {
-            if let Some((r_pair_state, _, _, _, _)) = reverse_hits {
-                let dir =
-                    AlignmentDirection::get_alignment_dir(f_pair_state, r_pair_state, debug_info);
-                if AlignmentDirection::filter_read(dir, &config.strand_filter) {
-                    filtered_keys.insert(map_key.clone(), (FilterReason::StrandWasWrong, dir));
+        if let Some((pair_state, _, _, _, _)) = sequence_call {
+
+            // If we passed both sequence_calls and sequence_calls_revcomp_library, determine whether or not to filter the call based on both pair_states
+            if let Some((pair_state_revcomp_library, _, _, _, _)) = sequence_call_revcomp_library {
+                let alignment_orientation =
+                    AlignmentOrientation::get_alignment_orientation(pair_state, pair_state_revcomp_library);
+
+                if AlignmentOrientation::filter_read(alignment_orientation, &config.strand_filter) {
+                    filtered_keys.insert(read_key.clone(), (FilterReason::StrandWasWrong, alignment_orientation));
                     return;
                 }
             }
 
-            let dir =
-                AlignmentDirection::get_alignment_dir(f_pair_state, PairState::None, debug_info);
-            if AlignmentDirection::filter_read(dir, &config.strand_filter) {
-                filtered_keys.insert(map_key.clone(), (FilterReason::StrandWasWrong, dir));
+            // Otherwise, filter the call based on only the sequence_calls pair state
+            let alignment_orientation =
+                AlignmentOrientation::get_alignment_orientation(pair_state, PairState::None);
+
+            if AlignmentOrientation::filter_read(alignment_orientation, &config.strand_filter) {
+                filtered_keys.insert(read_key.clone(), (FilterReason::StrandWasWrong, alignment_orientation));
                 return;
             }
-        } else if let Some((r_pair_state, _, _, _, _)) = reverse_hits {
-            let dir =
-                AlignmentDirection::get_alignment_dir(PairState::None, r_pair_state, debug_info);
-            if AlignmentDirection::filter_read(dir, &config.strand_filter) {
-                filtered_keys.insert(map_key.clone(), (FilterReason::StrandWasWrong, dir));
+
+        // If there are no sequence_calls, filter based only on the pair state in sequence_call_revcomp_library
+        } else if let Some((pair_state_revcomp_library, _, _, _, _)) = sequence_call_revcomp_library {
+            let alignment_orientation =
+                AlignmentOrientation::get_alignment_orientation(PairState::None, pair_state_revcomp_library);
+
+            if AlignmentOrientation::filter_read(alignment_orientation, &config.strand_filter) {
+                filtered_keys.insert(read_key.clone(), (FilterReason::StrandWasWrong, alignment_orientation));
                 return;
             }
         }
 
+
+
+
+        // TODO refactor below
+        // TODO we return before here if the pair fails the orientation filter -- does that matter??
         // Take the "best" alignment. The specific behavior is determined by the intersect level set in the aligner config
         let (match_eqv_class, f_bam_data, r_bam_data) = match config.intersect_level {
-            IntersectLevel::NoIntersect => get_all_reads(forward_hits, reverse_hits),
+            IntersectLevel::NoIntersect => get_all_reads(sequence_call, sequence_call_revcomp_library),
             IntersectLevel::IntersectWithFallback => {
-                get_intersecting_reads(forward_hits, reverse_hits, true, map_key.clone(), &mut filtered_keys)
+                get_intersecting_reads(sequence_call, sequence_call_revcomp_library, true, read_key.clone(), &mut filtered_keys)
             }
             IntersectLevel::ForceIntersect => {
-                get_intersecting_reads(forward_hits, reverse_hits, false, map_key.clone(), &mut filtered_keys)
+                get_intersecting_reads(sequence_call, sequence_call_revcomp_library, false, read_key.clone(), &mut filtered_keys)
             }
         };
 
@@ -261,13 +234,13 @@ impl AlignmentDirection {
 
         // Max hits filter
         if key.len() > config.max_hits_to_report {
-            filtered_keys.insert(map_key.clone(), (FilterReason::MaxHitsExceeded, AlignmentDirection::None));
+            filtered_keys.insert(read_key.clone(), (FilterReason::MaxHitsExceeded, AlignmentOrientation::None));
             return;
         }
 
         // Ensure we don't add empty keys, if any got to this point
         if key.len() == 0 {
-            filtered_keys.insert(map_key.clone(), (FilterReason::TriageEmptyEquivalenceClass, AlignmentDirection::None));
+            filtered_keys.insert(read_key.clone(), (FilterReason::TriageEmptyEquivalenceClass, AlignmentOrientation::None));
             return;
         }
 
@@ -280,57 +253,57 @@ impl AlignmentDirection {
         *r = r_bam_data;
     }
 
-    fn filter_read(dir: AlignmentDirection, lib_type: &StrandFilter) -> bool {
+    fn filter_read(dir: AlignmentOrientation, lib_type: &StrandFilter) -> bool {
         match lib_type {
-            StrandFilter::Unstranded => AlignmentDirection::filter_unstranded(dir),
-            StrandFilter::FivePrime => AlignmentDirection::filter_fiveprime(dir),
-            StrandFilter::ThreePrime => AlignmentDirection::filter_threeprime(dir),
+            StrandFilter::Unstranded => AlignmentOrientation::filter_unstranded(dir),
+            StrandFilter::FivePrime => AlignmentOrientation::filter_fiveprime(dir),
+            StrandFilter::ThreePrime => AlignmentOrientation::filter_threeprime(dir),
             StrandFilter::None => false,
         }
     }
 
-    fn filter_unstranded(dir: AlignmentDirection) -> bool {
+    fn filter_unstranded(dir: AlignmentOrientation) -> bool {
         match dir {
-            AlignmentDirection::FF => true,
-            AlignmentDirection::RR => true,
-            AlignmentDirection::UU => true,
-            AlignmentDirection::FR => false,
-            AlignmentDirection::FU => false,
-            AlignmentDirection::RF => false,
-            AlignmentDirection::RU => false,
-            AlignmentDirection::UF => false,
-            AlignmentDirection::UR => false,
-            AlignmentDirection::None => true,
+            AlignmentOrientation::FF => true,
+            AlignmentOrientation::RR => true,
+            AlignmentOrientation::UU => true,
+            AlignmentOrientation::FR => false,
+            AlignmentOrientation::FU => false,
+            AlignmentOrientation::RF => false,
+            AlignmentOrientation::RU => false,
+            AlignmentOrientation::UF => false,
+            AlignmentOrientation::UR => false,
+            AlignmentOrientation::None => true,
         }
     }
 
-    fn filter_fiveprime(dir: AlignmentDirection) -> bool {
+    fn filter_fiveprime(dir: AlignmentOrientation) -> bool {
         match dir {
-            AlignmentDirection::FF => true,
-            AlignmentDirection::RR => true,
-            AlignmentDirection::UU => true,
-            AlignmentDirection::FR => false,
-            AlignmentDirection::FU => false,
-            AlignmentDirection::RF => false,
-            AlignmentDirection::RU => false,
-            AlignmentDirection::UF => false,
-            AlignmentDirection::UR => false,
-            AlignmentDirection::None => true,
+            AlignmentOrientation::FF => true,
+            AlignmentOrientation::RR => true,
+            AlignmentOrientation::UU => true,
+            AlignmentOrientation::FR => false,
+            AlignmentOrientation::FU => false,
+            AlignmentOrientation::RF => false,
+            AlignmentOrientation::RU => false,
+            AlignmentOrientation::UF => false,
+            AlignmentOrientation::UR => false,
+            AlignmentOrientation::None => true,
         }
     }
 
-    fn filter_threeprime(dir: AlignmentDirection) -> bool {
+    fn filter_threeprime(dir: AlignmentOrientation) -> bool {
         match dir {
-            AlignmentDirection::FF => true,
-            AlignmentDirection::RR => true,
-            AlignmentDirection::UU => true,
-            AlignmentDirection::FR => false,
-            AlignmentDirection::FU => false,
-            AlignmentDirection::RF => false,
-            AlignmentDirection::RU => false,
-            AlignmentDirection::UF => false,
-            AlignmentDirection::UR => false,
-            AlignmentDirection::None => true,
+            AlignmentOrientation::FF => true,
+            AlignmentOrientation::RR => true,
+            AlignmentOrientation::UU => true,
+            AlignmentOrientation::FR => false,
+            AlignmentOrientation::FU => false,
+            AlignmentOrientation::RF => false,
+            AlignmentOrientation::RU => false,
+            AlignmentOrientation::UF => false,
+            AlignmentOrientation::UR => false,
+            AlignmentOrientation::None => true,
         }
     }
 }
@@ -346,8 +319,8 @@ pub enum PairState {
 /* Takes a set of sequences and optionally, mate sequences, associated sequence metadata,
  * debrujin indices of the reference library of interest,
  * the associated reference library metadata, and the aligner configuration, and performs a
- * debrujin-graph based pseduoalignment, returning a score for each reference in the reference
- * genome.
+ * debrujin-graph based pseduoalignment, returning a set of feature calls for each read-mate
+ * that passes alignment and filtration. 
  * The score set is filtered based on the provided aligner configuration. */
 pub fn get_calls<'a>(
     sequence_iterators: (
@@ -362,16 +335,15 @@ pub fn get_calls<'a>(
     indices: &(PseudoAligner, PseudoAligner),
     reference: &Reference,
     aligner_config: &AlignFilterConfig,
-    debug_info: Option<&mut AlignDebugInfo>,
 ) -> (
     Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>,
     Vec<(Vec<String>, String, f64, usize, String)>,
-    HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection)>
+    HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentOrientation)>
 ) {
-    let mut filter_reasons: HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentDirection)> = HashMap::new();
+    let mut filter_reasons: HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentOrientation)> = HashMap::new();
     let mut filter_reasons_forward: HashMap<String, ((FilterReason, usize), (FilterReason, usize))> = HashMap::new();
     let mut filter_reasons_reverse: HashMap<String, ((FilterReason, usize), (FilterReason, usize))> = HashMap::new();
-    let mut post_triaged_keys: HashMap<String, (FilterReason, AlignmentDirection)> = HashMap::new();
+    let mut post_triaged_keys: HashMap<String, (FilterReason, AlignmentOrientation)> = HashMap::new();
 
     // Unpack the index and sequence pairs
     let (index, index_revcomp) = indices;
@@ -384,8 +356,10 @@ pub fn get_calls<'a>(
     
 
     // TODO renames the score results and refactor below
-    // Generate a score for the sequences (mate sequences optional), for both the normal and reverse complemented versions of the reference
-    let (forward_score, mut forward_matched_sequences, mut forward_align_debug_info) =
+    // TODO how do we use filter_reasons? and how do we use the matched_sequences? in particular, do the scores matter at all?
+
+    // Generate a set of passing scores for the sequences (mate sequences optional), for both the regular and reverse complemented versions of the reference
+    let (sequence_scores, mut matched_sequences) =
         score_sequences(
             sequences,
             mate_sequences,
@@ -395,7 +369,7 @@ pub fn get_calls<'a>(
             aligner_config,
             &mut filter_reasons_forward
         );
-    let (mut backward_score, mut backward_matched_sequences, backward_align_debug_info) =
+    let (mut sequence_scores_revcomp_library, mut matched_sequences_revcomp_library) =
         score_sequences(
             sequences_clone,
             mate_sequences_clone,
@@ -406,41 +380,39 @@ pub fn get_calls<'a>(
             &mut filter_reasons_reverse
         );
 
-    forward_matched_sequences.append(&mut backward_matched_sequences);
+    matched_sequences.append(&mut matched_sequences_revcomp_library);
 
+    // Final results hashmap, which will contain all calls that remain after orientation filtering
     let mut results: HashMap<Vec<String>, (i32, Vec<String>, Vec<String>)> = HashMap::new();
 
-    for (key, f) in forward_score.into_iter() {
-        let r = match backward_score.get(&key) {
-            Some(_) => backward_score.remove(&key),
+    /* TODO finish this: Iterate all of the scores returned from aligning the read-pairs to the reference library in the normal orientation.
+     * If the same read-pair got a match to the revcomped version of the reference genome, it's possible that  */
+    for (read_pair_key, call) in sequence_scores.into_iter() {
+        let call_revcomp_library = match sequence_scores_revcomp_library.get(&read_pair_key) {
+            Some(_) => sequence_scores_revcomp_library.remove(&read_pair_key),
             None => None,
         };
 
-        AlignmentDirection::filter_hits(
-            Some(f),
-            r,
+        AlignmentOrientation::filter_and_coerce_sequence_call_orientations(
+            Some(call),
+            call_revcomp_library,
             &mut results,
             reference,
             aligner_config,
-            &mut forward_align_debug_info,
-            &mut forward_matched_sequences,
-            key,
-            debug_info.is_some(),
+            read_pair_key,
             &mut post_triaged_keys
         );
     }
 
-    for (key, r) in backward_score.into_iter() {
-        AlignmentDirection::filter_hits(
+    // All sequence_scores have been processed -- process the remaining calls unique to sequence_scores_revcomp_library
+    for (key, r) in sequence_scores_revcomp_library.into_iter() {
+        AlignmentOrientation::filter_and_coerce_sequence_call_orientations(
             None,
             Some(r),
             &mut results,
             reference,
             aligner_config,
-            &mut forward_align_debug_info,
-            &mut forward_matched_sequences,
             key,
-            debug_info.is_some(),
             &mut post_triaged_keys
         );
     }
@@ -449,22 +421,23 @@ pub fn get_calls<'a>(
         let reverse_value = filter_reasons_reverse.get(&key).unwrap();
         match post_triaged_keys.get(&key) {
             Some(triage) => filter_reasons.insert(key, (value.0, value.1, reverse_value.0, reverse_value.1, triage.0, triage.1)),
-            None => filter_reasons.insert(key, (value.0, value.1, reverse_value.0, reverse_value.1, FilterReason::None, AlignmentDirection::None))
+            None => filter_reasons.insert(key, (value.0, value.1, reverse_value.0, reverse_value.1, FilterReason::None, AlignmentOrientation::None))
         };
     }
 
+    // Iterate the keys and values in the results hashmap, pushing them to the results vector to return
     let mut ret = Vec::new();
     for (key, value) in results.into_iter() {
         ret.push((key, value));
     }
 
-    (ret, forward_matched_sequences, filter_reasons)
+    (ret, matched_sequences, filter_reasons)
 }
 
 
 /* 
   * The core alignment function.
-  * Takes a list of sequences, and optionally reverse sequences, and produces a map of those reads/read-pairs and their feature calls
+  * Takes a list of sequences, and optionally reverse sequences, and produces a map of those reads/read-pairs and their corresponding feature calls
   * based on a given reference library and aligner configuration
   */
 fn score_sequences<'a>(
@@ -486,8 +459,7 @@ fn score_sequences<'a>(
             Vec<String>,
         ),
     >,
-    Vec<(Vec<String>, String, f64, usize, String)>,
-    AlignDebugInfo,
+    Vec<(Vec<String>, String, f64, usize, String)>
 ) {
     let mut score_map: HashMap<
         String,
@@ -499,7 +471,6 @@ fn score_sequences<'a>(
             Vec<String>,
         ),
     > = HashMap::new();
-    let mut debug_info: AlignDebugInfo = Default::default();
     let mut read_matches: Vec<(Vec<String>, String, f64, usize, String)> = Vec::new();
     let mut metadata_iter = sequence_metadata.iter();
 
@@ -560,9 +531,11 @@ fn score_sequences<'a>(
             && filter_pair(&sequence_equivalence_class, &mate_sequence_equivalence_class)
         {
             filter_reasons.insert(read_key.clone(), ((FilterReason::NotMatchingPair, sequence_score), (FilterReason::NotMatchingPair, mate_sequence_score)));
+
+            // TODO this continue means that the read doesn't get added to the read_matches even though it's a failed alignment. Is this correct?
             continue;
         } else {
-            // Otherwise, this was a successful match
+            // Otherwise, this was either a successful match or it was filtered at a pseudoalignment level. Either way, we add it to the filter report
             filter_reasons.insert(read_key.clone(), (
                 match sequence_filter_reason {
                     Some((reason, _, _)) => (reason, sequence_score),
@@ -575,7 +548,7 @@ fn score_sequences<'a>(
             ));
         }
 
-        // At this point, if there are still alignments, we convert the equivalence classes to feature lists by looking them up in the reference
+        // At this point, if there are unfiltered alignments, we convert the equivalence classes to feature lists by looking them up in the reference
         // TODO pretty sure this is a bug, we should use both, not just one class
         if !sequence_equivalence_class.is_empty() || !mate_sequence_equivalence_class.is_empty() {
             let feature_list = if !sequence_equivalence_class.is_empty() {
@@ -586,18 +559,12 @@ fn score_sequences<'a>(
                 Vec::new()
             };
 
-
-
-
-
-
-
-
-
-
-            // TODO refactor below
-            // Package the equivalence classes and scores into a result value for the score map
-            let (pair_score, s, r_s, n_s, r_n_s) = if !sequence_equivalence_class.is_empty() && !mate_sequence_equivalence_class.is_empty() {
+            // Package the equivalence classes and metadata into a result value for the score map
+            let (pair_score,
+                normalized_sequence_score,
+                normalized_mate_sequence_score,
+                sequence_score,
+                mate_sequence_score) = if !sequence_equivalence_class.is_empty() && !mate_sequence_equivalence_class.is_empty() {
                 (
                     (
                         PairState::Both,
@@ -645,41 +612,39 @@ fn score_sequences<'a>(
 
 
 
-
-
-            // TODO refactor below
+            // TODO refactor below. I think this is fine but it'll depend on how the read_matches get used upstream
+            // At this point, we have a match and add it to read_matches and score_map, which are this function's exports
             match pair_score.0 {
                 PairState::First => {
-                    read_matches.push((feature_list.clone(), read.to_string(), s, n_s, read_key.clone()))
+                    read_matches.push((feature_list.clone(), read.to_string(), normalized_sequence_score, sequence_score, read_key.clone()))
                 }
                 PairState::Second => match &read_rev {
                     Some(r) => read_matches.push((
                         feature_list.clone(),
                         r.to_string(),
-                        r_s,
-                        r_n_s,
+                        normalized_mate_sequence_score,
+                        mate_sequence_score,
                         read_key.clone(),
                     )),
                     None => (),
                 },
                 PairState::Both => {
-                    read_matches.push((feature_list.clone(), read.to_string(), s, r_n_s, read_key.clone()))
+                    read_matches.push((feature_list.clone(), read.to_string(), normalized_sequence_score, sequence_score, read_key.clone()))
                 }
                 PairState::None => (),
             };
             
             score_map.insert(read_key, pair_score);
-            debug_info.read_units_aligned += 1;
         } else {
-            // If both equivalence classes are empty, the attempted alignment has failed, but we still report the failed alignment
+            // If both equivalence classes are empty, the attempted alignment has failed, but we still report the failed alignment using read_matches
             let (failed_score, failed_raw_score) = if mate_sequences.is_some() {
                 match (sequence_filter_reason, mate_sequence_filter_reason) {
-                    (Some((fr, s, ns)), Some((rr, r, nr))) => {
-                        if fr == rr {
+                    (Some((filter_reason, s, ns)), Some((mate_filter_reason, r, nr))) => {
+                        if filter_reason == mate_filter_reason {
                             (s, ns)
-                        } else if (fr == FilterReason::NoMatch
-                            && rr == FilterReason::ScoreBelowThreshold)
-                            || (rr == FilterReason::NoMatch && fr == FilterReason::ScoreBelowThreshold)
+                        } else if (filter_reason == FilterReason::NoMatch
+                            && mate_filter_reason == FilterReason::ScoreBelowThreshold)
+                            || (mate_filter_reason == FilterReason::NoMatch && filter_reason == FilterReason::ScoreBelowThreshold)
                         {
                             let (s, ns) = if s > r { (s, ns) } else { (r, nr) };
 
@@ -695,6 +660,7 @@ fn score_sequences<'a>(
                     (None, None) => (0.0, 0),
                 }
             } else {
+                // If there was a match to the first sequence but it got filtered, return the scores. Otherwise return 0 (no match)
                 match sequence_filter_reason {
                     Some(r) => (r.1, r.2),
                     None => (0.0, 0)
@@ -711,7 +677,7 @@ fn score_sequences<'a>(
         }
     }
 
-    (score_map, read_matches, debug_info)
+    (score_map, read_matches)
 }
 
 // Determine whether a given pair of equivalence classes constitute a valid alignment for a read pair
@@ -763,7 +729,7 @@ fn get_intersecting_reads(
     )>,
     fallback_on_intersect_fail: bool,
     map_key: String,
-    filtered_keys: &mut HashMap<String, (FilterReason, AlignmentDirection)>
+    filtered_keys: &mut HashMap<String, (FilterReason, AlignmentOrientation)>
 ) -> (Vec<u32>, Vec<String>, Vec<String>) {
     let (seq_class, _, seq_f_data, seq_r_data) = match seq_score {
         Some((
@@ -832,7 +798,7 @@ fn get_intersecting_reads(
             (class, seq_f_data, seq_r_data)
         }
     } else {
-        filtered_keys.insert(map_key, (FilterReason::ForceIntersectFailure, AlignmentDirection::None));
+        filtered_keys.insert(map_key, (FilterReason::ForceIntersectFailure, AlignmentOrientation::None));
         (Vec::new(), seq_f_data, seq_r_data)
     }
 }
