@@ -1,17 +1,8 @@
 use crate::reference_library::Reference;
-use csv::Reader;
 use debruijn::dna_string::DnaString;
-use flate2::{Compression, GzBuilder};
 use std::fs::OpenOptions;
-use std::io::{Read, Write};
+use std::io::Write;
 use unwrap::unwrap;
-
-// Takes a reader and returns a csv reader that wraps it, configures to use tab delimiters
-pub fn get_tsv_reader<R: Read>(reader: R) -> Reader<R> {
-    csv::ReaderBuilder::new()
-        .delimiter(b'\t')
-        .from_reader(reader)
-}
 
 /* Using a Reference structure, produce 2 vectors of sequence data (normal and reverse comp), as well as a list of sequence names. */
 pub fn get_reference_sequence_data(
@@ -31,23 +22,6 @@ pub fn get_reference_sequence_data(
     }
 
     (sequence_dnastrings, sequence_dnastrings_revcomp, reference_names)
-}
-
-// Takes a result from the filtration pipeline and appends match percentages to the score tuples
-pub fn append_match_percent(
-    scores: Vec<(Vec<String>, i32)>,
-    total_hits: usize,
-) -> Vec<(Vec<String>, i32, f32)> {
-    scores
-        .iter()
-        .map(|(names, score)| {
-            (
-                names.clone(),
-                *score,
-                (*score as f32 / total_hits as f32) * 100.0,
-            )
-        })
-        .collect()
 }
 
 // Given a set of results from score() pipeline, write a TSV of the data to the given file
@@ -77,118 +51,12 @@ pub fn write_to_tsv(
     }
 }
 
-
 // Take a score vector produced by utils::convert_scores_to_percentage() and sort them by name
 pub fn sort_score_vector(
     mut scores: Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>,
 ) -> Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))> {
     scores.sort_by(|a, b| a.0.cmp(&b.0));
     scores
-}
-
-pub fn filter_scores(
-    reference_scores: Vec<(Vec<String>, i32)>,
-    score_filter: &i32,
-) -> Vec<(Vec<String>, i32)> {
-    // Remove scores below the score threshold
-    let reference_scores: Vec<(Vec<String>, i32)> = reference_scores
-        .into_iter()
-        .filter(|(_, val)| val > score_filter)
-        .collect();
-
-    reference_scores
-}
-
-pub struct PseudoalignerData {
-    pub reference_names: Vec<Vec<String>>,
-    pub read_umi_name: Vec<String>,
-    pub barcode_sample_name: Vec<String>,
-    pub score: Vec<f64>,
-    pub raw_score: Vec<usize>,
-    pub pair: Vec<String>,
-    pub sequence: Vec<String>,
-    pub strand_filter_reason: Vec<String>,
-}
-
-pub struct BamSpecificAlignMetadata {
-    pub mapq: Vec<u8>,
-    pub orientation: Vec<String>,
-    pub hits: Vec<String>,
-    pub qnames: Vec<Vec<u8>>,
-    pub quals: Vec<Vec<u8>>,
-    pub txs: Vec<String>,
-}
-
-pub fn write_read_list(
-    pseudoaligner_data: &PseudoalignerData,
-    bam_data: Option<&BamSpecificAlignMetadata>,
-    output_path: &str,
-) {
-    let mut str_rep = String::new();
-
-    // Append the results to the tsv string
-    for (i, _) in pseudoaligner_data.reference_names.iter().enumerate() {
-        if !(i < pseudoaligner_data.reference_names.len()
-            && i < pseudoaligner_data.read_umi_name.len()
-            && i < pseudoaligner_data.barcode_sample_name.len()
-            && i < pseudoaligner_data.score.len()
-            && i < pseudoaligner_data.pair.len()
-            && i < pseudoaligner_data.sequence.len()
-            && i < pseudoaligner_data.strand_filter_reason.len())
-        {
-            println!("Debug data truncated due to indexing error");
-            return;
-        }
-
-        str_rep += &pseudoaligner_data.reference_names[i].join(",");
-        str_rep += "\t";
-        str_rep += &pseudoaligner_data.read_umi_name[i];
-        str_rep += "\t";
-        str_rep += &pseudoaligner_data.barcode_sample_name[i];
-        str_rep += "\t";
-        str_rep += &pseudoaligner_data.score[i].to_string();
-        str_rep += "\t";
-        str_rep += &pseudoaligner_data.raw_score[i].to_string();
-        str_rep += "\t";
-        str_rep += &pseudoaligner_data.pair[i];
-        str_rep += "\t";
-        str_rep += &pseudoaligner_data.sequence[i];
-        str_rep += "\t";
-        str_rep += &pseudoaligner_data.strand_filter_reason[i];
-
-        if let Some(ref metadata) = bam_data {
-            if metadata.mapq.len() > 0 && i < metadata.mapq.len() {
-                str_rep += "\t";
-                str_rep += &metadata.mapq[i].to_string();
-            }
-
-            if metadata.orientation.len() > 0 && i < metadata.orientation.len() {
-                str_rep += "\t";
-                str_rep += &metadata.orientation[i].to_string();
-            }
-
-            if metadata.hits.len() > 0 && i < metadata.hits.len() {
-                str_rep += "\t";
-                str_rep += &metadata.hits[i].to_string();
-            }
-        }
-
-        str_rep += "\n";
-    }
-
-    let f = OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(output_path)
-        .expect("Could not create output file path for alignment metadata");
-
-    let mut gz = GzBuilder::new()
-        .filename(output_path)
-        .write(f, Compression::default());
-    gz.write(str_rep.as_bytes())
-        .expect("Could not write to alignment metadata file.");
-    gz.finish()
-        .expect("Could not flush to alignment metadata file buffer.");
 }
 
 pub fn revcomp(sequence: &str) -> String {
@@ -432,5 +300,109 @@ mod tests {
         assert_eq!(sorted_scores[0].1 .0, 95);
         assert_eq!(sorted_scores[1].1 .0, 85);
         assert_eq!(sorted_scores[2].1 .0, 90);
+    }
+
+    #[test]
+    fn test_sort_score_vector_empty() {
+        let scores: Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))> = vec![];
+        let sorted_scores = sort_score_vector(scores.clone());
+        assert_eq!(sorted_scores, scores);
+    }
+
+    #[test]
+    fn test_sort_score_vector_single_element() {
+        let scores = vec![(vec!["a".to_string()], (1, vec!["x".to_string()], vec!["y".to_string()]))];
+        let sorted_scores = sort_score_vector(scores.clone());
+        assert_eq!(sorted_scores, scores);
+    }
+
+    #[test]
+    fn test_sort_score_vector_multiple_elements_sorted() {
+        let scores = vec![
+            (vec!["a".to_string()], (1, vec!["x".to_string()], vec!["y".to_string()])),
+            (vec!["b".to_string()], (2, vec!["x2".to_string()], vec!["y2".to_string()])),
+            (vec!["c".to_string()], (3, vec!["x3".to_string()], vec!["y3".to_string()])),
+        ];
+        let sorted_scores = sort_score_vector(scores.clone());
+        assert_eq!(sorted_scores, scores);
+    }
+
+    #[test]
+    fn test_sort_score_vector_multiple_elements_unsorted() {
+        let scores = vec![
+            (vec!["c".to_string()], (3, vec!["x3".to_string()], vec!["y3".to_string()])),
+            (vec!["a".to_string()], (1, vec!["x".to_string()], vec!["y".to_string()])),
+            (vec!["b".to_string()], (2, vec!["x2".to_string()], vec!["y2".to_string()])),
+        ];
+        let expected_sorted_scores = vec![
+            (vec!["a".to_string()], (1, vec!["x".to_string()], vec!["y".to_string()])),
+            (vec!["b".to_string()], (2, vec!["x2".to_string()], vec!["y2".to_string()])),
+            (vec!["c".to_string()], (3, vec!["x3".to_string()], vec!["y3".to_string()])),
+        ];
+        let sorted_scores = sort_score_vector(scores);
+        assert_eq!(sorted_scores, expected_sorted_scores);
+    }
+
+    #[test]
+    fn test_sort_score_vector_multiple_elements_with_same_key() {
+        let scores = vec![
+            (vec!["a".to_string()], (1, vec!["x".to_string()], vec!["y".to_string()])),
+            (vec!["a".to_string()], (2, vec!["x2".to_string()], vec!["y2".to_string()])),
+            (vec!["b".to_string()], (3, vec!["x3".to_string()], vec!["y3".to_string()])),
+        ];
+        let expected_sorted_scores = vec![
+            (vec!["a".to_string()], (1, vec!["x".to_string()], vec!["y".to_string()])),
+            (vec!["a".to_string()], (2, vec!["x2".to_string()], vec!["y2".to_string()])),
+            (vec!["b".to_string()], (3, vec!["x3".to_string()], vec!["y3".to_string()])),
+        ];
+        let sorted_scores = sort_score_vector(scores);
+        assert_eq!(sorted_scores, expected_sorted_scores);
+    }
+
+    fn almost_equal(a: f64, b: f64, epsilon: f64) -> bool {
+        (a - b).abs() < epsilon
+    }
+
+    #[test]
+    fn test_shannon_entropy_empty_string() {
+        let dna = "";
+        let entropy = shannon_entropy(dna);
+        assert!(almost_equal(entropy, 0.0, 1e-10));
+    }
+
+    #[test]
+    fn test_shannon_entropy_single_nucleotide() {
+        let dna = "A";
+        let entropy = shannon_entropy(dna);
+        assert!(almost_equal(entropy, 0.0, 1e-10));
+    }
+
+    #[test]
+    fn test_shannon_entropy_two_nucleotides() {
+        let dna = "AT";
+        let entropy = shannon_entropy(dna);
+        assert!(almost_equal(entropy, 1.0, 1e-10));
+    }
+
+    #[test]
+    fn test_shannon_entropy_equal_frequencies() {
+        let dna = "ATCG";
+        let entropy = shannon_entropy(dna);
+        assert!(almost_equal(entropy, 2.0, 1e-10));
+    }
+
+    #[test]
+    fn test_shannon_entropy_unequal_frequencies() {
+        let dna = "AAAT";
+        let entropy = shannon_entropy(dna);
+        let expected_entropy = -(0.75 * 0.75_f64.log2() + 0.25 * 0.25_f64.log2());
+        assert!(almost_equal(entropy, expected_entropy, 1e-10));
+    }
+
+    #[test]
+    fn test_shannon_entropy_realistic_sequence() {
+        let dna = "ATCGATCGATCG";
+        let entropy = shannon_entropy(dna);
+        assert!(almost_equal(entropy, 2.0, 1e-10));
     }
 }
