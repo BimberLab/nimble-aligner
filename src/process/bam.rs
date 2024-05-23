@@ -305,9 +305,6 @@ fn align_umi_to_libraries(
                 .collect::<Vec<bool>>(),
         );
 
-        
-
-        // TODO refactor below, reliant on get_score being refactored first, probably. I think it's responsible for adding additional rows per-UMI
         if s.len() == 0 {
             results.push(vec![]);
         } else {
