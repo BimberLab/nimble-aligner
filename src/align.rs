@@ -84,18 +84,18 @@ pub struct AlignFilterConfig {
     pub require_valid_pair: bool,
     pub discard_multi_hits: usize,
     pub max_hits_to_report: usize,
-    pub strand_filter: StrandFilter,
+    pub strand_filter: LibraryChemistry,
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum StrandFilter {
+pub enum LibraryChemistry {
     Unstranded,
     FivePrime,
     ThreePrime,
     None,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum AlignmentOrientation {
     FF,
     RR,
@@ -126,6 +126,13 @@ impl fmt::Display for AlignmentOrientation {
     }
 }
 
+/* Get the orientation of a set of alignments for a single read-pair. If there's a call of the same feature for both mates,
+ * but with opposite orientations, we return FR or RF -- the strongest evidence of a successful mapping, given that the read-mates are
+ * sequenced from opposite ends of the input molecule.
+ * Single hits with one mate get FU, UF, RU, or UR respectively. A feature call of both orientations for a single mate return FF or RR,
+ * which is generally a sign of an errant mapping.
+ * Finally, if both mates hit a single orientation, with one mate hitting the other orientation, or both mates hit both orientations,
+ * we return FF or RR, which generally get filtered, or UU which is considered invalid. */
 impl AlignmentOrientation {
     fn get_alignment_orientation(
         forward_pair_state: PairState,
@@ -141,10 +148,10 @@ impl AlignmentOrientation {
             (PairState::None, PairState::First) => AlignmentOrientation::UF,
             (PairState::None, PairState::Second) => AlignmentOrientation::UR,
 
-            (PairState::Both, PairState::First) => AlignmentOrientation::UU,
-            (PairState::First, PairState::Both) => AlignmentOrientation::UU,
-            (PairState::Both, PairState::Second) => AlignmentOrientation::UU,
-            (PairState::Second, PairState::Both) => AlignmentOrientation::UU,
+            (PairState::Both, PairState::First) => AlignmentOrientation::FF,
+            (PairState::First, PairState::Both) => AlignmentOrientation::FF,
+            (PairState::Both, PairState::Second) => AlignmentOrientation::RR,
+            (PairState::Second, PairState::Both) => AlignmentOrientation::RR,
             (PairState::Both, PairState::Both) => AlignmentOrientation::UU,
             (PairState::Both, PairState::None) => AlignmentOrientation::UU,
             (PairState::None, PairState::Both) => AlignmentOrientation::UU,
@@ -182,83 +189,83 @@ impl AlignmentOrientation {
         mut filtered_keys: &mut HashMap<String, (FilterReason, AlignmentOrientation)>
     ) {
         if let Some((pair_state, _, _, _, _)) = sequence_call {
-
             // If we passed both sequence_calls and sequence_calls_revcomp_library, determine whether or not to filter the call based on both pair_states
             if let Some((pair_state_revcomp_library, _, _, _, _)) = sequence_call_revcomp_library {
                 let alignment_orientation =
                     AlignmentOrientation::get_alignment_orientation(pair_state, pair_state_revcomp_library);
 
-                if AlignmentOrientation::filter_read(alignment_orientation, &config.strand_filter) {
+                if AlignmentOrientation::filter_orientation_on_library_chemistry(alignment_orientation, &config.strand_filter) {
+                    filtered_keys.insert(read_key.clone(), (FilterReason::StrandWasWrong, alignment_orientation));
+                    return;
+                }
+
+            // Otherwise, filter the call based on only the sequence_calls pair state
+            } else {
+                let alignment_orientation =
+                    AlignmentOrientation::get_alignment_orientation(pair_state, PairState::None);
+
+                if AlignmentOrientation::filter_orientation_on_library_chemistry(alignment_orientation, &config.strand_filter) {
                     filtered_keys.insert(read_key.clone(), (FilterReason::StrandWasWrong, alignment_orientation));
                     return;
                 }
             }
-
-            // Otherwise, filter the call based on only the sequence_calls pair state
-            let alignment_orientation =
-                AlignmentOrientation::get_alignment_orientation(pair_state, PairState::None);
-
-            if AlignmentOrientation::filter_read(alignment_orientation, &config.strand_filter) {
-                filtered_keys.insert(read_key.clone(), (FilterReason::StrandWasWrong, alignment_orientation));
-                return;
-            }
-
         // If there are no sequence_calls, filter based only on the pair state in sequence_call_revcomp_library
         } else if let Some((pair_state_revcomp_library, _, _, _, _)) = sequence_call_revcomp_library {
             let alignment_orientation =
                 AlignmentOrientation::get_alignment_orientation(PairState::None, pair_state_revcomp_library);
 
-            if AlignmentOrientation::filter_read(alignment_orientation, &config.strand_filter) {
+            if AlignmentOrientation::filter_orientation_on_library_chemistry(alignment_orientation, &config.strand_filter) {
                 filtered_keys.insert(read_key.clone(), (FilterReason::StrandWasWrong, alignment_orientation));
                 return;
             }
         }
 
-
-
-
-        // TODO refactor below
-        // TODO we return before here if the pair fails the orientation filter -- does that matter??
-        // Take the "best" alignment. The specific behavior is determined by the intersect level set in the aligner config
-        let (match_eqv_class, f_bam_data, r_bam_data) = match config.intersect_level {
-            IntersectLevel::NoIntersect => get_all_reads(sequence_call, sequence_call_revcomp_library),
+        /* We have up to four different potential calls for a given read-pair, which are coerced into a single callset here.
+         * There are a few different options:
+         *  - No Intersect: merge all the calls together across normal and revcomped versions of the reference features
+         *  - Intersect With Fallback: intersect calls between the orientations, but fall back to No Intersect if the equivalence class is destroyed
+         *  - Force Intersect: intersect calls between the orientations, discarding the read upon intersection failure */
+        let (final_callset, sequence_metadata, mate_sequence_metadata) = match config.intersect_level {
+            IntersectLevel::NoIntersect => get_all_calls(&sequence_call, &sequence_call_revcomp_library),
             IntersectLevel::IntersectWithFallback => {
-                get_intersecting_reads(sequence_call, sequence_call_revcomp_library, true, read_key.clone(), &mut filtered_keys)
+                get_intersecting_reads(&sequence_call, &sequence_call_revcomp_library, true, read_key.clone(), &mut filtered_keys)
             }
             IntersectLevel::ForceIntersect => {
-                get_intersecting_reads(sequence_call, sequence_call_revcomp_library, false, read_key.clone(), &mut filtered_keys)
+                get_intersecting_reads(&sequence_call, &sequence_call_revcomp_library, false, read_key.clone(), &mut filtered_keys)
             }
         };
 
-        let key = process_equivalence_class_to_feature_list(&match_eqv_class, reference_metadata, &config);
+        let feature_callset = process_equivalence_class_to_feature_list(&final_callset, reference_metadata, &config);
 
-        // Max hits filter
-        if key.len() > config.max_hits_to_report {
+        // Max hits filter. group_by rollup reduces the number of called features, so we do this after process_equivalence_class_to_feature_list
+        if feature_callset.len() > config.max_hits_to_report {
             filtered_keys.insert(read_key.clone(), (FilterReason::MaxHitsExceeded, AlignmentOrientation::None));
             return;
         }
 
         // Ensure we don't add empty keys, if any got to this point
-        if key.len() == 0 {
+        if feature_callset.len() == 0 {
             filtered_keys.insert(read_key.clone(), (FilterReason::TriageEmptyEquivalenceClass, AlignmentOrientation::None));
             return;
         }
 
-        let (accessor, f, r) =
+        // Add the call for this read-pair to the final result
+        let (count_accessor, sequence_metadata_accessor, mate_sequence_metadata_accessor) =
             results
-                .entry(key)
+                .entry(feature_callset)
                 .or_insert((0, Vec::new(), Vec::new()));
-        *accessor += 1;
-        *f = f_bam_data;
-        *r = r_bam_data;
+        *count_accessor += 1;
+        *sequence_metadata_accessor = sequence_metadata;
+        *mate_sequence_metadata_accessor = mate_sequence_metadata;
     }
 
-    fn filter_read(dir: AlignmentOrientation, lib_type: &StrandFilter) -> bool {
+    // Given the alignment orientation derived from the set of alignments for a read-pair, determine whether to filter it or not based on the library chemistry
+    fn filter_orientation_on_library_chemistry(dir: AlignmentOrientation, lib_type: &LibraryChemistry) -> bool {
         match lib_type {
-            StrandFilter::Unstranded => AlignmentOrientation::filter_unstranded(dir),
-            StrandFilter::FivePrime => AlignmentOrientation::filter_fiveprime(dir),
-            StrandFilter::ThreePrime => AlignmentOrientation::filter_threeprime(dir),
-            StrandFilter::None => false,
+            LibraryChemistry::Unstranded => AlignmentOrientation::filter_unstranded(dir),
+            LibraryChemistry::FivePrime => AlignmentOrientation::filter_fiveprime(dir),
+            LibraryChemistry::ThreePrime => AlignmentOrientation::filter_threeprime(dir),
+            LibraryChemistry::None => false,
         }
     }
 
@@ -282,12 +289,12 @@ impl AlignmentOrientation {
             AlignmentOrientation::FF => true,
             AlignmentOrientation::RR => true,
             AlignmentOrientation::UU => true,
-            AlignmentOrientation::FR => false,
-            AlignmentOrientation::FU => false,
+            AlignmentOrientation::FR => true,
+            AlignmentOrientation::FU => true,
             AlignmentOrientation::RF => false,
             AlignmentOrientation::RU => false,
             AlignmentOrientation::UF => false,
-            AlignmentOrientation::UR => false,
+            AlignmentOrientation::UR => true,
             AlignmentOrientation::None => true,
         }
     }
@@ -299,9 +306,9 @@ impl AlignmentOrientation {
             AlignmentOrientation::UU => true,
             AlignmentOrientation::FR => false,
             AlignmentOrientation::FU => false,
-            AlignmentOrientation::RF => false,
-            AlignmentOrientation::RU => false,
-            AlignmentOrientation::UF => false,
+            AlignmentOrientation::RF => true,
+            AlignmentOrientation::RU => true,
+            AlignmentOrientation::UF => true,
             AlignmentOrientation::UR => false,
             AlignmentOrientation::None => true,
         }
@@ -353,11 +360,6 @@ pub fn get_calls<'a>(
         None => (None, None),
     };
 
-    
-
-    // TODO renames the score results and refactor below
-    // TODO how do we use filter_reasons? and how do we use the matched_sequences? in particular, do the scores matter at all?
-
     // Generate a set of passing scores for the sequences (mate sequences optional), for both the regular and reverse complemented versions of the reference
     let (sequence_scores, mut matched_sequences) =
         score_sequences(
@@ -385,8 +387,11 @@ pub fn get_calls<'a>(
     // Final results hashmap, which will contain all calls that remain after orientation filtering
     let mut results: HashMap<Vec<String>, (i32, Vec<String>, Vec<String>)> = HashMap::new();
 
-    /* TODO finish this: Iterate all of the scores returned from aligning the read-pairs to the reference library in the normal orientation.
-     * If the same read-pair got a match to the revcomped version of the reference genome, it's possible that  */
+    /* Iterate all of the calls generated from aligning the read-pairs to the reference library in the normal orientation.
+     * Send those calls to the alignment orientation filtering pipeline.
+     * If the same read-pair got a match to the revcomped version of the reference genome, grab that call and also send it to the
+     * orientation filter. Once this process is complete, the results hashmap should contain one value per unique feature, and a count of the
+     * number of read-pairs that returned a call for that feature. */
     for (read_pair_key, call) in sequence_scores.into_iter() {
         let call_revcomp_library = match sequence_scores_revcomp_library.get(&read_pair_key) {
             Some(_) => sequence_scores_revcomp_library.remove(&read_pair_key),
@@ -417,6 +422,8 @@ pub fn get_calls<'a>(
         );
     }
 
+    /*  Merge all the read-filtration information into a single collection, including normal/revcomp library
+     *   filter information, and the alignment orientation filter pipeline's returned info */
     for (key, value) in filter_reasons_forward.into_iter() {
         let reverse_value = filter_reasons_reverse.get(&key).unwrap();
         match post_triaged_keys.get(&key) {
@@ -532,7 +539,6 @@ fn score_sequences<'a>(
         {
             filter_reasons.insert(read_key.clone(), ((FilterReason::NotMatchingPair, sequence_score), (FilterReason::NotMatchingPair, mate_sequence_score)));
 
-            // TODO this continue means that the read doesn't get added to the read_matches even though it's a failed alignment. Is this correct?
             continue;
         } else {
             // Otherwise, this was either a successful match or it was filtered at a pseudoalignment level. Either way, we add it to the filter report
@@ -549,7 +555,6 @@ fn score_sequences<'a>(
         }
 
         // At this point, if there are unfiltered alignments, we convert the equivalence classes to feature lists by looking them up in the reference
-        // TODO pretty sure this is a bug, we should use both, not just one class
         if !sequence_equivalence_class.is_empty() || !mate_sequence_equivalence_class.is_empty() {
             let feature_list = if !sequence_equivalence_class.is_empty() {
                 process_equivalence_class_to_feature_list(&sequence_equivalence_class, reference, &aligner_config)
@@ -610,9 +615,6 @@ fn score_sequences<'a>(
                 continue;
             };
 
-
-
-            // TODO refactor below. I think this is fine but it'll depend on how the read_matches get used upstream
             // At this point, we have a match and add it to read_matches and score_map, which are this function's exports
             match pair_score.0 {
                 PairState::First => {
@@ -711,16 +713,16 @@ fn filter_pair(
     false
 }
 
-// Return matches that match in all of the given classes; if soft intersection is enabled, fall back to best read if one of the reads is empty
+// For two given sets of calls, intersect them to get a final callset for the read-pair. Optionally, fall back to a more permissive strategy if intersection fails
 fn get_intersecting_reads(
-    seq_score: Option<(
+    sequence_call: &Option<(
         PairState,
         Option<(Vec<u32>, f64)>,
         Option<(Vec<u32>, f64)>,
         Vec<String>,
         Vec<String>,
     )>,
-    rev_seq_score: Option<(
+    sequence_call_revcomp_library: &Option<(
         PairState,
         Option<(Vec<u32>, f64)>,
         Option<(Vec<u32>, f64)>,
@@ -728,91 +730,46 @@ fn get_intersecting_reads(
         Vec<String>,
     )>,
     fallback_on_intersect_fail: bool,
-    map_key: String,
+    read_key: String,
     filtered_keys: &mut HashMap<String, (FilterReason, AlignmentOrientation)>
 ) -> (Vec<u32>, Vec<String>, Vec<String>) {
-    let (seq_class, _, seq_f_data, seq_r_data) = match seq_score {
-        Some((
-            _,
-            Some((ref f_unowned, ref fs)),
-            Some((ref r_unowned, ref rs)),
-            ref f_data,
-            ref r_data,
-        )) => {
-            let mut f = f_unowned.clone();
-            let mut r = r_unowned.clone();
-            f.append(&mut r);
-            (
-                f.to_owned(),
-                if fs > rs {
-                    fs.to_owned()
-                } else {
-                    rs.to_owned()
-                },
-                f_data.clone(),
-                r_data.clone(),
-            )
-        }
-        Some((_, None, Some((ref r, ref rs)), ref f_data, ref r_data)) => {
-            (r.to_owned(), rs.to_owned(), f_data.clone(), r_data.clone())
-        }
-        Some((_, Some((ref f, ref fs)), None, ref f_data, ref r_data)) => {
-            (f.to_owned(), fs.to_owned(), f_data.clone(), r_data.clone())
-        }
-        _ => (Vec::new(), 0.0, Vec::new(), Vec::new()),
-    };
 
-    let (r_seq_class, _, rev_seq_f_data, rev_seq_r_data) = match rev_seq_score {
-        Some((_, Some((ref f_unowned, fs)), Some((ref r_unowned, rs)), ref f_data, ref r_data)) => {
-            let mut f = f_unowned.clone();
-            let mut r = r_unowned.clone();
-            f.append(&mut r);
-            (
-                f.to_owned(),
-                if fs > rs {
-                    fs.to_owned()
-                } else {
-                    rs.to_owned()
-                },
-                f_data.clone(),
-                r_data.clone(),
-            )
-        }
-        Some((_, None, Some((ref r, ref rs)), ref f_data, ref r_data)) => {
-            (r.to_owned(), rs.to_owned(), f_data.clone(), r_data.clone())
-        }
-        Some((_, Some((ref f, ref fs)), None, ref f_data, ref r_data)) => {
-            (f.to_owned(), fs.to_owned(), f_data.clone(), r_data.clone())
-        }
-        _ => (Vec::new(), 0.0, Vec::new(), Vec::new()),
-    };
+    // Coerce the callsets for both sets of alignments
+    let (sequence_equivalence_class, _, sequence_metadata, mate_sequence_metadata) = coerce_sequence_callset(sequence_call);
+    let (sequence_equivalence_class_revcomp_library, _, sequence_metadata_revcomp_library, mate_sequence_metadata_revcomp_library) = coerce_sequence_callset(sequence_call_revcomp_library);
 
-    let class = seq_class.intersect(r_seq_class);
+    // Get only the calls shared between normal and revcomped alignments
+    let class = sequence_equivalence_class.intersect(sequence_equivalence_class_revcomp_library);
 
+    // If that destroyed the alignment and fallback is on, use get_call_calls instead
     if class.len() == 0 && fallback_on_intersect_fail {
-        get_all_reads(seq_score, rev_seq_score)
+        get_all_calls(sequence_call, sequence_call_revcomp_library)
+    
+    // Otherwise, if the intersection succeeded, return the class with any existing metadata
     } else if class.len() != 0 {
-        if seq_f_data.is_empty() && seq_r_data.is_empty() {
-            (class, rev_seq_f_data, rev_seq_r_data)
+        if sequence_metadata.is_empty() && mate_sequence_metadata.is_empty() {
+            (class, sequence_metadata_revcomp_library, mate_sequence_metadata_revcomp_library)
         } else {
-            (class, seq_f_data, seq_r_data)
+            (class, sequence_metadata, mate_sequence_metadata)
         }
+
+    // If it failed and fallback is off, add this read-pair to the filtered list
     } else {
-        filtered_keys.insert(map_key, (FilterReason::ForceIntersectFailure, AlignmentOrientation::None));
-        (Vec::new(), seq_f_data, seq_r_data)
+        filtered_keys.insert(read_key, (FilterReason::ForceIntersectFailure, AlignmentOrientation::None));
+        (Vec::new(), sequence_metadata, mate_sequence_metadata)
     }
 }
 
-// Return best equivalence class out of the given classes
-fn get_all_reads(
-    seq_score: Option<(
+// Permissively append all the calls for a given set of sequence calls, creating one large combined equivalence class
+fn get_all_calls(
+    sequence_call: &Option<(
         PairState,
         Option<(Vec<u32>, f64)>,
         Option<(Vec<u32>, f64)>,
         Vec<String>,
         Vec<String>,
     )>,
-    rev_seq_score: Option<(
+    sequence_call_revcomp_library: &Option<(
         PairState,
         Option<(Vec<u32>, f64)>,
         Option<(Vec<u32>, f64)>,
@@ -820,65 +777,62 @@ fn get_all_reads(
         Vec<String>,
     )>,
 ) -> (Vec<u32>, Vec<String>, Vec<String>) {
-    let (mut seq_class, _, seq_f_data, seq_r_data) = match seq_score {
-        Some((_, Some((ref f_unowned, fs)), Some((ref r_unowned, rs)), f_data, r_data)) => {
-            let mut f = f_unowned.clone();
-            let mut r = r_unowned.clone();
-            f.append(&mut r);
-            (
-                f.to_owned(),
-                if fs > rs {
-                    fs.to_owned()
-                } else {
-                    rs.to_owned()
-                },
-                f_data,
-                r_data,
-            )
-        }
-        Some((_, None, Some((r, rs)), f_data, r_data)) => {
-            (r.to_owned(), rs.to_owned(), f_data, r_data)
-        }
-        Some((_, Some((f, fs)), None, f_data, r_data)) => {
-            (f.to_owned(), fs.to_owned(), f_data, r_data)
-        }
-        Some((_, None, None, f_data, r_data)) => (Vec::new(), 0.0, f_data, r_data),
-        _ => (Vec::new(), 0.0, Vec::new(), Vec::new()),
-    };
+    let (mut sequence_equivalence_class, _, sequence_metadata, mate_sequence_metadata) = coerce_sequence_callset(sequence_call);
+    let (mut sequence_equivalence_class_revcomp_library, _, sequence_metadata_revcomp_library, mate_sequence_metadata_revcomp_library) = coerce_sequence_callset(sequence_call_revcomp_library);
 
-    let (mut r_seq_class, _, rev_seq_f_data, rev_seq_r_data) = match rev_seq_score {
-        Some((_, Some((ref f_unowned, fs)), Some((ref r_unowned, rs)), f_data, r_data)) => {
-            let mut f = f_unowned.clone();
-            let mut r = r_unowned.clone();
-            f.append(&mut r);
-            (
-                f.to_owned(),
-                if fs > rs {
-                    fs.to_owned()
-                } else {
-                    rs.to_owned()
-                },
-                f_data,
-                r_data,
-            )
-        }
-        Some((_, None, Some((r, rs)), f_data, r_data)) => {
-            (r.to_owned(), rs.to_owned(), f_data, r_data)
-        }
-        Some((_, Some((f, fs)), None, f_data, r_data)) => {
-            (f.to_owned(), fs.to_owned(), f_data, r_data)
-        }
-        Some((_, None, None, f_data, r_data)) => (Vec::new(), 0.0, f_data, r_data),
-        _ => (Vec::new(), 0.0, Vec::new(), Vec::new()),
-    };
+    // Take the two coerced equivalence classes and merge them
+    sequence_equivalence_class.append(&mut sequence_equivalence_class_revcomp_library);
+    sequence_equivalence_class.unique();
 
-    seq_class.append(&mut r_seq_class);
-    seq_class.unique();
-
-    if seq_f_data.is_empty() && seq_r_data.is_empty() {
-        (seq_class, rev_seq_f_data, rev_seq_r_data)
+    // Return them and any existing metadata objects
+    if sequence_metadata.is_empty() && mate_sequence_metadata.is_empty() {
+        (sequence_equivalence_class, sequence_metadata_revcomp_library, mate_sequence_metadata_revcomp_library)
     } else {
-        (seq_class, seq_f_data, seq_r_data)
+        (sequence_equivalence_class, sequence_metadata, mate_sequence_metadata)
+    }
+}
+
+// Given a set of calls for a read-pair, coerce them down to a single equivalence class by appending and return that new class + the read metadata
+fn coerce_sequence_callset(
+    sequence_call: &Option<(
+        PairState,
+        Option<(Vec<u32>, f64)>,
+        Option<(Vec<u32>, f64)>,
+        Vec<String>,
+        Vec<String>,
+    )>,
+) -> (Vec<u32>, f64, Vec<String>, Vec<String>) {
+    // Take a given sequence call and match on the calls
+    match sequence_call {
+        // If there are calls for both read-mates, we need to coerce them down to a single equivalence class and score
+        Some((_, Some((ref sequence_equivalence_class, normalized_score)),
+                 Some((ref mate_sequence_equivalence_class, mate_normalized_score)),
+                 sequence_metadata, mate_sequence_metadata)) => {
+            
+            // Append the equivalence classes, and return whichever normalized score is higher between the two
+            let mut sequence_equivalence_class = sequence_equivalence_class.clone();
+            let mut mate_sequence_equivalence_class = mate_sequence_equivalence_class.clone();
+            sequence_equivalence_class.append(&mut mate_sequence_equivalence_class);
+            (
+                sequence_equivalence_class.to_owned(),
+                if normalized_score > mate_normalized_score {
+                    normalized_score.to_owned()
+                } else {
+                    mate_normalized_score.to_owned()
+                },
+                sequence_metadata.clone(),
+                mate_sequence_metadata.clone(),
+            )
+        }
+        // Otherwise, if there is only one score, return that score. Or if there are none, return none.
+        Some((_, None, Some((mate_sequence_equivalence_class, mate_normalized_score)), sequence_metadata, mate_sequence_metadata)) => {
+            (mate_sequence_equivalence_class.to_owned(), mate_normalized_score.to_owned(), sequence_metadata.clone(), mate_sequence_metadata.clone())
+        }
+        Some((_, Some((sequence_equivalence_class, sequence_normalized_score)), None, sequence_metadata, mate_sequence_metadata)) => {
+            (sequence_equivalence_class.to_owned(), sequence_normalized_score.to_owned(), sequence_metadata.clone(), mate_sequence_metadata.clone())
+        }
+        Some((_, None, None, sequence_metadata, mate_sequence_metadata)) => (Vec::new(), 0.0, sequence_metadata.clone(), mate_sequence_metadata.clone()),
+        _ => (Vec::new(), 0.0, Vec::new(), Vec::new()),
     }
 }
 
@@ -1028,7 +982,7 @@ mod tests {
             require_valid_pair: false,
             discard_multi_hits: 0,
             max_hits_to_report: 5,
-            strand_filter: StrandFilter::FivePrime,
+            strand_filter: LibraryChemistry::FivePrime,
         }
     }
 
@@ -1189,5 +1143,242 @@ mod tests {
 
         assert_eq!(result_1, result_2);
         assert_eq!(result_1, vec!["geneA", "geneB"]);
+    }
+
+    #[test]
+    fn test_alignment_orientation() {
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::First, PairState::First), AlignmentOrientation::FF);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::First, PairState::Second), AlignmentOrientation::FR);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::Second, PairState::First), AlignmentOrientation::RF);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::Second, PairState::Second), AlignmentOrientation::RR);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::First, PairState::None), AlignmentOrientation::FU);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::Second, PairState::None), AlignmentOrientation::RU);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::None, PairState::First), AlignmentOrientation::UF);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::None, PairState::Second), AlignmentOrientation::UR);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::Both, PairState::First), AlignmentOrientation::FF);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::First, PairState::Both), AlignmentOrientation::FF);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::Both, PairState::Second), AlignmentOrientation::RR);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::Second, PairState::Both), AlignmentOrientation::RR);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::Both, PairState::Both), AlignmentOrientation::UU);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::Both, PairState::None), AlignmentOrientation::UU);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::None, PairState::Both), AlignmentOrientation::UU);
+        assert_eq!(AlignmentOrientation::get_alignment_orientation(PairState::None, PairState::None), AlignmentOrientation::UU);
+    }
+
+    #[test]
+    fn test_filter_unstranded() {
+        assert_eq!(AlignmentOrientation::filter_unstranded(AlignmentOrientation::FF), true);
+        assert_eq!(AlignmentOrientation::filter_unstranded(AlignmentOrientation::RR), true);
+        assert_eq!(AlignmentOrientation::filter_unstranded(AlignmentOrientation::UU), true);
+        assert_eq!(AlignmentOrientation::filter_unstranded(AlignmentOrientation::FR), false);
+        assert_eq!(AlignmentOrientation::filter_unstranded(AlignmentOrientation::FU), false);
+        assert_eq!(AlignmentOrientation::filter_unstranded(AlignmentOrientation::RF), false);
+        assert_eq!(AlignmentOrientation::filter_unstranded(AlignmentOrientation::RU), false);
+        assert_eq!(AlignmentOrientation::filter_unstranded(AlignmentOrientation::UF), false);
+        assert_eq!(AlignmentOrientation::filter_unstranded(AlignmentOrientation::UR), false);
+        assert_eq!(AlignmentOrientation::filter_unstranded(AlignmentOrientation::None), true);
+    }
+
+    #[test]
+    fn test_filter_fiveprime() {
+        assert_eq!(AlignmentOrientation::filter_fiveprime(AlignmentOrientation::FF), true);
+        assert_eq!(AlignmentOrientation::filter_fiveprime(AlignmentOrientation::RR), true);
+        assert_eq!(AlignmentOrientation::filter_fiveprime(AlignmentOrientation::UU), true);
+        assert_eq!(AlignmentOrientation::filter_fiveprime(AlignmentOrientation::FR), true);
+        assert_eq!(AlignmentOrientation::filter_fiveprime(AlignmentOrientation::FU), true);
+        assert_eq!(AlignmentOrientation::filter_fiveprime(AlignmentOrientation::RF), false);
+        assert_eq!(AlignmentOrientation::filter_fiveprime(AlignmentOrientation::RU), false);
+        assert_eq!(AlignmentOrientation::filter_fiveprime(AlignmentOrientation::UF), false);
+        assert_eq!(AlignmentOrientation::filter_fiveprime(AlignmentOrientation::UR), true);
+        assert_eq!(AlignmentOrientation::filter_fiveprime(AlignmentOrientation::None), true);
+    }
+
+    #[test]
+    fn test_filter_threeprime() {
+        assert_eq!(AlignmentOrientation::filter_threeprime(AlignmentOrientation::FF), true);
+        assert_eq!(AlignmentOrientation::filter_threeprime(AlignmentOrientation::RR), true);
+        assert_eq!(AlignmentOrientation::filter_threeprime(AlignmentOrientation::UU), true);
+        assert_eq!(AlignmentOrientation::filter_threeprime(AlignmentOrientation::FR), false);
+        assert_eq!(AlignmentOrientation::filter_threeprime(AlignmentOrientation::FU), false);
+        assert_eq!(AlignmentOrientation::filter_threeprime(AlignmentOrientation::RF), true);
+        assert_eq!(AlignmentOrientation::filter_threeprime(AlignmentOrientation::RU), true);
+        assert_eq!(AlignmentOrientation::filter_threeprime(AlignmentOrientation::UF), true);
+        assert_eq!(AlignmentOrientation::filter_threeprime(AlignmentOrientation::UR), false);
+        assert_eq!(AlignmentOrientation::filter_threeprime(AlignmentOrientation::None), true);
+    }
+
+    #[test]
+    fn test_filter_orientation_on_library_chemistry() {
+        assert_eq!(AlignmentOrientation::filter_orientation_on_library_chemistry(AlignmentOrientation::FF, &LibraryChemistry::Unstranded), true);
+        assert_eq!(AlignmentOrientation::filter_orientation_on_library_chemistry(AlignmentOrientation::FR, &LibraryChemistry::Unstranded), false);
+        assert_eq!(AlignmentOrientation::filter_orientation_on_library_chemistry(AlignmentOrientation::FF, &LibraryChemistry::FivePrime), true);
+        assert_eq!(AlignmentOrientation::filter_orientation_on_library_chemistry(AlignmentOrientation::RF, &LibraryChemistry::FivePrime), false);
+        assert_eq!(AlignmentOrientation::filter_orientation_on_library_chemistry(AlignmentOrientation::FF, &LibraryChemistry::ThreePrime), true);
+        assert_eq!(AlignmentOrientation::filter_orientation_on_library_chemistry(AlignmentOrientation::FR, &LibraryChemistry::ThreePrime), false);
+        assert_eq!(AlignmentOrientation::filter_orientation_on_library_chemistry(AlignmentOrientation::FF, &LibraryChemistry::None), false);
+    }
+
+    #[test]
+    fn test_coerce_sequence_callset_both_present() {
+        let sequence_call = Some((
+            PairState::None,
+            Some((vec![1, 2, 3], 0.9)),
+            Some((vec![4, 5, 6], 0.8)),
+            vec!["seq_meta1".to_string()],
+            vec!["mate_meta1".to_string()],
+        ));
+        let result = coerce_sequence_callset(&sequence_call);
+        assert_eq!(result, (vec![1, 2, 3, 4, 5, 6], 0.9, vec!["seq_meta1".to_string()], vec!["mate_meta1".to_string()]));
+    }
+
+    #[test]
+    fn test_coerce_sequence_callset_only_mate() {
+        let sequence_call = Some((
+            PairState::None,
+            None,
+            Some((vec![4, 5, 6], 0.8)),
+            vec!["seq_meta2".to_string()],
+            vec!["mate_meta2".to_string()],
+        ));
+        let result = coerce_sequence_callset(&sequence_call);
+        assert_eq!(result, (vec![4, 5, 6], 0.8, vec!["seq_meta2".to_string()], vec!["mate_meta2".to_string()]));
+    }
+
+    #[test]
+    fn test_coerce_sequence_callset_only_sequence() {
+        let sequence_call = Some((
+            PairState::None,
+            Some((vec![1, 2, 3], 0.9)),
+            None,
+            vec!["seq_meta3".to_string()],
+            vec!["mate_meta3".to_string()],
+        ));
+        let result = coerce_sequence_callset(&sequence_call);
+        assert_eq!(result, (vec![1, 2, 3], 0.9, vec!["seq_meta3".to_string()], vec!["mate_meta3".to_string()]));
+    }
+
+    #[test]
+    fn test_coerce_sequence_callset_none_present() {
+        let sequence_call = Some((
+            PairState::None,
+            None,
+            None,
+            vec!["seq_meta4".to_string()],
+            vec!["mate_meta4".to_string()],
+        ));
+        let result = coerce_sequence_callset(&sequence_call);
+        assert_eq!(result, (vec![], 0.0, vec!["seq_meta4".to_string()], vec!["mate_meta4".to_string()]));
+    }
+
+    #[test]
+    fn test_coerce_sequence_callset_none() {
+        let result = coerce_sequence_callset(&None);
+        assert_eq!(result, (vec![], 0.0, vec![], vec![]));
+    }
+
+    #[test]
+    fn test_get_all_calls_both_present() {
+        let sequence_call = Some((
+            PairState::None,
+            Some((vec![1, 2, 3], 0.9)),
+            Some((vec![4, 5, 6], 0.8)),
+            vec!["seq_meta1".to_string()],
+            vec!["mate_meta1".to_string()],
+        ));
+        let sequence_call_revcomp_library = Some((
+            PairState::None,
+            Some((vec![7, 8, 9], 0.7)),
+            Some((vec![10, 11, 12], 0.6)),
+            vec!["seq_meta2".to_string()],
+            vec!["mate_meta2".to_string()],
+        ));
+        let result = get_all_calls(&sequence_call, &sequence_call_revcomp_library);
+        assert_eq!(result, (vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], vec!["seq_meta1".to_string()], vec!["mate_meta1".to_string()]));
+    }
+
+    #[test]
+    fn test_get_all_calls_empty_metadata() {
+        let sequence_call = Some((
+            PairState::None,
+            Some((vec![1, 2, 3], 0.9)),
+            Some((vec![4, 5, 6], 0.8)),
+            vec![],
+            vec![],
+        ));
+        let sequence_call_revcomp_library = Some((
+            PairState::None,
+            Some((vec![7, 8, 9], 0.7)),
+            Some((vec![10, 11, 12], 0.6)),
+            vec!["seq_meta2".to_string()],
+            vec!["mate_meta2".to_string()],
+        ));
+        let result = get_all_calls(&sequence_call, &sequence_call_revcomp_library);
+        assert_eq!(result, (vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], vec!["seq_meta2".to_string()], vec!["mate_meta2".to_string()]));
+    }
+
+    #[test]
+    fn test_get_intersecting_reads_intersect_success() {
+        let sequence_call = Some((
+            PairState::None,
+            Some((vec![1, 2, 3, 4], 0.9)),
+            Some((vec![4, 5, 6], 0.8)),
+            vec!["seq_meta1".to_string()],
+            vec!["mate_meta1".to_string()],
+        ));
+        let sequence_call_revcomp_library = Some((
+            PairState::None,
+            Some((vec![4, 5, 6, 7], 0.7)),
+            Some((vec![8, 9, 10], 0.6)),
+            vec!["seq_meta2".to_string()],
+            vec!["mate_meta2".to_string()],
+        ));
+        let mut filtered_keys = HashMap::new();
+        let result = get_intersecting_reads(&sequence_call, &sequence_call_revcomp_library, false, "read_key".to_string(), &mut filtered_keys);
+        assert_eq!(result, (vec![4, 5, 6], vec!["seq_meta1".to_string()], vec!["mate_meta1".to_string()]));
+        assert!(filtered_keys.is_empty());
+    }
+
+    #[test]
+    fn test_get_intersecting_reads_fallback_on_intersect_fail() {
+        let sequence_call = Some((
+            PairState::None,
+            Some((vec![1, 2, 3], 0.9)),
+            Some((vec![4, 5, 6], 0.8)),
+            vec!["seq_meta1".to_string()],
+            vec!["mate_meta1".to_string()],
+        ));
+        let sequence_call_revcomp_library = Some((
+            PairState::None,
+            Some((vec![7, 8, 9], 0.7)),
+            Some((vec![10, 11, 12], 0.6)),
+            vec!["seq_meta2".to_string()],
+            vec!["mate_meta2".to_string()],
+        ));
+        let mut filtered_keys = HashMap::new();
+        let result = get_intersecting_reads(&sequence_call, &sequence_call_revcomp_library, true, "read_key".to_string(), &mut filtered_keys);
+        assert_eq!(result, (vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], vec!["seq_meta1".to_string()], vec!["mate_meta1".to_string()]));
+        assert!(filtered_keys.is_empty());
+    }
+
+    #[test]
+    fn test_get_intersecting_reads_intersect_fail_no_fallback() {
+        let sequence_call = Some((
+            PairState::None,
+            Some((vec![1, 2, 3], 0.9)),
+            Some((vec![4, 5, 6], 0.8)),
+            vec!["seq_meta1".to_string()],
+            vec!["mate_meta1".to_string()],
+        ));
+        let sequence_call_revcomp_library = Some((
+            PairState::None,
+            Some((vec![7, 8, 9], 0.7)),
+            Some((vec![10, 11, 12], 0.6)),
+            vec!["seq_meta2".to_string()],
+            vec!["mate_meta2".to_string()],
+        ));
+        let mut filtered_keys = HashMap::new();
+        let result = get_intersecting_reads(&sequence_call, &sequence_call_revcomp_library, false, "read_key".to_string(), &mut filtered_keys);
+        assert_eq!(result, (vec![], vec!["seq_meta1".to_string()], vec!["mate_meta1".to_string()]));
+        assert_eq!(filtered_keys.get("read_key"), Some(&(FilterReason::ForceIntersectFailure, AlignmentOrientation::None)));
     }
 }

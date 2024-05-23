@@ -1,6 +1,6 @@
 extern crate nimble;
 
-use nimble::align::StrandFilter;
+use nimble::align::LibraryChemistry;
 use nimble::process::{bam, fastq};
 use nimble::reference_library;
 use nimble::utils;
@@ -39,10 +39,10 @@ fn main() {
     // Flag defining library chemistry, which impacts orientation filters
     let strand_filter = matches.value_of("strand_filter").unwrap_or("unstranded");
     let strand_filter = match strand_filter {
-        "unstranded" => StrandFilter::Unstranded,
-        "fiveprime" => StrandFilter::FivePrime,
-        "threeprime" => StrandFilter::ThreePrime,
-        "none" => StrandFilter::None,
+        "unstranded" => LibraryChemistry::Unstranded,
+        "fiveprime" => LibraryChemistry::FivePrime,
+        "threeprime" => LibraryChemistry::ThreePrime,
+        "none" => LibraryChemistry::None,
         _ => panic!("Could not parse strand_filter option."),
     };
 

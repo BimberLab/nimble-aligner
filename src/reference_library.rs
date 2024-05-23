@@ -1,4 +1,4 @@
-use crate::align::{self, StrandFilter};
+use crate::align::{self, LibraryChemistry};
 use serde_json::Value;
 use std::fs::read_to_string;
 use std::path::Path;
@@ -14,7 +14,7 @@ pub struct Reference {
 }
 
 // Parses a .json that contains a reference library. Returns a tuple of the library's aligner config values and the library data
-pub fn get_reference_library(path: &Path, strand_filter: StrandFilter) -> (align::AlignFilterConfig, Reference) {
+pub fn get_reference_library(path: &Path, strand_filter: LibraryChemistry) -> (align::AlignFilterConfig, Reference) {
     // Parse raw JSON to serde_json value
     let raw_json_string = read_to_string(path).expect("Error -- could not read reference library");
 
@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn test_get_reference_library_valid_json() {
         let path = Path::new("tests/test-sequences/libraries/reference-library-correct.json");
-        let strand_filter = StrandFilter::None;
+        let strand_filter = LibraryChemistry::None;
         let (align_config, reference_metadata) = get_reference_library(path, strand_filter);
 
         assert_eq!(align_config.score_percent, 0.85);
@@ -258,7 +258,7 @@ mod tests {
     #[should_panic(expected = "Error -- could not parse score_percent as f64")]
     fn test_get_reference_library_missing_fields() {
         let path = Path::new("tests/test-sequences/libraries/reference-library-missing-fields.json");
-        let strand_filter = StrandFilter::None; 
+        let strand_filter = LibraryChemistry::None; 
         get_reference_library(path, strand_filter);
     }
 
@@ -267,7 +267,7 @@ mod tests {
     #[should_panic(expected = "Error -- could not parse score_percent as f64")]
     fn test_get_reference_library_incorrect_field_types() {
         let path = Path::new("tests/test-sequences/libraries/reference-library-types-broken.json");
-        let strand_filter = StrandFilter::None; 
+        let strand_filter = LibraryChemistry::None; 
         get_reference_library(path, strand_filter);
     }
 
@@ -276,7 +276,7 @@ mod tests {
     #[should_panic(expected = "Error -- could not parse reference library JSON")]
     fn test_get_reference_library_corrupted_json() {
         let path = Path::new("tests/test-sequences/libraries/reference-library-broken-format.json");
-        let strand_filter = StrandFilter::None;
+        let strand_filter = LibraryChemistry::None;
         get_reference_library(path, strand_filter);
     }
 }

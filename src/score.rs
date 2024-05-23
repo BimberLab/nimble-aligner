@@ -39,6 +39,7 @@ pub fn call<'a>(
         aligner_config,
     );
 
+    // TODO refactor below
     (
         utils::sort_score_vector(reference_scores),
         alignment_metadata,
