@@ -1,0 +1,10 @@
+[
+    {
+        "score_percent": "should be a float",
+        "score_filter": "should be an integer"
+    },
+    {
+        "headers": ["id", "feature_id", "sequence"],
+        "columns": "should be an array of arrays"
+    }
+]
