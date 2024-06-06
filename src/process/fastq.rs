@@ -6,7 +6,7 @@ use crate::utils::write_to_tsv;
 
 pub fn process(
     input_files: Vec<String>,
-    reference_indices: Vec<(PseudoAligner, PseudoAligner)>,
+    reference_indices: Vec<PseudoAligner>,
     references: Vec<Reference>,
     aligner_configs: Vec<AlignFilterConfig>,
     output_paths: Vec<String>

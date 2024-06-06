@@ -2,26 +2,25 @@ use crate::reference_library::Reference;
 use debruijn::dna_string::DnaString;
 use std::fs::OpenOptions;
 use std::io::Write;
-use unwrap::unwrap;
 
-/* Using a Reference structure, produce 2 vectors of sequence data (normal and reverse comp), as well as a list of sequence names. */
+/* Using a Reference structure, produce a vector of sequence data, as well as a list of sequence names. Contains both normal and revcomp versions of the features*/
 pub fn get_reference_sequence_data(
     reference: &Reference,
-) -> (Vec<DnaString>, Vec<DnaString>, Vec<String>) {
+) -> (Vec<DnaString>, Vec<String>) {
     let sequences = reference.columns[reference.sequence_idx].iter();
     let mut sequence_names = reference.columns[reference.sequence_name_idx].iter();
 
     let mut sequence_dnastrings: Vec<DnaString> = Vec::new();
-    let mut sequence_dnastrings_revcomp: Vec<DnaString> = Vec::new();
     let mut reference_names: Vec<String> = Vec::new();
 
-    for (i, feature_sequence) in sequences.enumerate() {
+    for feature_sequence in sequences {
         sequence_dnastrings.push(DnaString::from_acgt_bytes(feature_sequence.as_bytes()));
-        sequence_dnastrings_revcomp.push(DnaString::from_dna_string(&revcomp(feature_sequence)));
-        reference_names.push(unwrap!(sequence_names.next(), "Error -- could not read library name #{} after JSON parse, corrupted internal state.", i).clone());
+
+        let sequence_name = sequence_names.next().expect("Error -- could not read library name after JSON parse, corrupted internal state.");
+        reference_names.push(sequence_name.clone());
     }
 
-    (sequence_dnastrings, sequence_dnastrings_revcomp, reference_names)
+    (sequence_dnastrings, reference_names)
 }
 
 // Given a set of results from score() pipeline, write a TSV of the data to the given file
@@ -140,15 +139,12 @@ mod tests {
             sequence_idx: 2,
         };
 
-        let (dnastrings, dnastrings_revcomp, names) = get_reference_sequence_data(&reference);
+        let (dnastrings, names) = get_reference_sequence_data(&reference);
 
         assert_eq!(dnastrings.len(), 2);
-        assert_eq!(dnastrings_revcomp.len(), 2);
         assert_eq!(names, vec!["gene1", "gene2"]);
         assert_eq!(dnastrings[0].to_string(), "ATGC");
         assert_eq!(dnastrings[1].to_string(), "CGTA");
-        assert_eq!(dnastrings_revcomp[0].to_string(), "GCAT");
-        assert_eq!(dnastrings_revcomp[1].to_string(), "TACG");
     }
 
     #[test]

@@ -1,8 +1,11 @@
 use crate::align::{self, LibraryChemistry};
+use crate::utils::revcomp;
 use serde_json::Value;
 use std::fs::read_to_string;
 use std::path::Path;
 use unwrap::unwrap;
+
+pub const SPECIAL_REVCOMP_FEATURE_NAME_SEPARATOR: &str = "§";
 
 #[derive(Debug)]
 pub struct Reference {
@@ -112,10 +115,39 @@ pub fn get_reference_library(path: &Path, strand_filter: LibraryChemistry) -> (a
         strand_filter
     };
 
+    /* For each feature in the reference genome, we add a reverse-complemented version. This is in order to compute alignment orientation,
+     * which informs several layers of filtration. */
+    let mut new_columns = Vec::new();
+    let num_rows = columns[0].len();
+
+    for row_idx in 0..num_rows {
+        let mut row = Vec::new();
+        let mut revcomp_row = Vec::new();
+
+        for col in &columns {
+            row.push(col[row_idx].clone());
+            revcomp_row.push(col[row_idx].clone());
+        }
+
+        revcomp_row[sequence_name_idx] = revcomp_row[sequence_name_idx].clone() + SPECIAL_REVCOMP_FEATURE_NAME_SEPARATOR + "rev";
+        revcomp_row[sequence_idx] = revcomp(&revcomp_row[sequence_idx]);
+
+        new_columns.push(row);
+        new_columns.push(revcomp_row);
+    }
+
+    // Transpose new_columns back to the original column format
+    let mut final_columns: Vec<Vec<String>> = vec![vec![]; columns.len()];
+    for row in new_columns {
+        for (i, val) in row.iter().enumerate() {
+            final_columns[i].push(val.clone());
+        }
+    }
+
     let reference_metadata = Reference {
         group_on,
         headers,
-        columns,
+        columns: final_columns,
         sequence_name_idx,
         sequence_idx,
     };
@@ -246,11 +278,12 @@ mod tests {
         assert_eq!(align_config.max_hits_to_report, 10);
         assert_eq!(reference_metadata.group_on, 1);
         assert_eq!(reference_metadata.headers, vec!["id".to_string(), "feature_id".to_string(), "sequence_name".to_string(), "sequence".to_string()]);
-        assert_eq!(reference_metadata.columns[0], vec!["1".to_string(), "2".to_string()]);
-        assert_eq!(reference_metadata.columns[1], vec!["fid1".to_string(), "fid2".to_string()]);
-        assert_eq!(reference_metadata.columns[2], vec!["seq_name1".to_string(), "seq_name2".to_string()]);
-        assert_eq!(reference_metadata.columns[3], vec!["ATGC".to_string(), "CGTA".to_string()]);
+        assert_eq!(reference_metadata.columns[0], vec!["1".to_string(), "1".to_string(), "2".to_string(), "2".to_string()]);
+        assert_eq!(reference_metadata.columns[1], vec!["fid1".to_string(), "fid1".to_string(), "fid2".to_string(), "fid2".to_string()]);
+        assert_eq!(reference_metadata.columns[2], vec!["seq_name1".to_string(), "seq_name1§rev".to_string(), "seq_name2".to_string(), "seq_name2§rev".to_string()]);
+        assert_eq!(reference_metadata.columns[3], vec!["ATGC".to_string(), "GCAT".to_string(), "CGTA".to_string(), "TACG".to_string()]);
         assert_eq!(reference_metadata.sequence_name_idx, 2);
+        assert_eq!(reference_metadata.sequence_idx, 3);
     }
 
     // Test that missing fields fail to parse

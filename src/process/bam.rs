@@ -41,7 +41,7 @@ fn bam_data_header(prefix: &str) -> String {
 // Multithreaded UMI-scoring pipeline for processing .bam files
 pub fn process(
     input_files: Vec<String>,
-    reference_indices: Vec<(PseudoAligner, PseudoAligner)>,
+    reference_indices: Vec<PseudoAligner>,
     references: Vec<Reference>,
     aligner_configs: Vec<AlignFilterConfig>,
     output_paths: Vec<String>,
@@ -186,7 +186,7 @@ pub fn process(
                     let results = align_umi_to_libraries(
                         umi,
                         current_metadata_group,
-                        &*reference_indices,
+                        &reference_indices,
                         &*reference_metadata,
                         &*align_configs
                     );
@@ -224,7 +224,7 @@ pub fn process(
 fn get_calls<'a>(
     umi: &'a Vec<DnaString>,
     umi_metadata: &'a Vec<Vec<String>>,
-    reference_index: &(PseudoAligner, PseudoAligner),
+    reference_index: &PseudoAligner,
     reference: &Reference,
     aligner_config: &AlignFilterConfig,
     reverse_comp_read: &'a Vec<bool>,
@@ -284,7 +284,7 @@ fn get_calls<'a>(
 fn align_umi_to_libraries(
     umi: Vec<DnaString>,
     umi_metadata: Vec<Vec<String>>,
-    reference_indices: &Vec<(PseudoAligner, PseudoAligner)>,
+    reference_indices: &Vec<PseudoAligner>,
     references: &Vec<Reference>,
     aligner_configs: &Vec<AlignFilterConfig>,
 ) -> Vec<Vec<(Vec<String>, (i32, Vec<String>, Vec<String>, (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentOrientation))>> {

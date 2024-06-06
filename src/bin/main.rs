@@ -85,12 +85,11 @@ fn main() {
                 strand_filter,
             );
 
-        // Get sequences and feature names from the reference library for producing indices in both normal and reverse orientations
-        let (reference_sequences, reference_sequences_revcomp, reference_feature_names) =
+        // Get sequences and feature names from the reference library for producing the library index
+        let (reference_sequences, reference_feature_names) =
             utils::get_reference_sequence_data(&reference);
 
-        // Produce two reference indices from the library sequence data: one of the normal sequence of the feature, and one of the revcomped sequence of the
-        // feature. This allows us to align a read-pair against both and catch matches in either F1R2 or R1F2 read orientations.
+        // Produce reference index from the library sequence data
         let reference_index =
             debruijn_mapping::build_index::build_index::<debruijn::kmer::Kmer30>(
                 &reference_sequences,
@@ -100,17 +99,7 @@ fn main() {
             )
             .expect("Error -- could not create pseudoaligner index of the reference library");
 
-        let reference_index_revcomp = debruijn_mapping::build_index::build_index::<
-            debruijn::kmer::Kmer30,
-        >(
-            &reference_sequences_revcomp,
-            &reference_feature_names,
-            &HashMap::new(),
-            num_cores,
-        )
-        .expect("Error -- could not create reverse pseudoaligner index of the reference library");
-
-        reference_indices.push((reference_index, reference_index_revcomp));
+        reference_indices.push(reference_index);
         references.push(reference);
         aligner_configs.push(aligner_config);
     }

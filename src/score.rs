@@ -21,7 +21,7 @@ pub fn call<'a>(
         Box<dyn Iterator<Item = Result<DnaString, Error>> + 'a>,
     )>,
     per_sequence_metadata: &'a Vec<Vec<String>>,
-    reference_index: &(align::PseudoAligner, align::PseudoAligner),
+    reference_index: &align::PseudoAligner,
     reference: &Reference,
     aligner_config: &align::AlignFilterConfig,
 ) -> (
