@@ -200,7 +200,6 @@ impl AlignmentOrientation {
         sequence_features = AlignmentOrientation::filter_read_calls_with_orientation(sequence_features);
         mate_sequence_features = AlignmentOrientation::filter_read_calls_with_orientation(mate_sequence_features);
 
-        // TODO we need to add filtered keys here 
         /* For each hit in the class determine an orientation based on if it's also in the other class
             * There are orientations that are valid, and those that are not. If a particular call doesn't comprise a valid orientation, it is
             * removed here. */
@@ -402,9 +401,8 @@ pub fn get_calls<'a>(
     Vec<(Vec<String>, String, f64, usize, String)>,
     HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentOrientation)>
 ) {
-    let mut filter_reasons: HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentOrientation)> = HashMap::new();
-    let mut filter_reasons_forward: HashMap<String, ((FilterReason, usize), (FilterReason, usize))> = HashMap::new();
-    let mut filter_reasons_reverse: HashMap<String, ((FilterReason, usize), (FilterReason, usize))> = HashMap::new();
+    let mut final_filter_reasons: HashMap<String, ((FilterReason, usize), (FilterReason, usize), (FilterReason, usize), (FilterReason, usize), FilterReason, AlignmentOrientation)> = HashMap::new();
+    let mut filter_reasons: HashMap<String, ((FilterReason, usize), (FilterReason, usize))> = HashMap::new();
     let mut post_triaged_keys: HashMap<String, (FilterReason, AlignmentOrientation)> = HashMap::new();
 
     // Unpack the index and sequence pairs
@@ -423,7 +421,7 @@ pub fn get_calls<'a>(
             index,
             reference,
             aligner_config,
-            &mut filter_reasons_forward
+            &mut filter_reasons
         );
 
     // Final results hashmap, which will contain all calls that remain after orientation filtering
@@ -446,11 +444,10 @@ pub fn get_calls<'a>(
 
     /*  Merge all the read-filtration information into a single collection, including normal/revcomp library
      *   filter information, and the alignment orientation filter pipeline's returned info */
-    for (key, value) in filter_reasons_forward.into_iter() {
-        let reverse_value = filter_reasons_reverse.get(&key).unwrap();
+    for (key, value) in filter_reasons.into_iter() {
         match post_triaged_keys.get(&key) {
-            Some(triage) => filter_reasons.insert(key, (value.0, value.1, reverse_value.0, reverse_value.1, triage.0, triage.1)),
-            None => filter_reasons.insert(key, (value.0, value.1, reverse_value.0, reverse_value.1, FilterReason::None, AlignmentOrientation::None))
+            Some(triage) => final_filter_reasons.insert(key, (value.0, value.1, (FilterReason::None, 0), (FilterReason::None, 0), triage.0, triage.1)),
+            None => final_filter_reasons.insert(key, (value.0, value.1, (FilterReason::None, 0), (FilterReason::None, 0), FilterReason::None, AlignmentOrientation::None))
         };
     }
 
@@ -460,7 +457,7 @@ pub fn get_calls<'a>(
         ret.push((key, value));
     }
 
-    (ret, matched_sequences, filter_reasons)
+    (ret, matched_sequences, final_filter_reasons)
 }
 
 
