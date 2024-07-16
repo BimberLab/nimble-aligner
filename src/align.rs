@@ -514,8 +514,11 @@ fn score_sequences<'a>(
         let mut read_rev: Option<DnaString> = None;
 
         // Generate score and equivalence class for this read by aligning the sequence against the reference after trimming it for quality.
-        let trimmed_read = trim_sequence(&read, sequence_metadata[1].as_str(), &aligner_config);
-        let (sequence_alignment, sequence_filter_reason) = pseudoalign(&trimmed_read, index, &aligner_config, MIN_READ_LENGTH);
+
+        // TODO add these back to the bam processing as well
+        //let trimmed_read = trim_sequence(&read, sequence_metadata[1].as_str(), &aligner_config);
+        //let (sequence_alignment, sequence_filter_reason) = pseudoalign(&trimmed_read, index, &aligner_config, MIN_READ_LENGTH);
+        let (sequence_alignment, sequence_filter_reason) = pseudoalign(&read, index, &aligner_config, MIN_READ_LENGTH);
 
         // If there's a mate sequence, also perform the alignment for it
         let mut mate_sequence_alignment: Option<AlignmentScore> = None;
@@ -527,10 +530,12 @@ fn score_sequences<'a>(
                 .expect("Error -- read and reverse read files do not have matching lengths: ")
                 .expect("Error -- could not parse reverse read. Input R2 data malformed.");
 
-            let trimmed_mate_read = trim_sequence(&mate_read, mate_sequence_metadata[1].as_str(), &aligner_config);
-            let (score, filter_reason) = pseudoalign(&trimmed_mate_read, index, &aligner_config, MIN_READ_LENGTH);
+            //let trimmed_mate_read = trim_sequence(&mate_read, mate_sequence_metadata[1].as_str(), &aligner_config);
+            //let (score, filter_reason) = pseudoalign(&trimmed_mate_read, index, &aligner_config, MIN_READ_LENGTH);
+            let (score, filter_reason) = pseudoalign(&mate_read, index, &aligner_config, MIN_READ_LENGTH);
 
             mate_sequence_alignment = Some(score);
+            //read_rev = Some(trimmed_mate_read);
             read_rev = Some(mate_read);
             mate_sequence_filter_reason = filter_reason;
         }
