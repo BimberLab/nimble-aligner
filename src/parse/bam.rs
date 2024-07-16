@@ -187,6 +187,12 @@ impl UMIReader {
             let seq =
                 UMIReader::strip_nonbio_regions(&record.seq().as_bytes()[..], record.is_reverse());
 
+            let qual = String::from_utf8(record.qual().to_vec()).unwrap_or_else(|e| {
+                            println!("QUAL parsing warning: {}", e);
+                            String::new()
+                        });
+            let qual = UMIReader::strip_nonbio_regions_qual(&qual, record.is_reverse());
+
             let mut record_fields = Vec::new();
             for field in BAM_FIELDS_TO_REPORT {
                 let field_value = if let Ok(Aux::String(s)) = record.aux(field.as_bytes()) {
@@ -199,10 +205,7 @@ impl UMIReader {
                             eprintln!("Error: {}", e);
                             String::new()
                         }),
-                        "QUAL" => String::from_utf8(record.qual().to_vec()).unwrap_or_else(|e| {
-                            eprintln!("Error: {}", e);
-                            String::new()
-                        }),
+                        "QUAL" => qual.clone(),
                         "REVERSE" => record.is_reverse().to_string(),
                         "MATE_REVERSE" => record.is_mate_reverse().to_string(),
                         "PAIRED" => record.is_paired().to_string(),
@@ -260,6 +263,25 @@ impl UMIReader {
             }
         } else {
             return DnaString::from_acgt_bytes(&seq);
+        }
+    }
+
+    // Do the same as above for the PHREDs
+    fn strip_nonbio_regions_qual(qual: &str, rev_comp: bool) -> String {
+        let trimmed_qual = if qual.len() == 124 {
+            if rev_comp {
+                qual[0..qual.len() - CLIP_LENGTH].to_string()
+            } else {
+                qual[CLIP_LENGTH..].to_string()
+            }
+        } else {
+            qual.to_string()
+        };
+    
+        if rev_comp {
+            trimmed_qual.chars().rev().collect()
+        } else {
+            trimmed_qual
         }
     }
 }

@@ -301,7 +301,7 @@ fn align_umi_to_libraries(
             &umi_metadata
                 .clone()
                 .into_iter()
-                .map(|v| parse_str_as_bool(&v[3])) // set the sequence to be reverse complemented if it has been reverse complemented in the bam record
+                .map(|v| parse_str_as_bool(&v[2])) // set the sequence to be reverse complemented if it has been reverse complemented in the bam record
                 .collect::<Vec<bool>>(),
         );
 
@@ -333,8 +333,8 @@ fn align_umi_to_libraries(
 
             let mut transformed_scores = Vec::new();
             for score in s.into_iter() {
-                let r1_key_part = reverse_comp_if_needed((&DnaString::from_dna_string(&score.1.1[15]), &parse_str_as_bool(&score.1.1[3]))).to_string();
-                let r2_key_part = reverse_comp_if_needed((&DnaString::from_dna_string(&score.1.2[15]), &parse_str_as_bool(&score.1.2[3]))).to_string();
+                let r1_key_part = reverse_comp_if_needed((&DnaString::from_dna_string(&score.1.1[15]), &parse_str_as_bool(&score.1.1[2]))).to_string();
+                let r2_key_part = reverse_comp_if_needed((&DnaString::from_dna_string(&score.1.2[15]), &parse_str_as_bool(&score.1.2[2]))).to_string();
                 let filter_result = filter_reasons.get(&(r1_key_part.clone() + &r2_key_part));
 
                 let new_score = match filter_result {

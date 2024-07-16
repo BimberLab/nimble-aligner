@@ -107,6 +107,8 @@ fn main() {
         if let Some((length, strictness)) = trim_pairs.get(i) {
             aligner_config.trim_target_length = *length;
             aligner_config.trim_strictness = *strictness;
+            println!("Manually setting trim settings for library {} | target length: {}, strictness: {}",
+                reference_json_path, aligner_config.trim_target_length, aligner_config.trim_strictness);
         }
 
         // Get sequences and feature names from the reference library for producing the library index
