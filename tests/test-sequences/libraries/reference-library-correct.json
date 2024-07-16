@@ -9,7 +9,9 @@
         "discard_multi_hits": 1,
         "intersect_level": 1,
         "max_hits_to_report": 10,
-        "group_on": "feature_id"
+        "group_on": "feature_id",
+        "trim_target_length": 40,
+        "trim_strictness": 0.9
     },
     {
         "headers": ["id", "feature_id", "sequence_name", "sequence"],

@@ -68,6 +68,14 @@ pub fn get_reference_library(path: &Path, strand_filter: LibraryChemistry) -> (a
         .as_str()
         .expect("Error -- could not parse group_on as string")
         .to_string();
+    let trim_target_length = aligner_config_obj["trim_target_length"]
+        .as_i64()
+        .expect("Error -- could not parse trim_target_length as usize")
+        as usize;
+    let trim_strictness = aligner_config_obj["trim_strictness"]
+        .as_f64()
+        .expect("Error -- could not parse trim_strictness as f64")
+        as f64;
 
 
     // Get reference library from the second JSON object in the file
@@ -112,7 +120,9 @@ pub fn get_reference_library(path: &Path, strand_filter: LibraryChemistry) -> (a
         discard_multi_hits,
         intersect_level,
         max_hits_to_report,
-        strand_filter
+        strand_filter,
+        trim_target_length,
+        trim_strictness
     };
 
     /* For each feature in the reference genome, we add a reverse-complemented version. This is in order to compute alignment orientation,
@@ -276,6 +286,8 @@ mod tests {
         assert_eq!(align_config.discard_multi_hits, 1);
         assert_eq!(align_config.intersect_level, align::IntersectLevel::IntersectWithFallback);
         assert_eq!(align_config.max_hits_to_report, 10);
+        assert_eq!(align_config.trim_target_length, 40);
+        assert_eq!(align_config.trim_strictness, 0.9);
         assert_eq!(reference_metadata.group_on, 1);
         assert_eq!(reference_metadata.headers, vec!["id".to_string(), "feature_id".to_string(), "sequence_name".to_string(), "sequence".to_string()]);
         assert_eq!(reference_metadata.columns[0], vec!["1".to_string(), "1".to_string(), "2".to_string(), "2".to_string()]);

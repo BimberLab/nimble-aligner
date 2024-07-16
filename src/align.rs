@@ -15,7 +15,7 @@ use debruijn::dna_string::DnaString;
 use lexical_sort::{natural_lexical_cmp, StringSort};
 use reference_library::Reference;
 
-const MIN_READ_LENGTH: usize = 12;
+const MIN_READ_LENGTH: usize = 40;
 const MIN_ENTROPY_SCORE: f64 = 1.75; // Higher score = lower entropy
 
 pub type PseudoAligner = debruijn_mapping::pseudoaligner::Pseudoaligner<debruijn::kmer::Kmer30>;
@@ -86,6 +86,8 @@ pub struct AlignFilterConfig {
     pub discard_multi_hits: usize,
     pub max_hits_to_report: usize,
     pub strand_filter: LibraryChemistry,
+    pub trim_strictness: f64,
+    pub trim_target_length: usize,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -511,23 +513,25 @@ fn score_sequences<'a>(
         let read = read.expect("Error -- could not parse read. Input R1 data malformed.");
         let mut read_rev: Option<DnaString> = None;
 
-        // Generate score and equivalence class for this read by aligning the sequence against the reference.
-        let (sequence_alignment, sequence_filter_reason) = pseudoalign(&read, index, &aligner_config);
+        // Generate score and equivalence class for this read by aligning the sequence against the reference after trimming it for quality.
+        let trimmed_read = trim_sequence(&read, sequence_metadata[1].as_str(), &aligner_config);
+        let (sequence_alignment, sequence_filter_reason) = pseudoalign(&trimmed_read, index, &aligner_config, MIN_READ_LENGTH);
 
         // If there's a mate sequence, also perform the alignment for it
         let mut mate_sequence_alignment: Option<AlignmentScore> = None;
         let mut mate_sequence_filter_reason: Filter = None;
 
         if let Some(itr) = &mut mate_sequences {
-            let reverse_read = itr
+            let mate_read = itr
                 .next()
                 .expect("Error -- read and reverse read files do not have matching lengths: ")
                 .expect("Error -- could not parse reverse read. Input R2 data malformed.");
 
-            let (score, filter_reason) = pseudoalign(&reverse_read, index, &aligner_config);
+            let trimmed_mate_read = trim_sequence(&mate_read, mate_sequence_metadata[1].as_str(), &aligner_config);
+            let (score, filter_reason) = pseudoalign(&trimmed_mate_read, index, &aligner_config, MIN_READ_LENGTH);
 
             mate_sequence_alignment = Some(score);
-            read_rev = Some(reverse_read);
+            read_rev = Some(mate_read);
             mate_sequence_filter_reason = filter_reason;
         }
 
@@ -837,17 +841,96 @@ fn unmap(
         .collect()
 }
 
+fn trim_sequence(sequence: &DnaString, quality: &str, aligner_config: &AlignFilterConfig) -> DnaString {
+    // Calculate the optimal trim position and perform trim
+    let trimmed_length = maxinfo(quality, aligner_config.trim_target_length, aligner_config.trim_strictness);
+    let trimmed_sequence = &sequence.to_string()[..trimmed_length];
+    DnaString::from_dna_string(trimmed_sequence)
+}
+
+fn maxinfo(quality: &str, target_length: usize, strictness: f64) -> usize {
+    const LONGEST_READ: usize = 1000;
+    const MAXQUAL: usize = 60;
+
+    // Precompute length scores
+    let mut length_scores = vec![0.0; LONGEST_READ];
+    for i in 0..LONGEST_READ {
+        let pow1 = (target_length as f64 - i as f64 - 1.0).exp();
+        let unique = (1.0 / (1.0 + pow1)).ln();
+        let coverage = ((i + 1) as f64).ln() * (1.0 - strictness);
+        length_scores[i] = unique + coverage;
+    }
+
+    // Precompute quality probabilities
+    let mut qual_probs = vec![0.0; MAXQUAL + 1];
+    for i in 0..=MAXQUAL {
+        let prob_correct = 1.0 - 10f64.powf(-((0.5 + i as f64) / 10.0));
+        qual_probs[i] = prob_correct.ln() * strictness;
+    }
+
+    let norm_ratio = compute_norm_ratio(&length_scores, LONGEST_READ * 2 as usize)
+        .max(compute_norm_ratio(&qual_probs, LONGEST_READ * 2 as usize));
+
+    let length_scores = normalize(&length_scores, norm_ratio);
+    let qual_probs = normalize(&qual_probs, norm_ratio);
+
+    // Calculate the optimal trim position
+    let mut accum_quality = 0;
+    let mut max_score = f64::MIN;
+    let mut max_score_position = 0;
+
+    for (i, &q_char) in quality.as_bytes().iter().enumerate() {
+        let q = q_char as usize;
+        let q = if q > MAXQUAL { MAXQUAL } else { q };
+        
+        accum_quality += qual_probs[q];
+        let ls = length_scores.get(i).copied().unwrap_or(0);
+        let score = ls + accum_quality;
+
+        if score as f64 >= max_score {
+            max_score = score as f64;
+            max_score_position = i + 1;
+        }
+    }
+
+    if max_score_position < 1 || max_score == 0.0 {
+        return 0;
+    } else if max_score_position < quality.len() {
+        return max_score_position
+    } else {
+        return quality.len()
+    }
+}
+
+fn compute_norm_ratio(array: &[f64], margin: usize) -> f64 {
+    let mut max_val = array[0].abs();
+
+    for &val in &array[1..] {
+        let abs_val = val.abs();
+        if abs_val > max_val {
+            max_val = abs_val;
+        }
+    }
+
+    (std::i64::MAX as f64) / (max_val * margin as f64)
+}
+
+fn normalize(array: &[f64], ratio: f64) -> Vec<i64> {
+    array.iter().map(|&val| (val * ratio) as i64).collect()
+}
+
 // Align a sequence against the reference library, with settings specified by the aligner configuration
 fn pseudoalign(
     sequence: &DnaString,
     reference_index: &PseudoAligner,
-    config: &AlignFilterConfig
+    config: &AlignFilterConfig,
+    min_read_length: usize
 ) -> (
     AlignmentScore,
     Filter
 ) {
     // Ensure all reads are above a minimum length
-    if sequence.len() < MIN_READ_LENGTH {
+    if sequence.len() < min_read_length {
         return (None, Some((FilterReason::ShortRead, 0.0, 0)));
     };
 
@@ -906,6 +989,20 @@ mod tests {
         ).expect("Failed to build index")
     }
 
+    fn create_test_sequence() -> DnaString {
+        DnaString::from_dna_string("ACGTACGTACGTACGTACGT")
+    }
+    
+    fn create_test_quality() -> String {
+        "IIIIIIIIIIIIIIIIIIII".to_string()
+    }
+
+    fn adjust_quality(quality: &str) -> String {
+        quality.chars()
+            .map(|c| (c as u8 - 33) as char)
+            .collect()
+    }
+
     fn setup_reference() -> Reference {
         Reference {
             group_on: 0,
@@ -933,6 +1030,8 @@ mod tests {
             discard_multi_hits: 0,
             max_hits_to_report: 5,
             strand_filter: LibraryChemistry::FivePrime,
+            trim_strictness: 0.5,
+            trim_target_length: 15
         }
     }
 
@@ -941,7 +1040,7 @@ mod tests {
         let sequence = DnaString::from_dna_string("ACG");
         let config = setup_config();
         let reference_index = setup_pseudoaligner();
-        let result = pseudoalign(&sequence, &reference_index, &config);
+        let result = pseudoalign(&sequence, &reference_index, &config, 12);
         assert_eq!(result.1, Some((FilterReason::ShortRead, 0.0, 0)));
     }
 
@@ -950,7 +1049,7 @@ mod tests {
         let sequence = DnaString::from_dna_string("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         let config = setup_config();
         let reference_index = setup_pseudoaligner();
-        let result = pseudoalign(&sequence, &reference_index, &config);
+        let result = pseudoalign(&sequence, &reference_index, &config, 12);
         assert_eq!(result.1, Some((FilterReason::HighEntropy, 0.0, 0)));
     }
 
@@ -959,7 +1058,7 @@ mod tests {
         let sequence = DnaString::from_dna_string("CCTGAGATTTCGAGCTCGTAACGTGACCTACGGACAC");
         let config = setup_config();
         let reference_index = setup_pseudoaligner();
-        let result = pseudoalign(&sequence, &reference_index, &config);
+        let result = pseudoalign(&sequence, &reference_index, &config, 12);
         assert_eq!(result.1, Some((FilterReason::NoMatch, 0.0, 0)));
     }
 
@@ -969,7 +1068,7 @@ mod tests {
         let mut config = setup_config();
         let reference_index = setup_pseudoaligner();
         config.score_threshold = 32;
-        let result = pseudoalign(&sequence, &reference_index, &config);
+        let result = pseudoalign(&sequence, &reference_index, &config, 12);
         assert_eq!(result.0, Some((vec![1], 1.0, 32)));
         assert_eq!(result.1, None);
     }
@@ -980,7 +1079,7 @@ mod tests {
         let mut config = setup_config();
         config.score_threshold = 1000;
         let reference_index = setup_pseudoaligner();
-        let result = pseudoalign(&sequence, &reference_index, &config);
+        let result = pseudoalign(&sequence, &reference_index, &config, 12);
         assert_eq!(result.1, Some((FilterReason::ScoreBelowThreshold, 1.0, 32)));
     }
 
@@ -1529,5 +1628,103 @@ mod tests {
         let result = get_intersecting_reads(sequence_call, mate_sequence_call, false, "read_key".to_string(), &mut filtered_keys);
         assert_eq!(result, Vec::<String>::new());
         assert_eq!(filtered_keys.get("read_key"), Some(&(FilterReason::ForceIntersectFailure, AlignmentOrientation::None)));
+    }
+
+    #[test]
+    fn test_trim_sequence_high_quality() {
+        let sequence = create_test_sequence();
+        let quality = create_test_quality();
+        let config = setup_config();
+        
+        let adjusted_quality = adjust_quality(&quality);
+        let trimmed_sequence = trim_sequence(&sequence, &adjusted_quality, &config);
+        
+        assert_eq!(trimmed_sequence.to_string(), "ACGTACGTACGTACGTACGT");
+    }
+    
+    #[test]
+    fn test_trim_sequence_low_quality() {
+        let sequence = create_test_sequence();
+        let quality = "!!!!!!!!!!!!!!!!!!!!".to_string(); // Low quality scores
+        let mut config = setup_config();
+        config.trim_strictness = 0.9;
+        
+        let adjusted_quality = adjust_quality(&quality);
+        let trimmed_sequence = trim_sequence(&sequence, &adjusted_quality, &config);
+        
+        assert_eq!(trimmed_sequence.to_string(), "A");
+    }
+    
+    #[test]
+    fn test_trim_sequence_mixed_quality() {
+        let sequence = create_test_sequence();
+        let quality = "IIIIII!!!!!!IIIIII".to_string(); // Mixed quality scores
+        let mut config = setup_config();
+        config.trim_strictness = 0.8;
+        
+        let adjusted_quality = adjust_quality(&quality);
+        let trimmed_sequence = trim_sequence(&sequence, &adjusted_quality, &config);
+        
+        assert_eq!(trimmed_sequence.to_string(), "ACGTAC");
+    }
+    
+    #[test]
+    fn test_maxinfo_all_high_quality() {
+        let quality = "IIIIIIIIIIIIIIIIIIII".to_string();
+        let target_length = 15;
+        let strictness = 0.5;
+        
+        let adjusted_quality = adjust_quality(&quality);
+        let trim_length = maxinfo(&adjusted_quality, target_length, strictness);
+        
+        assert_eq!(trim_length, 20);
+    }
+    
+    #[test]
+    fn test_maxinfo_all_low_quality() {
+        let quality = "!!!!!!!!!!!!!!!!!!!!".to_string();
+        let target_length = 15;
+        let strictness = 0.9;
+        
+        let adjusted_quality = adjust_quality(&quality);
+        let trim_length = maxinfo(&adjusted_quality, target_length, strictness);
+        
+        assert_eq!(trim_length, 1);
+    }
+    
+    #[test]
+    fn test_maxinfo_mixed_quality() {
+        let quality = "IIIIII!!!!!!IIIIII".to_string();
+        let target_length = 15;
+        let strictness = 0.7;
+        
+        let adjusted_quality = adjust_quality(&quality);
+        let trim_length = maxinfo(&adjusted_quality, target_length, strictness);
+        
+        assert_eq!(trim_length, 6);
+    }
+    
+    #[test]
+    fn test_maxinfo_strictness_1() {
+        let quality = "IIIIIIIIIIIIIIIIIIII".to_string();
+        let target_length = 15;
+        let strictness = 1.0;
+        
+        let adjusted_quality = adjust_quality(&quality);
+        let trim_length = maxinfo(&adjusted_quality, target_length, strictness);
+        
+        assert_eq!(trim_length, 20);
+    }
+    
+    #[test]
+    fn test_maxinfo_strictness_0() {
+        let quality = "IIIIIIIIIIIIIIIIIIII".to_string();
+        let target_length = 15;
+        let strictness = 0.0;
+        
+        let adjusted_quality = adjust_quality(&quality);
+        let trim_length = maxinfo(&adjusted_quality, target_length, strictness);
+        
+        assert_eq!(trim_length, 20);
     }
 }

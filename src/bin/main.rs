@@ -71,19 +71,43 @@ fn main() {
     let mut references = Vec::new();
     let mut aligner_configs = Vec::new();
 
+    // Parse the trim option if provided
+    let trim_option = matches.value_of("trim");
+    let mut trim_pairs = Vec::new();
+    if let Some(trim_option) = trim_option {
+        trim_pairs = trim_option.split(',')
+            .map(|s| {
+                let mut parts = s.split(':');
+                let length = parts.next().unwrap().parse::<usize>().expect("Invalid length");
+                let strictness = parts.next().unwrap().parse::<f64>().expect("Invalid strictness");
+                (length, strictness)
+            })
+            .collect::<Vec<_>>();
+
+        if trim_pairs.len() != reference_json_paths.len() {
+            panic!("The number of trim options does not match the number of reference libraries");
+        }
+    }
+
     // Produce two debruijn graphs per reference library
-    for reference_json_path in reference_json_paths {
+    for (i, reference_json_path) in reference_json_paths.iter().enumerate() {
         println!(
             "Loading and preprocessing reference data for {}",
             reference_json_path
         );
 
         // Load the reference library into memory
-        let (aligner_config, reference) =
+        let (mut aligner_config, reference) =
             reference_library::get_reference_library(
                 Path::new(&reference_json_path),
                 strand_filter,
             );
+
+        // Update trim options if provided
+        if let Some((length, strictness)) = trim_pairs.get(i) {
+            aligner_config.trim_target_length = *length;
+            aligner_config.trim_strictness = *strictness;
+        }
 
         // Get sequences and feature names from the reference library for producing the library index
         let (reference_sequences, reference_feature_names) =

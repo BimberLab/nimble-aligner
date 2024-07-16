@@ -1,5 +1,7 @@
 [
   {
+    "trim_target_length": 40,
+    "trim_strictness": 0.9,
     "score_percent": 0.57,
     "score_filter": 25,
     "num_mismatches": 0,

@@ -38,3 +38,9 @@ args:
       help: How to filter paired-read data based on strandedness. Possible values are "unstranded" (default), "fiveprime", "threeprime", and "none"
       takes_value: true
       default_value: "unstranded"
+  - trim:
+      short: t
+      long: trim
+      value_name: TRIM
+      help: Configuration for trimming read-data, in the format <TARGET_LENGTH>:<STRICTNESS>, comma-separated, one entry for each passed library
+      takes_value: true
