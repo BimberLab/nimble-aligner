@@ -45,6 +45,7 @@ pub enum FilterReason {
     SuccessfulMatch,
     StrandWasWrong,
     TriageEmptyEquivalenceClass,
+    AboveMismatchThreshold,
     None,
 }
 
@@ -67,6 +68,7 @@ impl Display for FilterReason {
             FilterReason::SuccessfulMatch => write!(f, "Successful Match"),
             FilterReason::StrandWasWrong => write!(f, "Strandedness Filtered"),
             FilterReason::TriageEmptyEquivalenceClass => write!(f, "Equivalence Class Empty After Filters"),
+            FilterReason::AboveMismatchThreshold => write!(f, "Above Mismatch Threshold"),
             FilterReason::None => write!(f, "None"),
         }
     }
@@ -942,7 +944,6 @@ fn pseudoalign(
     // Perform the alignment of the sequence to the reference debruijn graph. Pass the number of allowed mismatches
     match reference_index.map_read_with_mismatch(&sequence, config.num_mismatches) {
         Some((equivalence_class, score, mismatches)) => {
-
             // Normalize score by read length
             let normalized_score = score as f64 / sequence.len() as f64;
 
@@ -959,6 +960,8 @@ fn pseudoalign(
                 config.score_threshold,
                 config.score_percent,
                 config.discard_multiple_matches,
+                config.num_mismatches,
+                mismatches
             )
         }
         None => (None, Some((FilterReason::NoMatch, 0.0, 0))),
