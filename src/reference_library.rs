@@ -162,6 +162,8 @@ pub fn get_reference_library(path: &Path, strand_filter: LibraryChemistry) -> (a
         sequence_idx,
     };
 
+    sanity_check_align_config(&align_config);
+
     (align_config, reference_metadata)
 }
 
@@ -196,6 +198,25 @@ fn to_string_vec(v: &Value, array_name: &str) -> Vec<String> {
     .collect();
 
     result
+}
+
+pub fn sanity_check_align_config(
+    align_config: &align::AlignFilterConfig
+) {
+    // score_percent should be between 0 and 1
+    if !(0.0..=1.0).contains(&align_config.score_percent) {
+        panic!("Error -- score_percent must be between 0 and 1");
+    }
+
+    // score_filter should be positive
+    if align_config.score_filter < 0 {
+        panic!("Error -- score_filter must be positive");
+    }
+
+    // trim_strictness should be between 0 and 1
+    if !(0.0..=1.0).contains(&align_config.trim_strictness) {
+        panic!("Error -- trim_strictness must be between 0 and 1");
+    }
 }
 
 #[cfg(test)]
@@ -323,5 +344,96 @@ mod tests {
         let path = Path::new("tests/test-sequences/libraries/reference-library-broken-format.json");
         let strand_filter = LibraryChemistry::None;
         get_reference_library(path, strand_filter);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error -- score_percent must be between 0 and 1")]
+    fn test_invalid_score_percent() {
+        let align_config = align::AlignFilterConfig {
+            score_percent: 1.5, // invalid
+            score_threshold: 100,
+            num_mismatches: 2,
+            score_filter: 50,
+            discard_multi_hits: 1,
+            max_hits_to_report: 10,
+            trim_target_length: 40,
+            trim_strictness: 0.9,
+            discard_multiple_matches: true,
+            require_valid_pair: true,
+            intersect_level: align::IntersectLevel::NoIntersect,
+            strand_filter: LibraryChemistry::None,
+            discard_nonzero_mismatch: true,
+            reference_genome_size: 1,
+        };
+
+        sanity_check_align_config(&align_config);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error -- score_filter must be positive")]
+    fn test_negative_score_filter() {
+        let align_config = align::AlignFilterConfig {
+            score_percent: 0.9,
+            score_threshold: 100,
+            num_mismatches: 2,
+            score_filter: -10, // invalid
+            discard_multi_hits: 1,
+            max_hits_to_report: 10,
+            trim_target_length: 40,
+            trim_strictness: 0.9,
+            discard_multiple_matches: true,
+            require_valid_pair: true,
+            intersect_level: align::IntersectLevel::NoIntersect,
+            strand_filter: LibraryChemistry::None,
+            discard_nonzero_mismatch: true,
+            reference_genome_size: 1,
+        };
+
+        sanity_check_align_config(&align_config);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error -- trim_strictness must be between 0 and 1")]
+    fn test_invalid_trim_strictness() {
+        let align_config = align::AlignFilterConfig {
+            score_percent: 0.9,
+            score_threshold: 100,
+            num_mismatches: 2,
+            score_filter: 50,
+            discard_multi_hits: 1,
+            max_hits_to_report: 10,
+            trim_target_length: 40,
+            trim_strictness: 1.5, // invalid
+            discard_multiple_matches: true,
+            require_valid_pair: true,
+            intersect_level: align::IntersectLevel::NoIntersect,
+            strand_filter: LibraryChemistry::None,
+            discard_nonzero_mismatch: true,
+            reference_genome_size: 1,
+        };
+
+        sanity_check_align_config(&align_config);
+    }
+
+    #[test]
+    fn test_valid_config() {
+        let align_config = align::AlignFilterConfig {
+            score_percent: 0.85,
+            score_threshold: 100,
+            num_mismatches: 2,
+            score_filter: 50,
+            discard_multi_hits: 1,
+            max_hits_to_report: 10,
+            trim_target_length: 40,
+            trim_strictness: 0.9,
+            discard_multiple_matches: true,
+            require_valid_pair: true,
+            intersect_level: align::IntersectLevel::NoIntersect,
+            strand_filter: LibraryChemistry::None,
+            discard_nonzero_mismatch: true,
+            reference_genome_size: 1,
+        };
+
+        sanity_check_align_config(&align_config);  // Should pass without panic
     }
 }
