@@ -1,0 +1,25 @@
+[
+    {
+        "score_percent": 0.85,
+        "score_filter": 200,
+        "score_threshold": 300,
+        "num_mismatches": 2,
+        "discard_multiple_matches": true,
+        "require_valid_pair": false,
+        "discard_multi_hits": 1,
+        "intersect_level": 1,
+        "max_hits_to_report": 10,
+        "group_on": "feature_id",
+        "trim_target_length": 40,
+        "trim_strictness": 0.9
+    },
+    {
+        "headers": ["id", "feature_id", "sequence_name", "sequence"],
+        "columns": [
+            ["1", "2"],
+            ["fid1", "fid2"],
+            ["seq_name1", "seq_name2"],
+            ["ATGCGT", "CGTACG"]
+        ]
+    }
+]

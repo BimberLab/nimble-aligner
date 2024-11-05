@@ -134,9 +134,15 @@ pub fn get_reference_library(path: &Path, strand_filter: LibraryChemistry) -> (a
         let mut row = Vec::new();
         let mut revcomp_row = Vec::new();
 
-        for col in &columns {
-            row.push(col[row_idx].clone());
-            revcomp_row.push(col[row_idx].clone());
+        for (col_idx, col) in columns.iter().enumerate() {
+            let mut value = col[row_idx].clone();
+
+            if col_idx == sequence_idx {
+                value = value.replace('U', "T").replace('u', "t");
+            }
+    
+            row.push(value.clone());
+            revcomp_row.push(value.clone());
         }
 
         revcomp_row[sequence_name_idx] = revcomp_row[sequence_name_idx].clone() + SPECIAL_REVCOMP_FEATURE_NAME_SEPARATOR + "rev";
@@ -435,5 +441,41 @@ mod tests {
         };
 
         sanity_check_align_config(&align_config);  // Should pass without panic
+    }
+
+    #[test]
+    fn test_get_reference_library_rna_to_dna_conversion() {
+        let path = Path::new("tests/test-sequences/libraries/reference-library-rna.json");
+        let strand_filter = LibraryChemistry::None;
+        let (_align_config, reference_metadata) = get_reference_library(path, strand_filter);
+
+        assert_eq!(reference_metadata.columns[3][0], "ATGCTT".to_string());
+        assert_eq!(reference_metadata.columns[3][1], "AAGCAT".to_string());
+        assert_eq!(reference_metadata.columns[3][2], "tTgcAT".to_string());
+        assert_eq!(reference_metadata.columns[3][3], "ATgcAa".to_string());
+    }
+
+    #[test]
+    fn test_get_reference_library_mixed_case_rna_to_dna_conversion() {
+        let path = Path::new("tests/test-sequences/libraries/reference-library-mixed-case-rna.json");
+        let strand_filter = LibraryChemistry::None;
+        let (_align_config, reference_metadata) = get_reference_library(path, strand_filter);
+
+        assert_eq!(reference_metadata.columns[3][0], "atGcTt".to_string());
+        assert_eq!(reference_metadata.columns[3][1], "aAgCat".to_string());
+        assert_eq!(reference_metadata.columns[3][2], "TtgCAt".to_string());
+        assert_eq!(reference_metadata.columns[3][3], "aTGcaA".to_string());
+    }
+
+    #[test]
+    fn test_get_reference_library_sequence_without_rna_bases() {
+        let path = Path::new("tests/test-sequences/libraries/reference-library-no-rna-bases.json");
+        let strand_filter = LibraryChemistry::None;
+        let (_align_config, reference_metadata) = get_reference_library(path, strand_filter);
+
+        assert_eq!(reference_metadata.columns[3][0], "ATGCGT".to_string());
+        assert_eq!(reference_metadata.columns[3][1], "ACGCAT".to_string());
+        assert_eq!(reference_metadata.columns[3][2], "CGTACG".to_string());
+        assert_eq!(reference_metadata.columns[3][3], "CGTACG".to_string());
     }
 }
