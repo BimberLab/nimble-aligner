@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{self};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::io::Read;
 
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Error, Write};
@@ -80,14 +81,18 @@ pub fn process(
                     let file_handle = &mut log_files[index];
     
                     if first_write[index] {
-                        writeln!(
+                        println!("Writing header for file {}", index);
+
+                        if let Err(e) = writeln!(
                             file_handle,
                             "nimble_features\tnimble_score\t{}\t{}\t{}",
                             bam_data_header("r1"),
                             bam_data_header("r2"),
                             "r1_filter_forward\tr1_forward_score\tr1_filter_reverse\tr1_reverse_score\tr2_filter_forward\tr2_forward_score\tr2_filter_reverse\tr2_reverse_score\ttriage_reason\taligndirection",
-                        )
-                        .unwrap();
+                        ) {
+                            eprintln!("Error writing header for file {}: {}", index, e);
+                        }
+
                         first_write[index] = false;
                     }
     
@@ -119,9 +124,21 @@ pub fn process(
         }
 
         // Flush buffers once termination signal is received
-        for encoder in log_files.into_iter() {
-            let _ = encoder.finish();
+        for (i, encoder) in log_files.into_iter().enumerate() {
+            match encoder.finish() {
+                Ok(_) => println!("Successfully flushed and closed file {}", i),
+                Err(e) => eprintln!("Error finishing GZIP for file {}: {}", i, e),
+            }
         }
+    
+        // Validate gzip files
+        for path in &output_paths {
+            println!("Validating GZIP file: {}", path);
+            if let Err(e) = validate_gzip(path) {
+                eprintln!("GZIP validation failed for {}: {}", path, e);
+            }
+        }
+        println!("Logging thread terminating.");
     });
 
     // Sender and reciever manage sending UMIs to the scoring pipeline, then sending those scores to the logger
@@ -399,6 +416,18 @@ fn parse_str_as_bool(v: &str) -> bool {
         "false" => false,
         _ => panic!("Could not parse revcomp field \"{}\" as boolean", v)
     }
+}
+
+fn validate_gzip(path: &str) -> Result<(), Error> {
+    use flate2::read::GzDecoder;
+    use std::fs::File;
+
+    let file = File::open(path)?;
+    let mut decoder = GzDecoder::new(file);
+    let mut buffer = Vec::new();
+    decoder.read_to_end(&mut buffer)?;
+    println!("Validation successful for {}", path);
+    Ok(())
 }
 
 #[cfg(test)]
