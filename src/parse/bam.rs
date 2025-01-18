@@ -22,7 +22,7 @@ pub const BAM_FIELDS_TO_REPORT: [&'static str; 37] = [
     "MAPQ",
     "POS",
     "MATE_POS",
-    "SEQ", // This gets filtered out before getting written to disk in the bam processingm it's just used for associating reads to filter info
+    "SEQ",
     "SEQ_LEN",
     "INSERT_SIZE",
     //"CIGAR",
