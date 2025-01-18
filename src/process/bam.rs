@@ -65,6 +65,7 @@ pub fn process(
                 let file = OpenOptions::new()
                     .write(true)
                     .create(true)
+                    .truncate(true)
                     .open(path)
                     .unwrap();
                 let buffered_writer = BufWriter::new(file);
