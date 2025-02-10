@@ -41,7 +41,7 @@ impl SortedBamReader {
             };
 
             if !record.is_paired() {
-                panic!("Error: found unpaired read, cannot run nimble in paired-end mode. Exiting.");
+                continue;
             }
 
             match record.aux(b"CB") {
