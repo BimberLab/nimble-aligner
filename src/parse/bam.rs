@@ -6,7 +6,7 @@ const READ_BLOCK_REPORT_SIZE: usize = 1000000;
 const MAX_RECORD_ERROR_REPORT_SIZE: usize = 100;
 const CLIP_LENGTH: usize = 13;
 
-pub const BAM_FIELDS_TO_REPORT: [&'static str; 37] = [
+pub const BAM_FIELDS_TO_REPORT: [&'static str; 38] = [
     "QNAME",
     "QUAL",
     "REVERSE",
@@ -44,7 +44,8 @@ pub const BAM_FIELDS_TO_REPORT: [&'static str; 37] = [
     "CB",
     "UR",
     "UY",
-    "UB"
+    "UB",
+    "SKIP_ALIGN"
 ];
 
 pub struct UMIReader {
@@ -66,9 +67,9 @@ pub struct UMIReader {
 }
 
 impl UMIReader {
-    pub fn new(file_path: &str, terminate_on_error: bool) -> UMIReader {
+    pub fn new(file_path: &str, terminate_on_error: bool, force_bam_paired: bool) -> UMIReader {
         UMIReader {
-            reader: SortedBamReader::from_path(file_path),
+            reader: SortedBamReader::from_path(file_path, force_bam_paired),
             read_counter: 0,
             current_umi_group: Vec::new(),
             current_metadata_group: Vec::new(),

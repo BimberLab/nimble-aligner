@@ -46,6 +46,7 @@ pub enum FilterReason {
     StrandWasWrong,
     TriageEmptyEquivalenceClass,
     AboveMismatchThreshold,
+    SkippedAlignDueToUnpairedDummy,
     None,
 }
 
@@ -69,6 +70,7 @@ impl Display for FilterReason {
             FilterReason::StrandWasWrong => write!(f, "Strandedness Filtered"),
             FilterReason::TriageEmptyEquivalenceClass => write!(f, "Equivalence Class Empty After Filters"),
             FilterReason::AboveMismatchThreshold => write!(f, "Above Mismatch Threshold"),
+            FilterReason::SkippedAlignDueToUnpairedDummy => write!(f, "SKipped Align Due To Unpaired Dummy Read"),
             FilterReason::None => write!(f, "None"),
         }
     }
@@ -410,14 +412,14 @@ pub fn get_calls<'a>(
     let mut post_triaged_keys: HashMap<String, (FilterReason, AlignmentOrientation)> = HashMap::new();
 
     // Unpack the index and sequence pairs
-    let (sequences, sequences_clone) = sequence_iterators;
-    let (mate_sequences, mate_sequences_clone) = match mate_sequence_iterators {
+    let (sequences, _) = sequence_iterators;
+    let (mate_sequences, _) = match mate_sequence_iterators {
         Some((l, r)) => (Some(l), Some(r)),
         None => (None, None),
     };
 
     // Generate a set of passing scores for the sequences (mate sequences optional), for both the regular and reverse complemented versions of the reference
-    let (sequence_scores, mut matched_sequences) =
+    let (sequence_scores, matched_sequences) =
         score_sequences(
             sequences,
             mate_sequences,
@@ -517,7 +519,11 @@ fn score_sequences<'a>(
 
         // Generate score and equivalence class for this read by aligning the sequence against the reference after trimming it for quality.
         let trimmed_read = trim_sequence(&read, sequence_metadata[1].as_str(), &aligner_config);
-        let (sequence_alignment, sequence_filter_reason) = pseudoalign(&trimmed_read, index, &aligner_config, MIN_READ_LENGTH);
+        let (sequence_alignment, sequence_filter_reason) = if sequence_metadata[37] == "TRUE" {
+            (None, Some((FilterReason::SkippedAlignDueToUnpairedDummy, 0.0, 0)))
+        } else {
+            pseudoalign(&trimmed_read, index, &aligner_config, MIN_READ_LENGTH)
+        };
 
         // If there's a mate sequence, also perform the alignment for it
         let mut mate_sequence_alignment: Option<AlignmentScore> = None;
@@ -530,7 +536,11 @@ fn score_sequences<'a>(
                 .expect("Error -- could not parse reverse read. Input R2 data malformed.");
 
             let trimmed_mate_read = trim_sequence(&mate_read, mate_sequence_metadata[1].as_str(), &aligner_config);
-            let (score, filter_reason) = pseudoalign(&trimmed_mate_read, index, &aligner_config, MIN_READ_LENGTH);
+            let (score, filter_reason) = if mate_sequence_metadata[37] == "TRUE" {
+                (None, Some((FilterReason::SkippedAlignDueToUnpairedDummy, 0.0, 0)))
+            } else {
+                pseudoalign(&trimmed_mate_read, index, &aligner_config, MIN_READ_LENGTH)
+            };
 
             mate_sequence_alignment = Some(score);
             read_rev = Some(mate_read);

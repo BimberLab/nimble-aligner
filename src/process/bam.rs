@@ -49,6 +49,7 @@ pub fn process(
     aligner_configs: Vec<AlignFilterConfig>,
     output_paths: Vec<String>,
     num_cores: usize,
+    force_bam_paired: bool
 ) {
     // The logger mpsc channels takes the result of alignments and write them out to the count file
     let (log_sender, log_receiver) =
@@ -155,7 +156,7 @@ pub fn process(
     // Spawn the producer thread, which reads sequences from the .bam file grouped on UMI 
     let producer_handle = thread::spawn(move || {
         println!("Spawning reader thread.");
-        let mut reader = UMIReader::new(&input_files[0], false);
+        let mut reader = UMIReader::new(&input_files[0], false, force_bam_paired);
         let mut has_aligned = false;
 
         // Iterate the reader, sending the UMI sequence data and all associated .bam metadata to the aligner

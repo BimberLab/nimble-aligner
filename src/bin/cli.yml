@@ -44,3 +44,7 @@ args:
       value_name: TRIM
       help: Configuration for trimming read-data, in the format <TARGET_LENGTH>:<STRICTNESS>, comma-separated, one entry for each passed library
       takes_value: true
+  - force_bam_paired:
+      short: p
+      long: force_bam_paired
+      help: Whether to assert paired-end reads in a .bam file. If set, will skip alignment of unpaired reads. Has no impact when aligning .fastq inputs.

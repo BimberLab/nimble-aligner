@@ -11,10 +11,11 @@ pub struct SortedBamReader {
     next_cell_barcode: String,
     dna_sorted_buffer: Vec<bam::record::Record>,
     next_records: Vec<bam::record::Record>,
+    force_bam_paired: bool
 }
 
 impl SortedBamReader {
-    pub fn from_path(file_path: &str) -> SortedBamReader {
+    pub fn from_path(file_path: &str, force_bam_paired: bool) -> SortedBamReader {
         SortedBamReader {
             reader: Reader::from_path(file_path).unwrap(),
             current_umi: String::new(),
@@ -23,6 +24,7 @@ impl SortedBamReader {
             next_umi: String::new(),
             next_cell_barcode: String::new(),
             next_records: Vec::new(),
+            force_bam_paired
         }
     }
 
@@ -40,7 +42,7 @@ impl SortedBamReader {
                 }
             };
 
-            if !record.is_paired() {
+            if !record.is_paired() && self.force_bam_paired {
                 continue;
             }
 
@@ -104,6 +106,24 @@ impl SortedBamReader {
         }
     }
 
+    fn add_dummy_paired_reads(&mut self) {
+        let mut new_buffer = Vec::new();
+        
+        for read in &mut self.dna_sorted_buffer {
+            let mut modified_read = read.clone();
+            modified_read.push_aux(b"SKIP_ALIGN", Aux::String("FALSE")).unwrap();
+            new_buffer.push(modified_read);
+            
+            if !read.is_paired() {
+                let mut dummy_duplicate = read.clone();
+                dummy_duplicate.push_aux(b"SKIP_ALIGN", Aux::String("TRUE")).unwrap();
+                new_buffer.push(dummy_duplicate);
+            }
+        }
+        
+        self.dna_sorted_buffer = new_buffer;
+    }
+
     fn filter_paired_reads(&mut self) {
         let mut paired_reads_buffer = Vec::new();
         let mut seen_qnames = std::collections::HashSet::new();
@@ -148,6 +168,9 @@ impl SortedBamReader {
             Some(r) => return Ok(r),
             None => {
                 self.fill_buffer();
+                if !self.force_bam_paired {
+                    self.add_dummy_paired_reads();
+                }
                 self.filter_paired_reads();
                 self.dna_sorted_buffer.reverse();
             }

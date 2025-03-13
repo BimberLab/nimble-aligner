@@ -53,6 +53,8 @@ fn main() {
         .map(|v| v.to_string())
         .collect();
 
+    let force_bam_paired = matches.is_present("force_bam_paired");
+
     // The first input file, used to determine which pipeline to run
     let first_input_file = &input_files[0];
     let file_path = Path::new(first_input_file);
@@ -150,6 +152,7 @@ fn main() {
             aligner_configs,
             output_paths,
             num_cores,
+            force_bam_paired
         );
     } else {
         panic!("Unsupported file format: {}", file_extension_sequence);
