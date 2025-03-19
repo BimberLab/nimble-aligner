@@ -19,7 +19,7 @@ jobs:
             target: x86_64-apple-darwin
             artifact_name: MacOS.out
           - os: windows-latest
-            target: x86_64-pc-windows-msvc
+            target: x86_64-pc-windows-gnu
             artifact_name: Windows.exe
 
     steps:
