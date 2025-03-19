@@ -1,4 +1,5 @@
 name: Release on push to main
+
 on:
   push:
     branches:
@@ -6,43 +7,47 @@ on:
 
 jobs:
   release:
-    name: Build and upload release asset
+    name: Build and upload release assets
     runs-on: ${{ matrix.os }}
-    container: ${{ matrix.container }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
             artifact_name: Linux.out
-            asset_path: ./target/x86_64-unknown-linux-musl/release/
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: MacOS.out
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: Windows.exe
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v3
-      - shell: bash
-        if: ${{matrix.os == 'ubuntu-latest'}}
-        run: |
-          sudo apt install musl-tools
-      - shell: bash
-        if: ${{matrix.os == 'ubuntu-latest'}}
-        run: |
-          rustup target add x86_64-unknown-linux-musl
-      - name: Ubuntu Build
-        if: ${{matrix.os == 'ubuntu-latest'}}
-        run: cargo build --release --target x86_64-unknown-linux-musl
-      - name: MacOS Build
-        if: ${{matrix.os == 'macos-latest'}}
-        run: cargo build --release
-      - shell: bash
-        run: |
-          mv ${{ matrix.asset_path }}nimble ${{ matrix.asset_path }}${{ matrix.artifact_name }}
+
+      - name: Install dependencies (Linux only)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt install musl-tools
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename artifact
+        shell: bash
+        run: mv target/${{ matrix.target }}/release/nimble target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
       - name: Generate release tag
         id: tag
-        run: |
-          echo "::set-output name=release_tag::release_$(date +"%Y.%m.%d_%H-%M")"
+        run: echo "release_tag=release_$(date +"%Y.%m.%d_%H-%M")" >> $GITHUB_ENV
+
       - name: Upload binary to release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.tag.outputs.release_tag }}
-          files: ${{ matrix.asset_path }}${{ matrix.artifact_name }}
+          tag_name: ${{ env.release_tag }}
+          files: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
