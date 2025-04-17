@@ -1,0 +1,2 @@
+tests/test-sequences/reads/sample.bam filter=lfs diff=lfs merge=lfs -text
+tests/test-sequences/reads/sample_no_r1.bam filter=lfs diff=lfs merge=lfs -text
