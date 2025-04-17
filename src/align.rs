@@ -543,7 +543,7 @@ fn score_sequences<'a>(
             let trimmed_mate_read = if !mate_sequence_metadata.is_empty() {
                 trim_sequence(&mate_read, mate_sequence_metadata[1].as_str(), &aligner_config)
             } else {
-                read.clone()
+                mate_read.clone()
             };
 
             let (score, filter_reason) = if !mate_sequence_metadata.is_empty() && mate_sequence_metadata[37] == "TRUE" {
