@@ -518,8 +518,13 @@ fn score_sequences<'a>(
         let mut read_rev: Option<DnaString> = None;
 
         // Generate score and equivalence class for this read by aligning the sequence against the reference after trimming it for quality.
-        let trimmed_read = trim_sequence(&read, sequence_metadata[1].as_str(), &aligner_config);
-        let (sequence_alignment, sequence_filter_reason) = if sequence_metadata[37] == "TRUE" {
+        let trimmed_read = if !sequence_metadata.is_empty() {
+            trim_sequence(&read, sequence_metadata[1].as_str(), &aligner_config)
+        } else {
+            read.clone()
+        };
+
+        let (sequence_alignment, sequence_filter_reason) = if !sequence_metadata.is_empty() && sequence_metadata[37] == "TRUE" {
             (None, Some((FilterReason::SkippedAlignDueToUnpairedDummy, 0.0, 0)))
         } else {
             pseudoalign(&trimmed_read, index, &aligner_config, MIN_READ_LENGTH)
@@ -535,8 +540,13 @@ fn score_sequences<'a>(
                 .expect("Error -- read and reverse read files do not have matching lengths: ")
                 .expect("Error -- could not parse reverse read. Input R2 data malformed.");
 
-            let trimmed_mate_read = trim_sequence(&mate_read, mate_sequence_metadata[1].as_str(), &aligner_config);
-            let (score, filter_reason) = if mate_sequence_metadata[37] == "TRUE" {
+            let trimmed_mate_read = if !mate_sequence_metadata.is_empty() {
+                trim_sequence(&mate_read, mate_sequence_metadata[1].as_str(), &aligner_config)
+            } else {
+                read.clone()
+            };
+
+            let (score, filter_reason) = if !mate_sequence_metadata.is_empty() && mate_sequence_metadata[37] == "TRUE" {
                 (None, Some((FilterReason::SkippedAlignDueToUnpairedDummy, 0.0, 0)))
             } else {
                 pseudoalign(&trimmed_mate_read, index, &aligner_config, MIN_READ_LENGTH)
