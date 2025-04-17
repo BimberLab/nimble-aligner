@@ -1,4 +1,4 @@
-/*extern crate csv;
+extern crate csv;
 extern crate debruijn;
 extern crate debruijn_mapping;
 extern crate nimble;
@@ -20,11 +20,11 @@ fn get_group_by_data(
         Box<dyn Iterator<Item = Result<DnaString, Error>>>,
         Box<dyn Iterator<Item = Result<DnaString, Error>>>,
     ),
-    (align::PseudoAligner, align::PseudoAligner),
-    reference_library::ReferenceMetadata,
+    align::PseudoAligner,
+    reference_library::Reference,
     align::AlignFilterConfig,
 ) {
-    let (sequences, reference_index, mut reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
+    let (sequences, reference_index, mut reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::LibraryChemistry::None);
 
     reference_metadata.group_on = 4;
     reference_metadata.headers.push("test_group_on".to_string());
@@ -44,15 +44,15 @@ fn get_group_by_data(
 fn basic_single_strand_no_mismatch_forward() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic.json";
-    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
+    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::LibraryChemistry::None);
 
-    let (results, _) = nimble::align::score(
+    let (results, _, _) = nimble::align::get_calls(
         sequences,
         None,
+        &Vec::new(),
         &reference_index,
         &reference_metadata,
-        &align_config,
-        None
+        &align_config
     );
     let results = utils::sort_score_vector(results);
 
@@ -64,32 +64,32 @@ fn basic_single_strand_no_mismatch_forward() {
                 String::from("A02-2"),
                 String::from("A02-LC"),
             ],
-            1,
+            (1, Vec::new(), Vec::new()),
         ),
-        (vec![String::from("A02-0"), String::from("A02-LC")], 1),
-        (vec![String::from("A02-1")], 2),
+        (vec![String::from("A02-0"), String::from("A02-LC")], (1, Vec::new(), Vec::new())),
+        (vec![String::from("A02-1")], (2, Vec::new(), Vec::new())),
     ];
-    let expected_results = utils::sort_score_vector(expected_results);
+    //let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
 }
-
+/*
 #[test]
 // Case with one mismatch
 fn basic_single_strand_one_mismatch_forward() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic.json";
-    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
+    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::LibraryChemistry::None);
 
     align_config.num_mismatches = 1;
 
-    let (results, _) = nimble::align::score(
+    let (results, _, _) = nimble::align::get_calls(
         sequences,
         None,
+        &Vec::new(),
         &reference_index,
         &reference_metadata,
-        &align_config,
-        None
+        &align_config
     );
     let results = utils::sort_score_vector(results);
 
@@ -116,17 +116,17 @@ fn basic_single_strand_one_mismatch_forward() {
 fn basic_single_strand_two_mismatch_forward() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic.json";
-    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
+    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::LibraryChemistry::None);
 
     align_config.num_mismatches = 2;
 
-    let (results, _) = nimble::align::score(
+    let (results, _, _) = nimble::align::get_calls(
         sequences,
         None,
+        &Vec::new(),
         &reference_index,
         &reference_metadata,
-        &align_config,
-        None
+        &align_config
     );
     let results = utils::sort_score_vector(results);
 
@@ -153,15 +153,15 @@ fn basic_single_strand_two_mismatch_forward() {
 fn basic_single_strand_no_mismatch_reverse() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic-rev.json";
-    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
+    let (sequences, reference_index, reference_metadata, align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::LibraryChemistry::None);
 
-    let (results, _) = nimble::align::score(
+    let (results, _, _) = nimble::align::get_calls(
         sequences,
         None,
+        &Vec::new(),
         &reference_index,
         &reference_metadata,
-        &align_config,
-        None
+        &align_config
     );
     let results = utils::sort_score_vector(results);
 
@@ -188,17 +188,17 @@ fn basic_single_strand_no_mismatch_reverse() {
 fn basic_single_strand_one_mismatch_reverse() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic-rev.json";
-    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
+    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::LibraryChemistry::None);
 
     align_config.num_mismatches = 1;
 
-    let (results, _) = nimble::align::score(
+    let (results, _, _) = nimble::align::get_calls(
         sequences,
         None,
+        &Vec::new(),
         &reference_index,
         &reference_metadata,
-        &align_config,
-        None
+        &align_config
     );
     let results = utils::sort_score_vector(results);
 
@@ -225,17 +225,17 @@ fn basic_single_strand_one_mismatch_reverse() {
 fn basic_single_strand_two_mismatch_reverse() {
     let seq_filename = "basic.fastq";
     let lib_filename = "basic-rev.json";
-    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::StrandFilter::None);
+    let (sequences, reference_index, reference_metadata, mut align_config) = utils::get_data(seq_filename, lib_filename, nimble::align::LibraryChemistry::None);
 
     align_config.num_mismatches = 2;
 
-    let (results, _) = nimble::align::score(
+    let (results, _, _) = nimble::align::get_calls(
         sequences,
         None,
+        &Vec::new(),
         &reference_index,
         &reference_metadata,
-        &align_config,
-        None
+        &align_config
     );
     let results = utils::sort_score_vector(results);
 
@@ -264,13 +264,13 @@ fn group_by_forward() {
     let lib_filename = "basic.json";
     let (sequences, reference_index, reference_metadata, align_config) = get_group_by_data(seq_filename, lib_filename);
 
-    let (results, _) = nimble::align::score(
+    let (results, _, _) = nimble::align::get_calls(
         sequences,
         None,
+        &Vec::new(),
         &reference_index,
         &reference_metadata,
-        &align_config,
-        None
+        &align_config
     );
     let results = utils::sort_score_vector(results);
 
@@ -291,13 +291,13 @@ fn group_by_rev() {
     let lib_filename = "basic.json";
     let (sequences, reference_index, reference_metadata, align_config) = get_group_by_data(seq_filename, lib_filename);
 
-    let (results, _) = nimble::align::score(
+    let (results, _, _) = nimble::align::get_calls(
         sequences,
         None,
+        &Vec::new(),
         &reference_index,
         &reference_metadata,
-        &align_config,
-        None
+        &align_config
     );
     let results = utils::sort_score_vector(results);
 
@@ -309,4 +309,5 @@ fn group_by_rev() {
     let expected_results = utils::sort_score_vector(expected_results);
 
     assert_eq!(results, expected_results);
-}*/
+}
+*/
