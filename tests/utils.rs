@@ -59,3 +59,8 @@ pub fn get_data(
 
     (sequences, reference_index, reference_metadata, align_config)
 }
+
+pub fn sort_score_vector(mut scores: Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))>) -> Vec<(Vec<String>, (i32, Vec<String>, Vec<String>))> {
+    scores.sort_by(|a, b| a.0.cmp(&b.0));
+    scores
+}
