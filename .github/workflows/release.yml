@@ -3,7 +3,7 @@ name: Release on push to main
 on:
   push:
     branches:
-      - 'main'
+      - "main"
 
 jobs:
   build:
@@ -27,12 +27,20 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools g++-musl
+          sudo apt-get install -y musl-tools
 
       - name: Add Rust target
         run: rustup target add ${{ matrix.target }}
 
-      - name: Build binary
+      - name: Build binary (Linux musl)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CC_x86_64_unknown_linux_musl: x86_64-linux-musl-gcc
+          CXX_x86_64_unknown_linux_musl: g++
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build binary (macOS)
+        if: matrix.os == 'macos-latest'
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Rename artifact
@@ -59,7 +67,6 @@ jobs:
           path: artifacts
 
       - name: Generate release tag
-        id: tag
         run: echo "release_tag=release_$(date +"%Y.%m.%d_%H-%M")" >> $GITHUB_ENV
 
       - name: Upload binaries to release
