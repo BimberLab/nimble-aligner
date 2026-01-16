@@ -54,6 +54,7 @@ fn main() {
         .collect();
 
     let force_bam_paired = matches.is_present("force_bam_paired");
+    let skip_tso_trimming = matches.is_present("skip_tso_trimming");
 
     // The first input file, used to determine which pipeline to run
     let first_input_file = &input_files[0];
@@ -152,7 +153,8 @@ fn main() {
             aligner_configs,
             output_paths,
             num_cores,
-            force_bam_paired
+            force_bam_paired,
+            skip_tso_trimming
         );
     } else {
         panic!("Unsupported file format: {}", file_extension_sequence);

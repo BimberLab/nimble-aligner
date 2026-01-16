@@ -35,6 +35,7 @@ fn run_pipeline_on_sample(filename: &str) {
         vec![outfile_path],
         2,
         false,
+        false
     );
 }
 

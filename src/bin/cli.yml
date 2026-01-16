@@ -48,3 +48,7 @@ args:
       short: p
       long: force_bam_paired
       help: Whether to assert paired-end reads in a .bam file. If set, will skip alignment of unpaired reads. Has no impact when aligning .fastq inputs.
+  - skip_tso_trimming:
+      short: tso
+      long: skip_tso_trimming
+      help: Skip nimble's built-in TSO trimming (only has an effect with BAM inputs)

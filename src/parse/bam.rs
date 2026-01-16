@@ -64,10 +64,11 @@ pub struct UMIReader {
     pub number_cr_skipped: usize,
     current_iteration_key: String,
     next_iteration_key: String,
+    skip_tso_trimming: bool
 }
 
 impl UMIReader {
-    pub fn new(file_path: &str, terminate_on_error: bool, force_bam_paired: bool) -> UMIReader {
+    pub fn new(file_path: &str, terminate_on_error: bool, force_bam_paired: bool, skip_tso_trimming: bool) -> UMIReader {
         UMIReader {
             reader: SortedBamReader::from_path(file_path, force_bam_paired),
             read_counter: 0,
@@ -84,6 +85,7 @@ impl UMIReader {
             number_cr_skipped: 0,
             current_iteration_key: String::new(),
             next_iteration_key: String::new(),
+            skip_tso_trimming: skip_tso_trimming
         }
     }
 
@@ -186,13 +188,13 @@ impl UMIReader {
             }
 
             let seq =
-                UMIReader::strip_nonbio_regions(&record.seq().as_bytes()[..], record.is_reverse());
+                UMIReader::strip_nonbio_regions(&record.seq().as_bytes()[..], record.is_reverse(), self.skip_tso_trimming);
 
             let qual = String::from_utf8(record.qual().to_vec()).unwrap_or_else(|e| {
                             println!("QUAL parsing warning: {}", e);
                             String::new()
                         });
-            let qual = UMIReader::strip_nonbio_regions_qual(&qual, record.is_reverse());
+            let qual = UMIReader::strip_nonbio_regions_qual(&qual, record.is_reverse(), self.skip_tso_trimming);
 
             let mut record_fields = Vec::new();
             for field in BAM_FIELDS_TO_REPORT {
@@ -255,8 +257,8 @@ impl UMIReader {
     // based on
     // https://assets.ctfassets.net/an68im79xiti/6yYLKUTpokvZvs4pVwnd0a/c40790cd90b7d57bc4e457e670ae3561/CG000207_ChromiumNextGEMSingleCellV_D_J_ReagentKits_v1.1_UG_RevF.pdf,
     // page 76, figure 3.1
-    fn strip_nonbio_regions(seq: &[u8], rev_comp: bool) -> DnaString {
-        if seq.len() == 124 {
+    fn strip_nonbio_regions(seq: &[u8], rev_comp: bool, skip_tso_trimming: bool) -> DnaString {
+        if seq.len() == 124 && (!skip_tso_trimming) {
             if rev_comp {
                 DnaString::from_acgt_bytes(&seq[0..seq.len() - CLIP_LENGTH])
             } else {
@@ -268,8 +270,8 @@ impl UMIReader {
     }
 
     // Do the same as above for the PHREDs
-    fn strip_nonbio_regions_qual(qual: &str, rev_comp: bool) -> String {
-        let trimmed_qual = if qual.len() == 124 {
+    fn strip_nonbio_regions_qual(qual: &str, rev_comp: bool, skip_tso_trimming: bool) -> String {
+        let trimmed_qual = if qual.len() == 124 && (!skip_tso_trimming) {
             if rev_comp {
                 qual[0..qual.len() - CLIP_LENGTH].to_string()
             } else {
